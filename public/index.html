@@ -2,58 +2,76 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-
-  <meta
-    name="viewport"
-    content="width=device-width, initial-scale=1.0, maximum-scale=1.0"
-  >
-
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
   <title>william's virtual machine</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Segoe+UI:wght@300;400;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 
   <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
+    :root {
+      --accent: #0078d4;
+      --accent-hover: #1a86d8;
+      --bg-primary: #000000;
+      --bg-secondary: #1c1c1c;
+      --bg-glass: rgba(32, 32, 32, 0.85);
+      --bg-glass-light: rgba(255,255,255,0.06);
+      --border: rgba(255,255,255,0.08);
+      --border-light: rgba(255,255,255,0.12);
+      --text-primary: #ffffff;
+      --text-secondary: #c8c8c8;
+      --text-muted: #888;
+      --taskbar-h: 48px;
+      --radius-sm: 4px;
+      --radius-md: 8px;
+      --radius-lg: 12px;
+      --win-shadow: 0 8px 32px rgba(0,0,0,0.6), 0 2px 8px rgba(0,0,0,0.4);
     }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
 
     body {
-      background: #0a0a0b;
+      background: var(--bg-primary);
       height: 100vh;
       overflow: hidden;
-      font-family: sans-serif;
+      font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+      color: var(--text-primary);
+      user-select: none;
     }
 
-    /* used on auth card submit */
-    .vm-button {
-      padding: 0.85rem 1.5rem;
-      background: #c8cdd8;
-      color: #0a0a0b;
-      border: none;
-      border-radius: 4px;
-      font-size: 0.9rem;
-      font-weight: 700;
-      cursor: pointer;
-      letter-spacing: 0.03em;
-      transition: 0.15s ease;
+    /* ── WALLPAPER CANVAS ── */
+    #snow {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 0;
+      pointer-events: none;
     }
 
-    .vm-button:hover:not(:disabled) {
-      background: #eef0f4;
-      transform: translateY(-1px);
+    /* ── WALLPAPER IMAGE BASE ── */
+    #wallpaper {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      background:
+        linear-gradient(135deg, #0a1628 0%, #0d1f3c 25%, #071220 50%, #0a1628 75%, #050d1a 100%);
+      background-size: cover;
+      background-position: center;
     }
 
-    .vm-button:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-      transform: none;
+    #wallpaper::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse at 30% 40%, rgba(0,120,212,0.12) 0%, transparent 60%),
+                  radial-gradient(ellipse at 70% 70%, rgba(0,60,140,0.1) 0%, transparent 50%);
     }
 
     /* ── DESKTOP ── */
     #desktop {
       position: fixed;
       inset: 0;
-      bottom: 48px;
+      bottom: var(--taskbar-h);
       z-index: 1;
       display: flex;
       align-items: center;
@@ -62,68 +80,88 @@
       gap: 1.5rem;
     }
 
-    #desktop h1 {
-      color: #eef0f4;
-      font-size: 1.3rem;
-      font-weight: 600;
-      letter-spacing: 0.05em;
+    #desktop-title {
+      color: var(--text-primary);
+      font-size: 1.4rem;
+      font-weight: 300;
+      letter-spacing: 0.12em;
       text-align: center;
-      text-shadow: 0 2px 12px rgba(0,0,0,0.7);
+      text-shadow: 0 2px 20px rgba(0,0,0,0.8);
+      opacity: 0.9;
     }
 
-    /* desktop icons grid */
+    /* ── DESKTOP ICONS ── */
     #desktop-icons {
       display: flex;
       flex-wrap: wrap;
-      gap: 18px;
+      gap: 20px;
       justify-content: center;
-      max-width: 520px;
+      max-width: 560px;
     }
 
     .desktop-icon {
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 6px;
+      gap: 7px;
       cursor: pointer;
-      user-select: none;
-      width: 72px;
+      width: 80px;
+      padding: 8px 4px;
+      border-radius: var(--radius-md);
+      border: 1px solid transparent;
+      transition: background 0.15s, border-color 0.15s, transform 0.15s;
     }
 
-    .desktop-icon .icon-img {
+    .desktop-icon:hover {
+      background: rgba(255,255,255,0.08);
+      border-color: rgba(255,255,255,0.15);
+    }
+
+    .desktop-icon:active {
+      transform: scale(0.96);
+    }
+
+    .desktop-icon.selected {
+      background: rgba(0,120,212,0.25);
+      border-color: rgba(0,120,212,0.5);
+    }
+
+    .icon-img {
       width: 52px;
       height: 52px;
-      border-radius: 12px;
-      background: rgba(200,205,216,0.12);
-      border: 1px solid rgba(200,205,216,0.18);
+      border-radius: 10px;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 1.6rem;
-      backdrop-filter: blur(6px);
-      transition: transform 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.4);
+      overflow: hidden;
+      position: relative;
+      transition: transform 0.15s;
+    }
+
+    .icon-img img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      display: block;
     }
 
     .desktop-icon:hover .icon-img {
-      transform: translateY(-4px) scale(1.07);
-      background: rgba(200,205,216,0.22);
-      box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+      transform: translateY(-3px);
     }
 
     .desktop-icon span {
-      color: #eef0f4;
+      color: var(--text-primary);
       font-size: 0.7rem;
-      font-weight: 600;
+      font-weight: 400;
       text-align: center;
-      text-shadow: 0 1px 4px rgba(0,0,0,0.9);
+      text-shadow: 0 1px 6px rgba(0,0,0,0.95), 0 0 12px rgba(0,0,0,0.8);
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
       width: 100%;
     }
 
-    /* status + player count on desktop */
+    /* ── DESKTOP FOOTER ── */
     #desktop-footer {
       display: flex;
       flex-direction: column;
@@ -131,245 +169,24 @@
       gap: 6px;
     }
 
-    /* ── TASKBAR ── */
-    #taskbar {
-      position: fixed;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      height: 48px;
-      background: rgba(17,17,20,0.92);
-      backdrop-filter: blur(16px);
-      border-top: 1px solid #2a2a30;
-      z-index: 20000;
-      display: flex;
-      align-items: center;
-      padding: 0 10px;
-      gap: 6px;
-    }
-
-    /* start button */
-    #taskbar-start {
-      width: 36px;
-      height: 36px;
-      border-radius: 8px;
-      background: rgba(200,205,216,0.12);
-      border: 1px solid rgba(200,205,216,0.18);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 1.1rem;
-      cursor: pointer;
-      flex-shrink: 0;
-      transition: background 0.15s;
-    }
-
-    #taskbar-start:hover {
-      background: rgba(200,205,216,0.22);
-    }
-
-    #taskbar-divider {
-      width: 1px;
-      height: 28px;
-      background: #2a2a30;
-      flex-shrink: 0;
-      margin: 0 4px;
-    }
-
-    /* taskbar app buttons */
-    .tb-btn {
-      height: 36px;
-      padding: 0 12px;
-      background: rgba(200,205,216,0.08);
-      border: 1px solid rgba(200,205,216,0.12);
-      border-radius: 6px;
-      color: #c8cdd8;
-      font-size: 0.78rem;
-      font-weight: 700;
-      cursor: pointer;
-      letter-spacing: 0.02em;
-      white-space: nowrap;
-      transition: background 0.12s, color 0.12s, border-color 0.12s;
-      display: flex;
-      align-items: center;
-      gap: 5px;
-    }
-
-    .tb-btn:hover {
-      background: rgba(200,205,216,0.18);
-      color: #eef0f4;
-      border-color: rgba(200,205,216,0.28);
-    }
-
-    .tb-btn.active {
-      background: rgba(200,205,216,0.22);
-      border-color: rgba(200,205,216,0.4);
-      color: #eef0f4;
-    }
-
-    /* taskbar right side - clock */
-    #taskbar-right {
-      margin-left: auto;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      flex-shrink: 0;
-    }
-
-    #taskbar-clock {
-      color: #aab2c5;
-      font-family: monospace;
-      font-size: 0.78rem;
-      font-variant-numeric: tabular-nums;
-    }
-
-    /* start menu */
-    #start-menu {
-      display: none;
-      position: fixed;
-      bottom: 52px;
-      left: 10px;
-      width: 220px;
-      background: rgba(22,22,26,0.97);
-      backdrop-filter: blur(20px);
-      border: 1px solid #2a2a30;
-      border-radius: 10px;
-      z-index: 20001;
-      padding: 8px;
-      box-shadow: 0 -4px 32px rgba(0,0,0,0.6);
-    }
-
-    #start-menu.show {
-      display: block;
-    }
-
-    .start-item {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      padding: 9px 10px;
-      border-radius: 6px;
-      cursor: pointer;
-      color: #c8cdd8;
-      font-size: 0.82rem;
-      font-weight: 600;
-      transition: background 0.12s, color 0.12s;
-    }
-
-    .start-item:hover {
-      background: rgba(200,205,216,0.12);
-      color: #eef0f4;
-    }
-
-    .start-item .si-icon {
-      font-size: 1.1rem;
-      width: 24px;
-      text-align: center;
-    }
-
-    #start-menu hr {
-      border: none;
-      border-top: 1px solid #2a2a30;
-      margin: 6px 0;
-    }
-
-    #links-panel {
-      display: none;
-      position: fixed;
-      inset: 0;
-      bottom: 48px;
-      z-index: 19000;
-      overflow-y: auto;
-      padding: 4rem 1rem 2rem;
-      background: rgba(10, 10, 11, 0.97);
-    }
-
-    #links-panel.show {
-      display: block;
-    }
-
-    #links-close {
-      position: fixed;
-      top: 1rem;
-      right: 1rem;
-      z-index: 5001;
-      padding: 0.65rem 0.9rem;
-      color: #eef0f4;
-      background: #1b1b20;
-      border: 1px solid #33343b;
-      border-radius: 6px;
-      cursor: pointer;
-    }
-
-    #links-close:hover {
-      background: #292930;
-    }
-
-    .link-section {
-      width: min(720px, 100%);
-      margin: 0 auto 1.25rem;
-      padding: 1rem;
-      border: 1px solid #2a2a30;
-      border-radius: 6px;
-      background: #111114;
-    }
-
-    .link-section h2 {
-      margin-bottom: 0.8rem;
-      color: #eef0f4;
-      font-size: 0.9rem;
-      font-weight: 600;
-      letter-spacing: 0.05em;
-      text-transform: uppercase;
-    }
-
-    .link-grid {
-      display: grid;
-      grid-template-columns: repeat(
-        auto-fit,
-        minmax(120px, 1fr)
-      );
-      gap: 8px;
-    }
-
-    .link-grid a {
-      display: block;
-      padding: 0.7rem 0.8rem;
-      color: #0a0a0b;
-      background: #c8cdd8;
-      border-radius: 4px;
-      font-size: 0.8rem;
-      font-weight: 700;
-      text-align: center;
-      text-decoration: none;
-      transition: 0.15s ease;
-    }
-
-    .link-grid a:hover {
-      background: #eef0f4;
-      transform: translateY(-1px);
-    }
-
     #status {
-      color: #7a8194;
-      font-size: 0.78rem;
-      font-family: monospace;
+      color: var(--text-muted);
+      font-size: 0.76rem;
+      font-family: 'Cascadia Code', 'Courier New', monospace;
       min-height: 1.2em;
       text-align: center;
       max-width: 90vw;
       word-break: break-word;
     }
 
-    #status.error {
-      color: #f87171;
-    }
+    #status.error { color: #f87171; }
 
     #player-count {
       display: flex;
       align-items: center;
       gap: 0.45rem;
-      color: #7a8194;
-      font-size: 0.78rem;
+      color: var(--text-muted);
+      font-size: 0.75rem;
       font-family: monospace;
     }
 
@@ -383,15 +200,264 @@
     }
 
     @keyframes pulse {
-      0%, 100% {
-        opacity: 1;
-      }
-
-      50% {
-        opacity: 0.4;
-      }
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.35; }
     }
 
+    /* ── TASKBAR ── */
+    #taskbar {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: var(--taskbar-h);
+      background: rgba(18, 18, 18, 0.96);
+      backdrop-filter: blur(40px) saturate(1.4);
+      -webkit-backdrop-filter: blur(40px) saturate(1.4);
+      border-top: 1px solid rgba(255,255,255,0.07);
+      z-index: 20000;
+      display: flex;
+      align-items: center;
+      padding: 0 8px;
+      gap: 4px;
+    }
+
+    /* Win11-style start button */
+    #taskbar-start {
+      width: 36px;
+      height: 36px;
+      border-radius: var(--radius-sm);
+      background: transparent;
+      border: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: background 0.12s;
+      padding: 0;
+    }
+
+    #taskbar-start:hover { background: rgba(255,255,255,0.08); }
+    #taskbar-start.active { background: rgba(255,255,255,0.12); }
+
+    #taskbar-start img {
+      width: 20px;
+      height: 20px;
+      object-fit: contain;
+    }
+
+    #taskbar-divider {
+      width: 1px;
+      height: 26px;
+      background: rgba(255,255,255,0.1);
+      flex-shrink: 0;
+      margin: 0 4px;
+    }
+
+    /* taskbar app buttons */
+    .tb-btn {
+      height: 36px;
+      padding: 0 10px;
+      background: transparent;
+      border: none;
+      border-radius: var(--radius-sm);
+      color: var(--text-secondary);
+      font-size: 0.76rem;
+      font-weight: 500;
+      font-family: inherit;
+      cursor: pointer;
+      letter-spacing: 0.01em;
+      white-space: nowrap;
+      transition: background 0.1s, color 0.1s;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .tb-btn img {
+      width: 16px;
+      height: 16px;
+      object-fit: contain;
+      flex-shrink: 0;
+    }
+
+    .tb-btn:hover {
+      background: rgba(255,255,255,0.08);
+      color: var(--text-primary);
+    }
+
+    .tb-btn.active {
+      background: rgba(255,255,255,0.12);
+      color: var(--text-primary);
+      box-shadow: inset 0 -2px 0 var(--accent);
+    }
+
+    /* taskbar right side */
+    #taskbar-right {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+      padding-right: 4px;
+    }
+
+    #taskbar-clock {
+      color: var(--text-secondary);
+      font-family: 'Inter', sans-serif;
+      font-size: 0.75rem;
+      font-variant-numeric: tabular-nums;
+      text-align: right;
+      line-height: 1.3;
+      cursor: default;
+    }
+
+    /* ── START MENU ── */
+    #start-menu {
+      display: none;
+      position: fixed;
+      bottom: 52px;
+      left: 8px;
+      width: 240px;
+      background: rgba(28,28,28,0.98);
+      backdrop-filter: blur(40px) saturate(1.5);
+      -webkit-backdrop-filter: blur(40px) saturate(1.5);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: var(--radius-lg);
+      z-index: 20001;
+      padding: 10px 6px;
+      box-shadow: var(--win-shadow);
+      animation: menu-pop 0.18s cubic-bezier(0.16,1,0.3,1) both;
+    }
+
+    @keyframes menu-pop {
+      from { opacity: 0; transform: translateY(8px) scale(0.97); }
+      to   { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    #start-menu.show { display: block; }
+
+    .start-menu-header {
+      padding: 6px 10px 10px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+    }
+
+    .start-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 10px;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      color: var(--text-secondary);
+      font-size: 0.82rem;
+      font-weight: 400;
+      transition: background 0.1s, color 0.1s;
+    }
+
+    .start-item:hover {
+      background: rgba(255,255,255,0.08);
+      color: var(--text-primary);
+    }
+
+    .start-item img {
+      width: 20px;
+      height: 20px;
+      object-fit: contain;
+      flex-shrink: 0;
+    }
+
+    #start-menu hr {
+      border: none;
+      border-top: 1px solid rgba(255,255,255,0.07);
+      margin: 6px 4px;
+    }
+
+    /* ── LINKS PANEL ── */
+    #links-panel {
+      display: none;
+      position: fixed;
+      inset: 0;
+      bottom: var(--taskbar-h);
+      z-index: 19000;
+      overflow-y: auto;
+      padding: 4rem 1rem 2rem;
+      background: rgba(10,10,14,0.97);
+      backdrop-filter: blur(20px);
+    }
+
+    #links-panel.show { display: block; }
+
+    #links-close {
+      position: fixed;
+      top: 1rem;
+      right: 1rem;
+      z-index: 5001;
+      padding: 0.55rem 1rem;
+      color: var(--text-primary);
+      background: rgba(40,40,44,0.9);
+      border: 1px solid var(--border-light);
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      font-size: 0.82rem;
+      font-family: inherit;
+      font-weight: 500;
+      transition: background 0.12s;
+    }
+
+    #links-close:hover { background: rgba(60,60,64,0.9); }
+
+    .link-section {
+      width: min(720px, 100%);
+      margin: 0 auto 1.25rem;
+      padding: 1.1rem;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      background: rgba(24,24,28,0.9);
+    }
+
+    .link-section h2 {
+      margin-bottom: 0.8rem;
+      color: var(--text-primary);
+      font-size: 0.82rem;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      opacity: 0.7;
+    }
+
+    .link-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+      gap: 7px;
+    }
+
+    .link-grid a {
+      display: block;
+      padding: 0.65rem 0.7rem;
+      color: var(--text-primary);
+      background: var(--bg-glass-light);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      font-size: 0.78rem;
+      font-weight: 500;
+      text-align: center;
+      text-decoration: none;
+      transition: background 0.12s, border-color 0.12s, transform 0.12s;
+    }
+
+    .link-grid a:hover {
+      background: rgba(255,255,255,0.1);
+      border-color: rgba(255,255,255,0.2);
+      transform: translateY(-1px);
+    }
+
+    /* ── AUTH ── */
     #auth-wrap {
       position: fixed;
       inset: 0;
@@ -400,193 +466,206 @@
       align-items: center;
       justify-content: center;
       padding: 1rem;
-      background: rgba(0, 0, 0, 0.78);
+      background: rgba(0,0,0,0.72);
+      backdrop-filter: blur(8px);
       opacity: 1;
-      transition:
-        opacity 0.35s ease,
-        visibility 0.35s ease;
+      transition: opacity 0.35s ease, visibility 0.35s ease;
     }
 
     #auth-wrap.hidden {
-      display: flex;
       opacity: 0;
       visibility: hidden;
       pointer-events: none;
     }
 
+    /* Windows-style login card */
     #auth-card {
       position: relative;
-      width: min(390px, 100%);
+      width: min(380px, 100%);
       display: flex;
       flex-direction: column;
-      gap: 0.8rem;
-      padding: 1.5rem;
+      gap: 0;
       overflow: hidden;
-      border: 1px solid #2a2a30;
-      border-radius: 8px;
-      background: #16161a;
-      animation: auth-card-in 0.55s
-        cubic-bezier(0.16, 1, 0.3, 1)
-        both;
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: var(--radius-md);
+      background: rgba(24,24,28,0.98);
+      box-shadow: var(--win-shadow);
+      animation: auth-card-in 0.5s cubic-bezier(0.16,1,0.3,1) both;
     }
 
-    #auth-card::before {
-      content: "";
-      position: absolute;
-      top: -90px;
-      left: 50%;
-      width: 220px;
-      height: 220px;
+    @keyframes auth-card-in {
+      from { opacity: 0; transform: translateY(20px) scale(0.97); }
+      to   { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    /* Windows login accent bar */
+    .auth-brand {
+      background: var(--accent);
+      padding: 0.6rem 1.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+    }
+
+    .auth-brand img {
+      width: 18px;
+      height: 18px;
+    }
+
+    .auth-brand span {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: #fff;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    .auth-inner {
+      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.9rem;
+    }
+
+    .auth-avatar {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.6rem;
+      padding: 0.5rem 0 0.2rem;
+    }
+
+    .auth-avatar-circle {
+      width: 72px;
+      height: 72px;
       border-radius: 50%;
-      background: radial-gradient(
-        circle,
-        rgba(200, 205, 216, 0.14),
-        transparent 68%
-      );
-      transform: translateX(-50%);
-      pointer-events: none;
-      animation: auth-glow 4s ease-in-out infinite;
+      background: rgba(0,120,212,0.2);
+      border: 2px solid rgba(0,120,212,0.4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      animation: auth-fade-up 0.4s 0.05s ease both;
     }
 
-    #auth-card > * {
-      position: relative;
-      z-index: 1;
+    .auth-avatar-circle img {
+      width: 40px;
+      height: 40px;
+      opacity: 0.9;
     }
 
     #auth-card h2 {
-      color: #eef0f4;
-      font-size: 1.15rem;
-      animation: auth-fade-up 0.45s 0.08s ease both;
+      color: var(--text-primary);
+      font-size: 1.1rem;
+      font-weight: 300;
+      letter-spacing: 0.02em;
+      text-align: center;
+      animation: auth-fade-up 0.4s 0.1s ease both;
     }
 
     #auth-description {
-      color: #aab2c5;
-      font-size: 0.82rem;
-      line-height: 1.4;
-      animation: auth-fade-up 0.45s 0.14s ease both;
+      color: var(--text-muted);
+      font-size: 0.78rem;
+      line-height: 1.45;
+      text-align: center;
+      animation: auth-fade-up 0.4s 0.15s ease both;
     }
 
     #auth-card input {
       width: 100%;
-      padding: 0.8rem;
-      border: 1px solid #33343b;
-      border-radius: 4px;
-      color: #eef0f4;
-      background: #0a0a0b;
+      padding: 0.72rem 0.9rem;
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: var(--radius-sm);
+      color: var(--text-primary);
+      background: rgba(0,0,0,0.4);
       outline: none;
-      transition:
-        border-color 0.2s ease,
-        box-shadow 0.2s ease,
-        transform 0.2s ease,
-        background 0.2s ease;
-      animation: auth-fade-up 0.45s ease both;
+      font-family: inherit;
+      font-size: 0.85rem;
+      transition: border-color 0.2s, box-shadow 0.2s;
+      animation: auth-fade-up 0.4s ease both;
     }
 
-    #auth-username {
-      animation-delay: 0.2s;
-    }
+    #auth-username { animation-delay: 0.18s; }
+    #auth-password { animation-delay: 0.22s; }
 
-    #auth-password {
-      animation-delay: 0.26s;
-    }
-
-    #auth-card input:hover {
-      border-color: #555864;
-    }
+    #auth-card input::placeholder { color: rgba(255,255,255,0.3); }
+    #auth-card input:hover { border-color: rgba(255,255,255,0.2); }
 
     #auth-card input:focus {
-      border-color: #c8cdd8;
-      background: #0d0d10;
-      box-shadow:
-        0 0 0 3px rgba(200, 205, 216, 0.1);
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px rgba(0,120,212,0.25);
+    }
+
+    /* Win-style primary button */
+    .vm-button {
+      padding: 0.72rem 1.5rem;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: var(--radius-sm);
+      font-size: 0.85rem;
+      font-weight: 500;
+      font-family: inherit;
+      cursor: pointer;
+      letter-spacing: 0.02em;
+      transition: background 0.15s, transform 0.12s;
+      animation: auth-fade-up 0.4s 0.28s ease both;
+    }
+
+    .vm-button:hover:not(:disabled) {
+      background: var(--accent-hover);
       transform: translateY(-1px);
     }
 
-    #auth-card button {
-      transition:
-        transform 0.16s ease,
-        background 0.16s ease,
-        border-color 0.16s ease,
-        box-shadow 0.16s ease;
-      animation: auth-fade-up 0.45s ease both;
+    .vm-button:active:not(:disabled) { transform: scale(0.99); }
+
+    .vm-button:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+      transform: none;
     }
 
     #guest-button,
     #login-button {
-      padding: 0.7rem;
-      color: #c8cdd8;
+      padding: 0.65rem;
+      color: var(--text-secondary);
       background: transparent;
-      border: 1px solid #33343b;
-      border-radius: 4px;
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: var(--radius-sm);
       cursor: pointer;
+      font-family: inherit;
+      font-size: 0.8rem;
+      font-weight: 400;
+      transition: background 0.12s, color 0.12s, border-color 0.12s, transform 0.12s;
+      animation: auth-fade-up 0.4s ease both;
     }
 
-    #guest-button {
-      animation-delay: 0.38s;
-    }
-
-    #login-button {
-      animation-delay: 0.44s;
-    }
-
-    #auth-card button:hover {
-      transform: translateY(-2px);
-    }
-
-    #auth-card button:active {
-      transform: translateY(0) scale(0.98);
-    }
+    #guest-button { animation-delay: 0.32s; }
+    #login-button { animation-delay: 0.36s; }
 
     #guest-button:hover,
     #login-button:hover {
-      color: #eef0f4;
-      background: #1b1b20;
-      border-color: #555864;
+      color: var(--text-primary);
+      background: rgba(255,255,255,0.07);
+      border-color: rgba(255,255,255,0.18);
+      transform: translateY(-1px);
     }
+
+    #auth-card button:active { transform: scale(0.98); }
 
     #auth-error {
-      min-height: 1.2em;
+      min-height: 1.1em;
       color: #f87171;
       font-family: monospace;
-      font-size: 0.75rem;
-    }
-
-    @keyframes auth-card-in {
-      from {
-        opacity: 0;
-        transform: translateY(18px) scale(0.97);
-      }
-
-      to {
-        opacity: 1;
-        transform: translateY(0) scale(1);
-      }
+      font-size: 0.73rem;
+      text-align: center;
     }
 
     @keyframes auth-fade-up {
-      from {
-        opacity: 0;
-        transform: translateY(10px);
-      }
-
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
+      from { opacity: 0; transform: translateY(8px); }
+      to   { opacity: 1; transform: translateY(0); }
     }
 
-    @keyframes auth-glow {
-      0%, 100% {
-        opacity: 0.45;
-        transform: translateX(-50%) scale(0.9);
-      }
-
-      50% {
-        opacity: 1;
-        transform: translateX(-50%) scale(1.12);
-      }
-    }
-
+    /* ── VM FRAME ── */
     #vm-frame-wrap {
       display: none;
       position: fixed;
@@ -599,14 +678,30 @@
     }
 
     #vm-toolbar {
-      height: 50px;
-      min-height: 50px;
-      background: #111114;
-      color: #eef0f4;
+      height: 44px;
+      min-height: 44px;
+      background: rgba(20,20,22,0.98);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid rgba(255,255,255,0.07);
+      color: var(--text-primary);
       display: flex;
       align-items: center;
       justify-content: space-between;
       padding: 0 12px;
+    }
+
+    .vm-toolbar-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.82rem;
+      color: var(--text-muted);
+    }
+
+    .vm-toolbar-left img {
+      width: 16px;
+      height: 16px;
+      opacity: 0.7;
     }
 
     .vm-toolbar-right {
@@ -616,52 +711,58 @@
     }
 
     #vm-timer {
-      color: #aab2c5;
+      color: var(--text-muted);
       font-family: monospace;
       font-size: 0.82rem;
       font-variant-numeric: tabular-nums;
-      padding: 7px 8px;
-      margin-right: 2px;
+      padding: 5px 8px;
+      background: rgba(255,255,255,0.04);
+      border-radius: var(--radius-sm);
     }
 
     #vm-toolbar button {
-      background: #1b1b20;
-      color: #eef0f4;
-      border: 1px solid #33343b;
-      border-radius: 6px;
-      padding: 7px 12px;
+      background: rgba(255,255,255,0.05);
+      color: var(--text-secondary);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: var(--radius-sm);
+      padding: 5px 12px;
+      font-family: inherit;
+      font-size: 0.78rem;
       cursor: pointer;
+      transition: background 0.1s, color 0.1s;
     }
 
     #vm-toolbar button:hover {
-      background: #292930;
+      background: rgba(255,255,255,0.1);
+      color: var(--text-primary);
     }
 
     #vm-frame {
       width: 100%;
-      height: calc(100vh - 50px);
+      height: calc(100vh - 44px);
       flex: 1;
       border: 0;
       background: #000;
     }
 
+    /* ── BROWSER ── */
     #browser-wrap {
       display: none;
       position: fixed;
       inset: 0;
       width: 100vw;
       height: 100vh;
-      background: #000;
+      background: #111113;
       z-index: 10000;
       flex-direction: column;
     }
 
-    /* TAB BAR */
+    /* Tab bar */
     #tab-bar {
       display: flex;
       align-items: center;
-      background: #0d0d10;
-      border-bottom: 1px solid #2a2a30;
+      background: #0e0e10;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
       overflow-x: auto;
       overflow-y: hidden;
       scrollbar-width: none;
@@ -686,22 +787,19 @@
       min-width: 100px;
       max-width: 180px;
       height: 36px;
-      background: #111114;
-      border-right: 1px solid #2a2a30;
+      background: transparent;
+      border-right: 1px solid rgba(255,255,255,0.05);
       cursor: pointer;
       flex-shrink: 0;
-      position: relative;
       transition: background 0.1s;
     }
 
     .tab.active {
-      background: #1b1b20;
-      border-top: 2px solid #c8cdd8;
+      background: rgba(255,255,255,0.06);
+      box-shadow: inset 0 2px 0 var(--accent);
     }
 
-    .tab:hover:not(.active) {
-      background: #161618;
-    }
+    .tab:hover:not(.active) { background: rgba(255,255,255,0.04); }
 
     .tab-title {
       flex: 1;
@@ -709,14 +807,11 @@
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
-      color: #aab2c5;
-      font-size: 0.75rem;
-      font-family: sans-serif;
+      color: var(--text-muted);
+      font-size: 0.74rem;
     }
 
-    .tab.active .tab-title {
-      color: #eef0f4;
-    }
+    .tab.active .tab-title { color: var(--text-primary); }
 
     .tab-close {
       width: 16px;
@@ -725,15 +820,15 @@
       align-items: center;
       justify-content: center;
       border-radius: 3px;
-      color: #7a8194;
-      font-size: 0.7rem;
+      color: var(--text-muted);
+      font-size: 0.68rem;
       flex-shrink: 0;
       transition: background 0.1s, color 0.1s;
     }
 
     .tab-close:hover {
-      background: #33343b;
-      color: #eef0f4;
+      background: rgba(255,255,255,0.1);
+      color: var(--text-primary);
     }
 
     #tab-new {
@@ -742,62 +837,59 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      color: #7a8194;
-      font-size: 1.1rem;
+      color: var(--text-muted);
+      font-size: 1.05rem;
       cursor: pointer;
       flex-shrink: 0;
       transition: color 0.1s, background 0.1s;
     }
 
-    #tab-new:hover {
-      color: #eef0f4;
-      background: #1b1b20;
-    }
+    #tab-new:hover { color: var(--text-primary); background: rgba(255,255,255,0.05); }
 
-    /* TOOLBAR */
+    /* Browser toolbar */
     #browser-toolbar {
-      min-height: 46px;
-      background: #111114;
-      color: #eef0f4;
+      min-height: 44px;
+      background: #111113;
       display: flex;
       align-items: center;
-      gap: 8px;
-      padding: 6px 10px;
-      border-bottom: 1px solid #2a2a30;
+      gap: 6px;
+      padding: 5px 10px;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
       flex-shrink: 0;
     }
 
     #browser-toolbar button {
-      background: #1b1b20;
-      color: #eef0f4;
-      border: 1px solid #33343b;
-      border-radius: 6px;
-      padding: 6px 10px;
+      background: rgba(255,255,255,0.04);
+      color: var(--text-secondary);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: var(--radius-sm);
+      padding: 5px 10px;
+      font-family: inherit;
+      font-size: 0.78rem;
       cursor: pointer;
       white-space: nowrap;
+      transition: background 0.1s, color 0.1s;
     }
 
     #browser-toolbar button:hover {
-      background: #292930;
+      background: rgba(255,255,255,0.09);
+      color: var(--text-primary);
     }
 
     #browser-address {
       flex: 1;
       min-width: 0;
-      background: #0a0a0b;
-      color: #eef0f4;
-      border: 1px solid #33343b;
-      border-radius: 6px;
-      padding: 7px 11px;
+      background: rgba(0,0,0,0.5);
+      color: var(--text-primary);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 20px;
+      padding: 6px 14px;
       outline: none;
-      font: 14px monospace;
+      font: 13px 'Inter', monospace;
     }
 
-    #browser-address:focus {
-      border-color: #626a7e;
-    }
+    #browser-address:focus { border-color: var(--accent); }
 
-    /* FRAMES CONTAINER */
     #browser-frames {
       flex: 1;
       position: relative;
@@ -814,9 +906,7 @@
       display: none;
     }
 
-    .browser-frame.active {
-      display: block;
-    }
+    .browser-frame.active { display: block; }
 
     #browser-status {
       position: absolute;
@@ -825,62 +915,59 @@
       transform: translate(-50%, -50%);
       display: none;
       max-width: 80vw;
-      padding: 12px 16px;
-      border: 1px solid #33343b;
-      border-radius: 7px;
-      background: #111114;
-      color: #c8cdd8;
+      padding: 12px 18px;
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: var(--radius-md);
+      background: rgba(20,20,22,0.96);
+      color: var(--text-secondary);
       font: 13px monospace;
       text-align: center;
       z-index: 2;
+      backdrop-filter: blur(10px);
     }
 
+    /* ── TOAST ── */
     #toast {
       position: fixed;
-      bottom: 1.5rem;
-      right: 1.5rem;
-      max-width: min(500px, calc(100vw - 3rem));
-      background: #16161a;
-      border: 1px solid #2a2a30;
-      border-radius: 6px;
-      padding: 0.75rem 1rem;
-      font-size: 0.75rem;
-      font-family: monospace;
-      color: #c8cdd8;
+      bottom: calc(var(--taskbar-h) + 12px);
+      right: 14px;
+      max-width: min(400px, calc(100vw - 2rem));
+      background: rgba(30,30,34,0.98);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: var(--radius-md);
+      padding: 0.7rem 1rem;
+      font-size: 0.76rem;
+      font-family: inherit;
+      color: var(--text-secondary);
       z-index: 10002;
       transform: translateY(120%);
-      transition: transform 0.25s ease;
+      transition: transform 0.22s cubic-bezier(0.16,1,0.3,1);
       word-break: break-word;
+      box-shadow: var(--win-shadow);
+      backdrop-filter: blur(20px);
     }
 
-    #toast.show {
-      transform: translateY(0);
-    }
+    #toast.show { transform: translateY(0); }
+    #toast.error { border-color: rgba(248,113,113,0.4); color: #f87171; }
 
-    #toast.error {
-      border-color: #f87171;
-      color: #f87171;
-    }
-
-    /* GAMES PANEL */
+    /* ── GAMES PANEL ── */
     #games-panel {
       display: none;
       position: fixed;
       inset: 0;
-      bottom: 48px;
+      bottom: var(--taskbar-h);
       z-index: 19000;
-      background: rgba(10, 10, 11, 0.97);
+      background: rgba(10,10,14,0.97);
+      backdrop-filter: blur(20px);
       flex-direction: column;
     }
 
-    #games-panel.show {
-      display: flex;
-    }
+    #games-panel.show { display: flex; }
 
     #games-header {
-      min-height: 54px;
-      background: #111114;
-      border-bottom: 1px solid #2a2a30;
+      min-height: 52px;
+      background: rgba(16,16,20,0.98);
+      border-bottom: 1px solid rgba(255,255,255,0.06);
       display: flex;
       align-items: center;
       justify-content: space-between;
@@ -890,65 +977,74 @@
     }
 
     #games-header h2 {
-      color: #eef0f4;
-      font-size: 0.95rem;
-      font-weight: 700;
-      letter-spacing: 0.05em;
+      color: var(--text-primary);
+      font-size: 0.9rem;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    #games-header h2 img {
+      width: 20px;
+      height: 20px;
     }
 
     #games-search {
       flex: 1;
       max-width: 320px;
-      background: #0a0a0b;
-      color: #eef0f4;
-      border: 1px solid #33343b;
-      border-radius: 6px;
-      padding: 8px 11px;
+      background: rgba(0,0,0,0.4);
+      color: var(--text-primary);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 20px;
+      padding: 7px 14px;
       outline: none;
-      font-size: 0.85rem;
+      font-size: 0.82rem;
+      font-family: inherit;
     }
 
-    #games-search:focus {
-      border-color: #626a7e;
-    }
+    #games-search:focus { border-color: var(--accent); }
 
     #games-close {
-      padding: 0.65rem 0.9rem;
-      color: #eef0f4;
-      background: #1b1b20;
-      border: 1px solid #33343b;
-      border-radius: 6px;
+      padding: 0.55rem 1rem;
+      color: var(--text-primary);
+      background: rgba(40,40,44,0.9);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: var(--radius-sm);
       cursor: pointer;
-      font-size: 0.85rem;
+      font-size: 0.82rem;
+      font-family: inherit;
+      font-weight: 500;
+      transition: background 0.12s;
     }
 
-    #games-close:hover {
-      background: #292930;
-    }
+    #games-close:hover { background: rgba(60,60,64,0.9); }
 
     #games-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
-      gap: 12px;
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: 14px;
       padding: 20px;
       overflow-y: auto;
       flex: 1;
     }
 
     .game-card {
-      background: #111114;
-      border: 1px solid #2a2a30;
-      border-radius: 8px;
+      background: rgba(20,20,24,0.9);
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: var(--radius-md);
       overflow: hidden;
       cursor: pointer;
-      transition: transform 0.15s ease, border-color 0.15s ease;
+      transition: transform 0.15s, border-color 0.15s, box-shadow 0.15s;
       display: flex;
       flex-direction: column;
     }
 
     .game-card:hover {
-      transform: translateY(-3px);
-      border-color: #555864;
+      transform: translateY(-4px);
+      border-color: rgba(255,255,255,0.18);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.5);
     }
 
     .game-card img {
@@ -956,14 +1052,14 @@
       aspect-ratio: 1;
       object-fit: cover;
       display: block;
-      background: #1b1b20;
+      background: rgba(30,30,34,1);
     }
 
     .game-card-name {
-      padding: 7px 8px;
-      color: #c8cdd8;
-      font-size: 0.75rem;
-      font-weight: 700;
+      padding: 8px 9px;
+      color: var(--text-secondary);
+      font-size: 0.74rem;
+      font-weight: 600;
       text-align: center;
       white-space: nowrap;
       overflow: hidden;
@@ -975,20 +1071,19 @@
       display: none;
       position: fixed;
       inset: 0;
-      bottom: 48px;
+      bottom: var(--taskbar-h);
       z-index: 19000;
       flex-direction: column;
-      background: rgba(10,10,11,0.98);
+      background: rgba(10,10,14,0.98);
+      backdrop-filter: blur(20px);
     }
 
-    #settings-panel.show {
-      display: flex;
-    }
+    #settings-panel.show { display: flex; }
 
     #settings-header {
-      min-height: 52px;
-      background: #111114;
-      border-bottom: 1px solid #2a2a30;
+      min-height: 50px;
+      background: rgba(16,16,20,0.98);
+      border-bottom: 1px solid rgba(255,255,255,0.06);
       display: flex;
       align-items: center;
       justify-content: space-between;
@@ -997,22 +1092,33 @@
     }
 
     #settings-header h2 {
-      color: #eef0f4;
-      font-size: 0.95rem;
-      font-weight: 700;
+      color: var(--text-primary);
+      font-size: 0.9rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    #settings-header h2 img {
+      width: 18px;
+      height: 18px;
     }
 
     #settings-close {
-      padding: 0.55rem 0.9rem;
-      background: #1b1b20;
-      border: 1px solid #33343b;
-      border-radius: 6px;
-      color: #eef0f4;
+      padding: 0.5rem 1rem;
+      background: rgba(40,40,44,0.9);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: var(--radius-sm);
+      color: var(--text-primary);
+      font-family: inherit;
+      font-size: 0.8rem;
+      font-weight: 500;
       cursor: pointer;
-      font-size: 0.82rem;
+      transition: background 0.1s;
     }
 
-    #settings-close:hover { background: #292930; }
+    #settings-close:hover { background: rgba(60,60,64,0.9); }
 
     #settings-body {
       display: flex;
@@ -1021,58 +1127,75 @@
     }
 
     #settings-sidebar {
-      width: 160px;
+      width: 170px;
       flex-shrink: 0;
-      background: #0d0d10;
-      border-right: 1px solid #2a2a30;
+      background: rgba(12,12,16,0.98);
+      border-right: 1px solid rgba(255,255,255,0.05);
       padding: 12px 8px;
       display: flex;
       flex-direction: column;
-      gap: 4px;
+      gap: 2px;
       overflow-y: auto;
     }
 
     .settings-tab {
-      padding: 9px 12px;
-      border-radius: 6px;
-      color: #7a8194;
-      font-size: 0.82rem;
-      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 10px;
+      border-radius: var(--radius-sm);
+      color: var(--text-muted);
+      font-size: 0.8rem;
+      font-weight: 500;
       cursor: pointer;
-      transition: background 0.12s, color 0.12s;
+      transition: background 0.1s, color 0.1s;
     }
 
-    .settings-tab:hover { background: #1b1b20; color: #c8cdd8; }
-    .settings-tab.active { background: #1b1b20; color: #eef0f4; }
+    .settings-tab img {
+      width: 16px;
+      height: 16px;
+      opacity: 0.6;
+      flex-shrink: 0;
+    }
+
+    .settings-tab:hover { background: rgba(255,255,255,0.05); color: var(--text-secondary); }
+    .settings-tab.active {
+      background: rgba(0,120,212,0.18);
+      color: var(--text-primary);
+      border-left: 2px solid var(--accent);
+      padding-left: 8px;
+    }
+    .settings-tab.active img { opacity: 1; }
 
     #settings-content {
       flex: 1;
       overflow-y: auto;
-      padding: 20px 24px;
+      padding: 20px 28px;
     }
 
     .settings-page { display: none; }
     .settings-page.active { display: block; }
 
     .setting-group {
-      margin-bottom: 28px;
-      padding-bottom: 24px;
-      border-bottom: 1px solid #1e1e24;
+      margin-bottom: 26px;
+      padding-bottom: 22px;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
     }
 
     .setting-group:last-child { border-bottom: none; }
 
     .setting-label {
-      color: #eef0f4;
-      font-size: 0.88rem;
-      font-weight: 700;
-      margin-bottom: 4px;
+      color: var(--text-primary);
+      font-size: 0.85rem;
+      font-weight: 600;
+      margin-bottom: 3px;
     }
 
     .setting-desc {
-      color: #7a8194;
-      font-size: 0.78rem;
+      color: var(--text-muted);
+      font-size: 0.76rem;
       margin-bottom: 12px;
+      line-height: 1.4;
     }
 
     .setting-row {
@@ -1085,130 +1208,156 @@
 
     .setting-row input[type="range"] {
       flex: 1;
-      accent-color: var(--accent, #c8cdd8);
+      accent-color: var(--accent);
     }
 
     .setting-row span {
-      color: #aab2c5;
-      font-size: 0.8rem;
+      color: var(--text-muted);
+      font-size: 0.78rem;
       font-family: monospace;
       min-width: 28px;
     }
 
     .set-input {
       flex: 1;
-      background: #0a0a0b;
-      border: 1px solid #33343b;
-      border-radius: 6px;
-      color: #eef0f4;
+      background: rgba(0,0,0,0.4);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: var(--radius-sm);
+      color: var(--text-primary);
       padding: 7px 10px;
       font-size: 0.82rem;
+      font-family: inherit;
       outline: none;
     }
 
-    .set-input:focus { border-color: #626a7e; }
+    .set-input:focus { border-color: var(--accent); }
 
     .set-btn {
-      padding: 7px 14px;
-      background: #1b1b20;
-      border: 1px solid #33343b;
-      border-radius: 6px;
-      color: #c8cdd8;
-      font-size: 0.8rem;
-      font-weight: 700;
+      padding: 6px 14px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: var(--radius-sm);
+      color: var(--text-secondary);
+      font-size: 0.78rem;
+      font-weight: 500;
+      font-family: inherit;
       cursor: pointer;
-      transition: background 0.12s, color 0.12s, border-color 0.12s;
+      transition: background 0.1s, color 0.1s, border-color 0.1s;
       white-space: nowrap;
     }
 
-    .set-btn:hover { background: #292930; color: #eef0f4; }
-    .set-btn.active { background: rgba(200,205,216,0.18); color: #eef0f4; border-color: rgba(200,205,216,0.4); }
-    .set-btn.danger { border-color: #7f1d1d; color: #f87171; }
-    .set-btn.danger:hover { background: #7f1d1d; color: #fff; }
-
-    /* background picker */
-    .bg-options {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
+    .set-btn:hover { background: rgba(255,255,255,0.1); color: var(--text-primary); }
+    .set-btn.active {
+      background: rgba(0,120,212,0.22);
+      color: var(--text-primary);
+      border-color: rgba(0,120,212,0.5);
     }
+    .set-btn.danger { border-color: rgba(127,29,29,0.5); color: #f87171; }
+    .set-btn.danger:hover { background: rgba(127,29,29,0.4); color: #fff; }
+
+    /* bg picker */
+    .bg-options { display: flex; gap: 8px; flex-wrap: wrap; }
 
     .bg-opt {
-      padding: 8px 14px;
-      background: #1b1b20;
-      border: 1px solid #33343b;
-      border-radius: 6px;
-      color: #c8cdd8;
-      font-size: 0.8rem;
-      font-weight: 600;
+      padding: 7px 12px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: var(--radius-sm);
+      color: var(--text-secondary);
+      font-size: 0.78rem;
+      font-weight: 500;
       cursor: pointer;
-      transition: background 0.12s, border-color 0.12s, color 0.12s;
+      transition: background 0.1s, border-color 0.1s, color 0.1s;
     }
 
-    .bg-opt:hover { background: #292930; color: #eef0f4; }
-    .bg-opt.active { border-color: var(--accent, #c8cdd8); color: #eef0f4; background: rgba(200,205,216,0.12); }
+    .bg-opt:hover { background: rgba(255,255,255,0.08); color: var(--text-primary); }
+    .bg-opt.active { border-color: var(--accent); color: var(--text-primary); background: rgba(0,120,212,0.15); }
 
     /* accent picker */
-    .accent-options {
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
-    }
+    .accent-options { display: flex; gap: 10px; flex-wrap: wrap; }
 
     .accent-opt {
-      width: 28px;
-      height: 28px;
+      width: 26px;
+      height: 26px;
       border-radius: 50%;
       cursor: pointer;
       border: 2px solid transparent;
-      transition: transform 0.15s, border-color 0.15s;
+      transition: transform 0.12s, border-color 0.12s;
     }
 
-    .accent-opt:hover { transform: scale(1.15); }
-    .accent-opt.active { border-color: #eef0f4; transform: scale(1.15); }
+    .accent-opt:hover { transform: scale(1.2); }
+    .accent-opt.active { border-color: #fff; transform: scale(1.2); }
 
     /* toggle switch */
-    .toggle-switch {
-      display: flex;
-      align-items: center;
-      cursor: pointer;
-      gap: 10px;
-    }
-
+    .toggle-switch { display: flex; align-items: center; cursor: pointer; gap: 10px; }
     .toggle-switch input { display: none; }
 
     .toggle-track {
-      width: 40px;
-      height: 22px;
-      background: #33343b;
-      border-radius: 11px;
+      width: 38px;
+      height: 20px;
+      background: rgba(255,255,255,0.1);
+      border-radius: 10px;
       position: relative;
       transition: background 0.2s;
+      border: 1px solid rgba(255,255,255,0.08);
     }
 
-    .toggle-switch input:checked + .toggle-track {
-      background: var(--accent, #c8cdd8);
-    }
+    .toggle-switch input:checked + .toggle-track { background: var(--accent); border-color: var(--accent); }
 
     .toggle-thumb {
       position: absolute;
-      top: 3px;
-      left: 3px;
-      width: 16px;
-      height: 16px;
+      top: 2px;
+      left: 2px;
+      width: 14px;
+      height: 14px;
       background: #fff;
       border-radius: 50%;
-      transition: left 0.2s;
+      transition: left 0.18s;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.4);
     }
 
-    .toggle-switch input:checked + .toggle-track .toggle-thumb {
-      left: 21px;
+    .toggle-switch input:checked + .toggle-track .toggle-thumb { left: 20px; }
+
+    /* ── RIGHT-CLICK CONTEXT MENU ── */
+    #ctx-menu {
+      position: fixed;
+      z-index: 25000;
+      background: rgba(28,28,32,0.98);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: var(--radius-md);
+      padding: 6px;
+      min-width: 180px;
+      box-shadow: var(--win-shadow);
+      backdrop-filter: blur(20px);
+      display: none;
+      animation: menu-pop 0.12s ease both;
+    }
+
+    #ctx-menu.show { display: block; }
+
+    .ctx-item {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      padding: 7px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+      transition: background 0.08s, color 0.08s;
+    }
+
+    .ctx-item:hover { background: rgba(255,255,255,0.08); color: var(--text-primary); }
+    .ctx-item img { width: 14px; height: 14px; opacity: 0.7; }
+
+    .ctx-sep {
+      border: none;
+      border-top: 1px solid rgba(255,255,255,0.06);
+      margin: 4px 0;
     }
 
     @media (prefers-reduced-motion: reduce) {
-      *,
-      *::before,
-      *::after {
+      *, *::before, *::after {
         animation: none !important;
         transition: none !important;
       }
@@ -1218,63 +1367,41 @@
 
 <body>
 
-  <!-- AUTH -->
+  <!-- WALLPAPER -->
+  <div id="wallpaper"></div>
 
+  <!-- BACKGROUND CANVAS -->
+  <canvas id="snow"></canvas>
+
+  <!-- AUTH -->
   <div id="auth-wrap">
     <form id="auth-card">
 
-      <h2>welcome</h2>
+      <div class="auth-brand">
+        <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/5/5f/Windows_logo_-_2012.svg/88px-Windows_logo_-_2012.svg.png" alt="win">
+        <span>william's virtual machine</span>
+      </div>
 
-      <p id="auth-description">
-        Create an account for 1 hour of VM time, or continue as a guest for 30 minutes.
-      </p>
+      <div class="auth-inner">
+        <div class="auth-avatar">
+          <div class="auth-avatar-circle">
+            <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/8/8e/Nexticons_user.svg/240px-Nexticons_user.svg.png" alt="user">
+          </div>
+          <h2>Sign in</h2>
+          <p id="auth-description">Create an account for 1 hour of VM time, or continue as a guest for 30 minutes.</p>
+        </div>
 
-      <input
-        id="auth-username"
-        type="text"
-        placeholder="username"
-        autocomplete="username"
-        maxlength="24"
-        required
-      >
+        <input id="auth-username" type="text" placeholder="Username" autocomplete="username" maxlength="24" required>
+        <input id="auth-password" type="password" placeholder="Password" autocomplete="new-password" minlength="8" required>
 
-      <input
-        id="auth-password"
-        type="password"
-        placeholder="password"
-        autocomplete="new-password"
-        minlength="8"
-        required
-      >
+        <button class="vm-button" type="submit">Create account — 1 hour</button>
+        <button id="guest-button" type="button">Continue as guest — 30 minutes</button>
+        <button id="login-button" type="button">Already have an account? Log in</button>
 
-      <button
-        class="vm-button"
-        type="submit"
-      >
-        Create account — 1 hour
-      </button>
-
-      <button
-        id="guest-button"
-        type="button"
-      >
-        Continue as guest — 30 minutes
-      </button>
-
-      <button
-        id="login-button"
-        type="button"
-      >
-        Already have an account? Log in
-      </button>
-
-      <div id="auth-error"></div>
-
+        <div id="auth-error"></div>
+      </div>
     </form>
   </div>
-
-  <!-- BACKGROUND -->
-  <canvas id="snow"></canvas>
 
   <!-- DESKTOP -->
   <div id="desktop">
@@ -1283,32 +1410,44 @@
     <div id="desktop-icons">
 
       <div class="desktop-icon" onclick="launchE2BVM()">
-        <div class="icon-img">🖥️</div>
+        <div class="icon-img">
+          <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/5/5f/Windows_logo_-_2012.svg/88px-Windows_logo_-_2012.svg.png" alt="VM #1">
+        </div>
         <span>VM #1</span>
       </div>
 
       <div class="desktop-icon" onclick="launchGPUVM()">
-        <div class="icon-img">⚡</div>
+        <div class="icon-img">
+          <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/4/44/Microsoft_logo.svg/480px-Microsoft_logo.svg.png" alt="VM #2" style="padding:4px">
+        </div>
         <span>VM #2</span>
       </div>
 
       <div class="desktop-icon" onclick="openScramjetBrowser()">
-        <div class="icon-img">🌐</div>
+        <div class="icon-img">
+          <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/9/98/Microsoft_Edge_logo_%282019%29.svg/150px-Microsoft_Edge_logo_%282019%29.svg.png" alt="Browser">
+        </div>
         <span>Browser</span>
       </div>
 
       <div class="desktop-icon" onclick="openGamesPanel()">
-        <div class="icon-img">🎮</div>
+        <div class="icon-img">
+          <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/6/6a/Xbox_logo_%28white%29_2012.svg/300px-Xbox_logo_%28white%29_2012.svg.png" alt="Games" style="padding:4px">
+        </div>
         <span>Games</span>
       </div>
 
       <div class="desktop-icon" onclick="toggleLinksPanel()">
-        <div class="icon-img">🔗</div>
+        <div class="icon-img" style="background:rgba(0,120,212,0.25);">
+          <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/a/a9/Amazon_logo.svg/320px-Amazon_logo.svg.png" alt="Links" style="padding:6px">
+        </div>
         <span>Links</span>
       </div>
 
       <div class="desktop-icon" onclick="openSettings()">
-        <div class="icon-img">⚙️</div>
+        <div class="icon-img">
+          <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/b/b4/Windows_Settings_app_icon.png/120px-Windows_Settings_app_icon.png" alt="Settings">
+        </div>
         <span>Settings</span>
       </div>
 
@@ -1318,67 +1457,93 @@
       <div id="status"></div>
       <div id="player-count">
         <span class="dot"></span>
-        <span id="player-count-text">1 vms are working</span>
+        <span id="player-count-text">1 vm online</span>
       </div>
     </div>
   </div>
 
   <!-- START MENU -->
   <div id="start-menu">
+    <div class="start-menu-header">pinned</div>
     <div class="start-item" onclick="launchE2BVM(); closeStartMenu()">
-      <span class="si-icon">🖥️</span> VM #1 (home only)
+      <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/5/5f/Windows_logo_-_2012.svg/88px-Windows_logo_-_2012.svg.png" alt="">
+      VM #1 (home only)
     </div>
     <div class="start-item" onclick="launchGPUVM(); closeStartMenu()">
-      <span class="si-icon">⚡</span> VM #2 (working)
+      <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/4/44/Microsoft_logo.svg/480px-Microsoft_logo.svg.png" alt="">
+      VM #2 (working)
     </div>
     <hr>
     <div class="start-item" onclick="openScramjetBrowser(); closeStartMenu()">
-      <span class="si-icon">🌐</span> Browser (beta v2)
+      <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/9/98/Microsoft_Edge_logo_%282019%29.svg/150px-Microsoft_Edge_logo_%282019%29.svg.png" alt="">
+      Browser (beta v2)
     </div>
     <div class="start-item" onclick="openGamesPanel(); closeStartMenu()">
-      <span class="si-icon">🎮</span> Games
+      <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/6/6a/Xbox_logo_%28white%29_2012.svg/300px-Xbox_logo_%28white%29_2012.svg.png" alt="">
+      Games
     </div>
     <div class="start-item" onclick="toggleLinksPanel(); closeStartMenu()">
-      <span class="si-icon">🔗</span> Links
+      <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/a/a9/Amazon_logo.svg/320px-Amazon_logo.svg.png" alt="">
+      Links
     </div>
     <div class="start-item" onclick="openSettings(); closeStartMenu()">
-      <span class="si-icon">⚙️</span> Settings
+      <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/b/b4/Windows_Settings_app_icon.png/120px-Windows_Settings_app_icon.png" alt="">
+      Settings
     </div>
   </div>
 
   <!-- TASKBAR -->
   <div id="taskbar">
 
-    <div id="taskbar-start" onclick="toggleStartMenu()" title="Start">⊞</div>
+    <div id="taskbar-start" onclick="toggleStartMenu()" title="Start">
+      <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/5/5f/Windows_logo_-_2012.svg/88px-Windows_logo_-_2012.svg.png" alt="Start">
+    </div>
+
     <div id="taskbar-divider"></div>
 
-    <button class="tb-btn" id="tb-vm1" onclick="launchE2BVM()">🖥️ VM #1</button>
-    <button class="tb-btn" id="tb-vm2" onclick="launchGPUVM()">⚡ VM #2</button>
-    <button class="tb-btn" id="tb-browser" onclick="openScramjetBrowser()">🌐 Browser</button>
-    <button class="tb-btn" id="tb-games" onclick="openGamesPanel()">🎮 Games</button>
+    <button class="tb-btn" id="tb-vm1" onclick="launchE2BVM()">
+      <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/5/5f/Windows_logo_-_2012.svg/88px-Windows_logo_-_2012.svg.png" alt="">
+      VM #1
+    </button>
+
+    <button class="tb-btn" id="tb-vm2" onclick="launchGPUVM()">
+      <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/4/44/Microsoft_logo.svg/480px-Microsoft_logo.svg.png" alt="">
+      VM #2
+    </button>
+
+    <button class="tb-btn" id="tb-browser" onclick="openScramjetBrowser()">
+      <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/9/98/Microsoft_Edge_logo_%282019%29.svg/150px-Microsoft_Edge_logo_%282019%29.svg.png" alt="">
+      Browser
+    </button>
+
+    <button class="tb-btn" id="tb-games" onclick="openGamesPanel()">
+      <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/6/6a/Xbox_logo_%28white%29_2012.svg/300px-Xbox_logo_%28white%29_2012.svg.png" alt="">
+      Games
+    </button>
+
     <button class="tb-btn" id="tb-links" onclick="toggleLinksPanel()">🔗 Links</button>
-    <button class="tb-btn" id="tb-settings" onclick="openSettings()">⚙️ Settings</button>
+
+    <button class="tb-btn" id="tb-settings" onclick="openSettings()">
+      <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/b/b4/Windows_Settings_app_icon.png/120px-Windows_Settings_app_icon.png" alt="">
+      Settings
+    </button>
 
     <div id="taskbar-right">
-      <div id="taskbar-clock">--:--</div>
+      <div id="taskbar-clock">
+        <div id="clock-time">--:--</div>
+        <div id="clock-date" style="font-size:0.62rem;opacity:0.6;text-align:right;"></div>
+      </div>
     </div>
 
   </div>
 
-  <!-- LINKS -->
-
+  <!-- LINKS PANEL -->
   <div id="links-panel">
 
-    <button
-      id="links-close"
-      type="button"
-    >
-      ✕ Close
-    </button>
+    <button id="links-close" type="button">✕ Close</button>
 
     <section class="link-section">
       <h2>SolaraOS (Updated 12pm 9/04/26)</h2>
-
       <div class="link-grid">
         <a href="https://solaraos.colegioitalocomposto.cl" target="_blank" rel="noopener noreferrer">link 1</a>
         <a href="https://solaraos.kkmsilvia.com" target="_blank" rel="noopener noreferrer">link 2</a>
@@ -1390,7 +1555,6 @@
 
     <section class="link-section">
       <h2>Voya (updated today)</h2>
-
       <div class="link-grid">
         <a href="https://voya.opan.biz" target="_blank" rel="noopener noreferrer">link 6</a>
         <a href="https://voya.noordware.com" target="_blank" rel="noopener noreferrer">link 7</a>
@@ -1402,7 +1566,6 @@
 
     <section class="link-section">
       <h2>Aurora</h2>
-
       <div class="link-grid">
         <a href="https://quietbirchstudy.s3.amazonaws.com/index.html" target="_blank" rel="noopener noreferrer">link 11</a>
         <a href="https://quietbirchstudy.s3.us-east-1.amazonaws.com/index.html" target="_blank" rel="noopener noreferrer">link 12</a>
@@ -1414,7 +1577,6 @@
 
     <section class="link-section">
       <h2>DogeUb</h2>
-
       <div class="link-grid">
         <a href="https://memorising.s3.amazonaws.com/index.html" target="_blank" rel="noopener noreferrer">link 16</a>
         <a href="https://memorising.s3.us-east-1.amazonaws.com/index.html" target="_blank" rel="noopener noreferrer">link 17</a>
@@ -1425,7 +1587,6 @@
 
     <section class="link-section">
       <h2>Space</h2>
-
       <div class="link-grid">
         <a href="https://space.colegioitalocomposto.cl" target="_blank" rel="noopener noreferrer">link 20</a>
         <a href="https://space.asirargentina.com.ar" target="_blank" rel="noopener noreferrer">link 21</a>
@@ -1434,8 +1595,7 @@
     </section>
 
     <section class="link-section">
-      <h2>gn-math & Opium</h2>
-
+      <h2>gn-math &amp; Opium</h2>
       <div class="link-grid">
         <a href="https://storage.googleapis.com/mathlearning/ilovessp/500k/gn-math_4" target="_blank" rel="noopener noreferrer">link 23</a>
         <a href="https://storage.googleapis.com/mathlearning/ilovessp/500k/gn-math_25" target="_blank" rel="noopener noreferrer">link 24</a>
@@ -1445,8 +1605,7 @@
     </section>
 
     <section class="link-section">
-      <h2>Nocturne & Quasar</h2>
-
+      <h2>Nocturne &amp; Quasar</h2>
       <div class="link-grid">
         <a href="https://responsibleuse.org/" target="_blank" rel="noopener noreferrer">link 27</a>
         <a href="https://cdn.jsdelivr.net/gh/lolration/svg/index.svg" target="_blank" rel="noopener noreferrer">link 28</a>
@@ -1461,28 +1620,38 @@
 
   <!-- SETTINGS PANEL -->
   <div id="settings-panel">
-
     <div id="settings-header">
-      <h2>⚙️ Settings</h2>
+      <h2>
+        <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/b/b4/Windows_Settings_app_icon.png/120px-Windows_Settings_app_icon.png" alt="">
+        Settings
+      </h2>
       <button id="settings-close" onclick="closeSettings()">✕ Close</button>
     </div>
 
     <div id="settings-body">
-
-      <!-- SIDEBAR -->
       <div id="settings-sidebar">
-        <div class="settings-tab active" data-tab="appearance" onclick="switchSettingsTab(this,'appearance')">🎨 Appearance</div>
-        <div class="settings-tab" data-tab="browser"    onclick="switchSettingsTab(this,'browser')">🌐 Browser</div>
-        <div class="settings-tab" data-tab="vm"         onclick="switchSettingsTab(this,'vm')">🖥️ VM</div>
-        <div class="settings-tab" data-tab="about"      onclick="switchSettingsTab(this,'about')">ℹ️ About</div>
+        <div class="settings-tab active" onclick="switchSettingsTab(this,'appearance')">
+          <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/0/00/Circle-icons-paint.svg/120px-Circle-icons-paint.svg.png" alt="">
+          Appearance
+        </div>
+        <div class="settings-tab" onclick="switchSettingsTab(this,'browser')">
+          <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/9/98/Microsoft_Edge_logo_%282019%29.svg/150px-Microsoft_Edge_logo_%282019%29.svg.png" alt="">
+          Browser
+        </div>
+        <div class="settings-tab" onclick="switchSettingsTab(this,'vm')">
+          <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/5/5f/Windows_logo_-_2012.svg/88px-Windows_logo_-_2012.svg.png" alt="">
+          VM
+        </div>
+        <div class="settings-tab" onclick="switchSettingsTab(this,'about')">
+          <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/a/a2/Cc-info.svg/100px-Cc-info.svg.png" alt="">
+          About
+        </div>
       </div>
 
-      <!-- PAGES -->
       <div id="settings-content">
 
         <!-- APPEARANCE -->
         <div class="settings-page active" id="tab-appearance">
-
           <div class="setting-group">
             <div class="setting-label">Background</div>
             <div class="setting-desc">Choose the desktop background effect</div>
@@ -1507,7 +1676,7 @@
             <div class="setting-label">Accent Color</div>
             <div class="setting-desc">Changes highlight color across the UI</div>
             <div class="accent-options">
-              <div class="accent-opt active" data-color="#c8cdd8" style="background:#c8cdd8" onclick="setAccent('#c8cdd8')"></div>
+              <div class="accent-opt active" data-color="#0078d4" style="background:#0078d4" onclick="setAccent('#0078d4')"></div>
               <div class="accent-opt"        data-color="#818cf8" style="background:#818cf8" onclick="setAccent('#818cf8')"></div>
               <div class="accent-opt"        data-color="#34d399" style="background:#34d399" onclick="setAccent('#34d399')"></div>
               <div class="accent-opt"        data-color="#f87171" style="background:#f87171" onclick="setAccent('#f87171')"></div>
@@ -1529,17 +1698,15 @@
             <div class="setting-label">Custom Cursor</div>
             <div class="setting-desc">Override the default mouse cursor</div>
             <div class="setting-row gap8">
-              <button class="set-btn active" id="cur-default" onclick="setCursor('default')">Default</button>
-              <button class="set-btn"        id="cur-crosshair" onclick="setCursor('crosshair')">Crosshair</button>
-              <button class="set-btn"        id="cur-none"    onclick="setCursor('none')">Hidden</button>
+              <button class="set-btn active" id="cur-default"    onclick="setCursor('default')">Default</button>
+              <button class="set-btn"        id="cur-crosshair"  onclick="setCursor('crosshair')">Crosshair</button>
+              <button class="set-btn"        id="cur-none"       onclick="setCursor('none')">Hidden</button>
             </div>
           </div>
-
         </div>
 
         <!-- BROWSER -->
         <div class="settings-page" id="tab-browser">
-
           <div class="setting-group">
             <div class="setting-label">Default Homepage</div>
             <div class="setting-desc">URL loaded when you open a new tab</div>
@@ -1548,18 +1715,15 @@
               <button class="set-btn" onclick="saveHomepage()">Save</button>
             </div>
           </div>
-
           <div class="setting-group">
             <div class="setting-label">Clear All Tabs</div>
             <div class="setting-desc">Close every open browser tab</div>
             <button class="set-btn danger" onclick="clearAllTabs()">Close All Tabs</button>
           </div>
-
         </div>
 
         <!-- VM -->
         <div class="settings-page" id="tab-vm">
-
           <div class="setting-group">
             <div class="setting-label">Show VM Timer</div>
             <div class="setting-desc">Display session timer in the VM toolbar</div>
@@ -1568,7 +1732,6 @@
               <span class="toggle-track"><span class="toggle-thumb"></span></span>
             </label>
           </div>
-
           <div class="setting-group">
             <div class="setting-label">Fullscreen on Launch</div>
             <div class="setting-desc">Automatically go fullscreen when a VM starts</div>
@@ -1577,12 +1740,10 @@
               <span class="toggle-track"><span class="toggle-thumb"></span></span>
             </label>
           </div>
-
         </div>
 
         <!-- ABOUT -->
         <div class="settings-page" id="tab-about">
-
           <div class="setting-group">
             <div class="setting-label">Site Name</div>
             <div class="setting-desc">The title shown on the desktop</div>
@@ -1591,7 +1752,6 @@
               <button class="set-btn" onclick="saveSiteName()">Save</button>
             </div>
           </div>
-
           <div class="setting-group">
             <div class="setting-label">Show Player Count</div>
             <div class="setting-desc">Display the online player counter on the desktop</div>
@@ -1600,19 +1760,16 @@
               <span class="toggle-track"><span class="toggle-thumb"></span></span>
             </label>
           </div>
-
           <div class="setting-group">
             <div class="setting-label">Version</div>
             <div class="setting-desc">Current build info</div>
-            <div style="color:#7a8194;font-size:0.82rem;font-family:monospace;">willies-vm v3.0 · webOS UI</div>
+            <div style="color:var(--text-muted);font-size:0.8rem;font-family:monospace;">willies-vm v3.1 · winOS UI</div>
           </div>
-
           <div class="setting-group">
             <div class="setting-label">Reset All Settings</div>
             <div class="setting-desc">Restore everything to defaults</div>
             <button class="set-btn danger" onclick="resetAllSettings()">Reset to Defaults</button>
           </div>
-
         </div>
 
       </div>
@@ -1620,113 +1777,74 @@
   </div>
 
   <!-- GAMES PANEL -->
-
   <div id="games-panel">
-
     <div id="games-header">
-      <h2>🎮 games</h2>
-      <input
-        id="games-search"
-        type="text"
-        placeholder="search games..."
-        oninput="filterGames(this.value)"
-        autocomplete="off"
-      >
+      <h2>
+        <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/6/6a/Xbox_logo_%28white%29_2012.svg/300px-Xbox_logo_%28white%29_2012.svg.png" alt="">
+        Games
+      </h2>
+      <input id="games-search" type="text" placeholder="Search games..." oninput="filterGames(this.value)" autocomplete="off">
       <button id="games-close" type="button" onclick="closeGamesPanel()">✕ Close</button>
     </div>
-
     <div id="games-grid"></div>
-
   </div>
 
-  <!-- SCRAMJET BROWSER -->
-
+  <!-- BROWSER -->
   <div id="browser-wrap">
-
-    <!-- TAB BAR -->
     <div id="tab-bar">
       <div id="tab-list"></div>
       <div id="tab-new" title="New tab" onclick="newTab()">+</div>
     </div>
-
-    <!-- ADDRESS BAR -->
     <div id="browser-toolbar">
-      <button type="button" onclick="scramjetBack()" aria-label="Back">←</button>
-      <button type="button" onclick="scramjetForward()" aria-label="Forward">→</button>
-      <button type="button" onclick="scramjetReload()" aria-label="Reload">↻</button>
-
-      <input
-        id="browser-address"
-        type="text"
-        value="https://www.google.com/"
-        placeholder="Enter a URL or search"
-        autocomplete="off"
-        spellcheck="false"
-        onkeydown="if(event.key === 'Enter') navigateScramjet()"
-      >
-
+      <button type="button" onclick="scramjetBack()" title="Back">←</button>
+      <button type="button" onclick="scramjetForward()" title="Forward">→</button>
+      <button type="button" onclick="scramjetReload()" title="Reload">↻</button>
+      <input id="browser-address" type="text" value="https://www.google.com/" placeholder="Enter a URL or search" autocomplete="off" spellcheck="false" onkeydown="if(event.key==='Enter') navigateScramjet()">
       <button type="button" onclick="navigateScramjet()">Go</button>
       <button type="button" onclick="closeScramjetBrowser()">✕ Close</button>
     </div>
-
-    <!-- FRAMES -->
     <div id="browser-frames">
       <div id="browser-status" style="display:none"></div>
     </div>
-
   </div>
 
-  <!-- VM -->
-
+  <!-- VM FRAME -->
   <div id="vm-frame-wrap">
-
     <div id="vm-toolbar">
-
-      <span>private vm</span>
-
-      <div class="vm-toolbar-right">
-
-        <span
-          id="vm-timer"
-          aria-live="polite"
-        >
-          00:00
-        </span>
-
-        <button
-          type="button"
-          onclick="toggleFullscreen()"
-        >
-          ⛶ Fullscreen
-        </button>
-
-        <button
-          type="button"
-          onclick="closeVM()"
-        >
-          ✕ Close
-        </button>
-
+      <div class="vm-toolbar-left">
+        <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/5/5f/Windows_logo_-_2012.svg/88px-Windows_logo_-_2012.svg.png" alt="">
+        private vm
       </div>
-
+      <div class="vm-toolbar-right">
+        <span id="vm-timer" aria-live="polite">00:00</span>
+        <button type="button" onclick="toggleFullscreen()">⛶ Fullscreen</button>
+        <button type="button" onclick="closeVM()">✕ Close</button>
+      </div>
     </div>
+    <iframe id="vm-frame" title="Virtual Machine" allow="fullscreen; autoplay; clipboard-read; clipboard-write" referrerpolicy="no-referrer"></iframe>
+  </div>
 
-    <iframe
-      id="vm-frame"
-      title="Virtual Machine"
-      allow="fullscreen; autoplay; clipboard-read; clipboard-write"
-      referrerpolicy="no-referrer"
-    ></iframe>
-
+  <!-- CONTEXT MENU -->
+  <div id="ctx-menu">
+    <div class="ctx-item" onclick="document.getElementById('ctx-menu').classList.remove('show')">
+      <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/b/b4/Windows_Settings_app_icon.png/120px-Windows_Settings_app_icon.png" alt="">
+      Display Settings
+    </div>
+    <hr class="ctx-sep">
+    <div class="ctx-item" onclick="setBg('snow'); document.getElementById('ctx-menu').classList.remove('show')">❄️ Snow background</div>
+    <div class="ctx-item" onclick="setBg('matrix'); document.getElementById('ctx-menu').classList.remove('show')">🟢 Matrix background</div>
+    <div class="ctx-item" onclick="setBg('stars'); document.getElementById('ctx-menu').classList.remove('show')">✨ Stars background</div>
+    <hr class="ctx-sep">
+    <div class="ctx-item" onclick="openSettings(); document.getElementById('ctx-menu').classList.remove('show')">
+      <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/b/b4/Windows_Settings_app_icon.png/120px-Windows_Settings_app_icon.png" alt="">
+      Open Settings
+    </div>
   </div>
 
   <div id="toast"></div>
 
-  <!-- IMPORTANT:
-       register-sw.js remains responsible for the Scramjet service worker. -->
-
+  <!-- EXTERNAL SCRIPTS (unchanged from original) -->
   <script src="/baremux/bare.cjs"></script>
-  <!-- Scramjet 2.x + controller 0.0.14: load core, controller API, then utils -->
   <script src="/scramjet/scramjet.js"></script>
   <script src="/controller/controller.api.js"></script>
   <script src="/utils/scramjet-utils.js"></script>
@@ -1735,13 +1853,15 @@
 
   <script>
     /* =========================================================
-       SNOW
+       SNOW / BACKGROUND CANVAS
+       BUG FIX: drawSnow was using rAF infinitely without a stop
+       flag, causing double animation loops on bg mode switch.
        ========================================================= */
-
     const canvas = document.getElementById("snow");
     const ctx = canvas.getContext("2d");
-
     let flakes = [];
+    let snowAnimId = null;
+    let bgMode = "snow";
 
     function resize() {
       canvas.width = window.innerWidth;
@@ -1752,17 +1872,17 @@
       return {
         x: Math.random() * canvas.width,
         y: Math.random() * -canvas.height,
-        r: Math.random() * 2.5 + 0.5,
-        speed: Math.random() * 0.8 + 0.3,
-        drift: Math.random() * 0.4 - 0.2,
-        op: Math.random() * 0.5 + 0.2
+        r: Math.random() * 2.2 + 0.5,
+        speed: Math.random() * 0.7 + 0.25,
+        drift: Math.random() * 0.35 - 0.175,
+        op: Math.random() * 0.45 + 0.15
       };
     }
 
-    function initFlakes() {
+    function initFlakes(count) {
       flakes = [];
-
-      for (let i = 0; i < 120; i++) {
+      const n = count || 120;
+      for (let i = 0; i < n; i++) {
         const f = makeFlake();
         f.y = Math.random() * canvas.height;
         flakes.push(f);
@@ -1770,409 +1890,313 @@
     }
 
     function drawSnow() {
-      ctx.clearRect(
-        0,
-        0,
-        canvas.width,
-        canvas.height
-      );
-
+      if (bgMode !== "snow") return;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.fillStyle = "#fff";
-
       for (const f of flakes) {
         ctx.globalAlpha = f.op;
-
         ctx.beginPath();
-
-        ctx.arc(
-          f.x,
-          f.y,
-          f.r,
-          0,
-          Math.PI * 2
-        );
-
+        ctx.arc(f.x, f.y, f.r, 0, Math.PI * 2);
         ctx.fill();
-
         f.y += f.speed;
         f.x += f.drift;
-
-        if (f.y > canvas.height + 5) {
-          Object.assign(
-            f,
-            makeFlake()
-          );
-        }
+        if (f.y > canvas.height + 5) Object.assign(f, makeFlake());
       }
-
       ctx.globalAlpha = 1;
+      snowAnimId = requestAnimationFrame(drawSnow);
+    }
 
-      requestAnimationFrame(drawSnow);
+    /* matrix */
+    let matrixCols = [], matrixInterval = null;
+
+    function startMatrix() {
+      canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+      const cols = Math.floor(canvas.width / 14);
+      matrixCols = Array(cols).fill(0);
+      matrixInterval = setInterval(() => {
+        ctx.fillStyle = "rgba(0,0,0,0.05)";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = "#0f0";
+        ctx.font = "13px monospace";
+        matrixCols.forEach((y, i) => {
+          const ch = String.fromCharCode(0x30A0 + Math.random() * 96);
+          ctx.fillText(ch, i * 14, y);
+          matrixCols[i] = y > canvas.height && Math.random() > 0.975 ? 0 : y + 14;
+        });
+      }, 50);
+    }
+
+    function stopMatrix() {
+      if (matrixInterval) { clearInterval(matrixInterval); matrixInterval = null; }
+    }
+
+    /* stars */
+    let stars = [];
+
+    function startStars() {
+      canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+      stars = Array.from({ length: 200 }, () => ({
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height,
+        r: Math.random() * 1.4 + 0.2,
+        op: Math.random(),
+        speed: Math.random() * 0.005 + 0.002
+      }));
+      function drawStars() {
+        if (bgMode !== "stars") return;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        stars.forEach(s => {
+          s.op += s.speed * (Math.random() > 0.5 ? 1 : -1);
+          s.op = Math.max(0.05, Math.min(1, s.op));
+          ctx.globalAlpha = s.op;
+          ctx.fillStyle = "#fff";
+          ctx.beginPath();
+          ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+          ctx.fill();
+        });
+        ctx.globalAlpha = 1;
+        requestAnimationFrame(drawStars);
+      }
+      drawStars();
+    }
+
+    /* setBg - stops all loops cleanly before starting new one */
+    function setBg(mode) {
+      bgMode = mode;
+      saveCfg({ bg: mode });
+      document.querySelectorAll(".bg-opt").forEach(o => o.classList.toggle("active", o.dataset.bg === mode));
+
+      // Stop all running animations
+      if (snowAnimId) { cancelAnimationFrame(snowAnimId); snowAnimId = null; }
+      stopMatrix();
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      if (mode === "none") {
+        canvas.style.opacity = "0";
+      } else if (mode === "snow") {
+        canvas.style.opacity = "1";
+        flakes = [];
+        initFlakes();
+        drawSnow();
+      } else if (mode === "matrix") {
+        canvas.style.opacity = "1";
+        flakes = [];
+        startMatrix();
+      } else if (mode === "stars") {
+        canvas.style.opacity = "1";
+        flakes = [];
+        startStars();
+      }
     }
 
     resize();
     initFlakes();
+    canvas.style.position = "fixed";
+    canvas.style.inset = "0";
+    canvas.style.zIndex = "0";
+    canvas.style.pointerEvents = "none";
     drawSnow();
 
-    window.addEventListener(
-      "resize",
-      () => {
-        resize();
-        initFlakes();
-      }
-    );
+    window.addEventListener("resize", () => {
+      resize();
+      if (bgMode === "snow") initFlakes();
+    });
 
+    /* =========================================================
+       RIGHT-CLICK CONTEXT MENU
+       ========================================================= */
+    document.getElementById("desktop").addEventListener("contextmenu", e => {
+      e.preventDefault();
+      const menu = document.getElementById("ctx-menu");
+      menu.style.left = Math.min(e.clientX, window.innerWidth - 200) + "px";
+      menu.style.top  = Math.min(e.clientY, window.innerHeight - 200) + "px";
+      menu.classList.add("show");
+    });
+
+    document.addEventListener("click", () => {
+      document.getElementById("ctx-menu").classList.remove("show");
+    });
 
     /* =========================================================
        GLOBAL STATE
        ========================================================= */
-
     let currentContainerId = null;
     let currentVMType = null;
     let currentUrl = null;
-
     let pollInterval = null;
     let vmTimerInterval = null;
-
     let vmStartedAt = null;
-
     let vmTimeLimitSeconds = 30 * 60;
-
     let authMode = "register";
-
 
     /* =========================================================
        TOAST / STATUS
        ========================================================= */
-
     function toast(msg, isError = false) {
-      const element =
-        document.getElementById("toast");
-
-      element.textContent = msg;
-
-      element.className =
-        "show" +
-        (isError ? " error" : "");
-
-      setTimeout(() => {
-        element.className = "";
-      }, 5000);
+      const el = document.getElementById("toast");
+      el.textContent = msg;
+      el.className = "show" + (isError ? " error" : "");
+      setTimeout(() => { el.className = ""; }, 5000);
     }
 
     function setStatus(msg) {
-      const element =
-        document.getElementById("status");
-
-      element.textContent = msg;
-
-      element.className =
-        msg.startsWith("Error") ||
-        msg.startsWith("Failed")
-          ? "error"
-          : "";
+      const el = document.getElementById("status");
+      el.textContent = msg;
+      el.className = (msg.startsWith("Error") || msg.startsWith("Failed")) ? "error" : "";
     }
 
     function setLaunching(on) {
-      document
-        .querySelectorAll(".vm-button")
-        .forEach(button => {
-          button.disabled = on;
-        });
+      document.querySelectorAll(".vm-button").forEach(b => { b.disabled = on; });
     }
-
 
     /* =========================================================
        VM TIMER
        ========================================================= */
-
-    function formatVMTime(totalSeconds) {
-      const hours =
-        Math.floor(totalSeconds / 3600);
-
-      const minutes =
-        Math.floor(
-          (totalSeconds % 3600) / 60
-        );
-
-      const seconds =
-        totalSeconds % 60;
-
-      const twoDigits =
-        value =>
-          String(value).padStart(2, "0");
-
-      return hours > 0
-        ? `${twoDigits(hours)}:${twoDigits(minutes)}:${twoDigits(seconds)}`
-        : `${twoDigits(minutes)}:${twoDigits(seconds)}`;
+    function formatVMTime(s) {
+      const h = Math.floor(s / 3600);
+      const m = Math.floor((s % 3600) / 60);
+      const sec = s % 60;
+      const z = v => String(v).padStart(2, "0");
+      return h > 0 ? `${z(h)}:${z(m)}:${z(sec)}` : `${z(m)}:${z(sec)}`;
     }
 
     function updateVMTimer() {
-      if (!vmStartedAt) {
-        return;
-      }
-
-      const elapsedSeconds =
-        Math.floor(
-          (Date.now() - vmStartedAt) / 1000
-        );
-
-      if (
-        elapsedSeconds >=
-        vmTimeLimitSeconds
-      ) {
-        toast(
-          "Your VM time has ended.",
-          true
-        );
-
+      if (!vmStartedAt) return;
+      const elapsed = Math.floor((Date.now() - vmStartedAt) / 1000);
+      if (elapsed >= vmTimeLimitSeconds) {
+        toast("Your VM time has ended.", true);
         closeVM();
-
         return;
       }
-
-      document.getElementById(
-        "vm-timer"
-      ).textContent =
-        formatVMTime(elapsedSeconds);
+      document.getElementById("vm-timer").textContent = formatVMTime(elapsed);
     }
 
     function startVMTimer() {
       clearInterval(vmTimerInterval);
-
       vmStartedAt = Date.now();
-
       updateVMTimer();
-
-      vmTimerInterval =
-        setInterval(
-          updateVMTimer,
-          1000
-        );
+      vmTimerInterval = setInterval(updateVMTimer, 1000);
     }
 
     function stopVMTimer() {
       clearInterval(vmTimerInterval);
-
       vmTimerInterval = null;
       vmStartedAt = null;
-
-      document.getElementById(
-        "vm-timer"
-      ).textContent = "00:00";
+      document.getElementById("vm-timer").textContent = "00:00";
     }
 
+    /* =========================================================
+       TASKBAR CLOCK — BUG FIX: was only updating every 15s
+       ========================================================= */
+    function updateClock() {
+      const now = new Date();
+      const h = String(now.getHours()).padStart(2, "0");
+      const m = String(now.getMinutes()).padStart(2, "0");
+      document.getElementById("clock-time").textContent = h + ":" + m;
+      // date line
+      const days = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+      const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+      document.getElementById("clock-date").textContent =
+        `${days[now.getDay()]} ${months[now.getMonth()]} ${now.getDate()}`;
+    }
+    updateClock();
+    setInterval(updateClock, 1000); // BUG FIX: was 15000 (15 seconds), now 1000ms for accurate time
 
     /* =========================================================
        AUTH
        ========================================================= */
-
     function setAuthError(message = "") {
-      document.getElementById(
-        "auth-error"
-      ).textContent = message;
+      document.getElementById("auth-error").textContent = message;
     }
 
     function setAuthMode(mode) {
       authMode = mode;
-
-      const submit =
-        document.querySelector(
-          "#auth-card button[type='submit']"
-        );
-
-      const loginButton =
-        document.getElementById(
-          "login-button"
-        );
-
-      const password =
-        document.getElementById(
-          "auth-password"
-        );
-
+      const submit = document.querySelector("#auth-card button[type='submit']");
+      const loginButton = document.getElementById("login-button");
+      const password = document.getElementById("auth-password");
       if (mode === "login") {
-        submit.textContent =
-          "Log in — 1 hour";
-
-        loginButton.textContent =
-          "Need an account? Create one";
-
-        password.autocomplete =
-          "current-password";
+        submit.textContent = "Log in — 1 hour";
+        loginButton.textContent = "Need an account? Create one";
+        password.autocomplete = "current-password";
       } else {
-        submit.textContent =
-          "Create account — 1 hour";
-
-        loginButton.textContent =
-          "Already have an account? Log in";
-
-        password.autocomplete =
-          "new-password";
+        submit.textContent = "Create account — 1 hour";
+        loginButton.textContent = "Already have an account? Log in";
+        password.autocomplete = "new-password";
       }
-
       setAuthError();
     }
 
     function acceptAuth(data) {
-      vmTimeLimitSeconds =
-        data.vmMinutes * 60;
-
-      document
-        .getElementById("auth-wrap")
-        .classList.add("hidden");
-
-      toast(
-        `${data.username}: ${data.vmMinutes} minutes of VM time available.`
-      );
+      vmTimeLimitSeconds = data.vmMinutes * 60;
+      document.getElementById("auth-wrap").classList.add("hidden");
+      toast(`${data.username}: ${data.vmMinutes} minutes of VM time available.`);
     }
 
     async function checkAuth() {
       try {
-        const res =
-          await fetch("/api/auth/me");
-
-        const data =
-          await res.json();
-
-        if (data.loggedIn) {
-          acceptAuth(data);
-        }
-      } catch (_) {
-        // Auth check can fail without blocking the page.
-      }
+        const res = await fetch("/api/auth/me");
+        const data = await res.json();
+        if (data.loggedIn) acceptAuth(data);
+      } catch (_) {}
     }
 
-    document
-      .getElementById("auth-card")
-      .addEventListener(
-        "submit",
-        async event => {
-          event.preventDefault();
+    document.getElementById("auth-card").addEventListener("submit", async e => {
+      e.preventDefault();
+      const username = document.getElementById("auth-username").value.trim();
+      const password = document.getElementById("auth-password").value;
+      try {
+        const res = await fetch(authMode === "login" ? "/api/auth/login" : "/api/auth/register", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ username, password })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Authentication failed.");
+        acceptAuth(data);
+      } catch (err) {
+        setAuthError(err.message || "Authentication failed.");
+      }
+    });
 
-          const username =
-            document.getElementById(
-              "auth-username"
-            ).value.trim();
+    document.getElementById("guest-button").addEventListener("click", async () => {
+      try {
+        const res = await fetch("/api/auth/guest", { method: "POST" });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Guest sign-in failed.");
+        acceptAuth(data);
+      } catch (err) {
+        setAuthError(err.message || "Guest sign-in failed.");
+      }
+    });
 
-          const password =
-            document.getElementById(
-              "auth-password"
-            ).value;
-
-          try {
-            const res =
-              await fetch(
-                authMode === "login"
-                  ? "/api/auth/login"
-                  : "/api/auth/register",
-                {
-                  method: "POST",
-                  headers: {
-                    "Content-Type":
-                      "application/json"
-                  },
-                  body: JSON.stringify({
-                    username,
-                    password
-                  })
-                }
-              );
-
-            const data =
-              await res.json();
-
-            if (!res.ok) {
-              throw new Error(
-                data.error ||
-                "Authentication failed."
-              );
-            }
-
-            acceptAuth(data);
-
-          } catch (err) {
-            setAuthError(
-              err.message ||
-              "Authentication failed."
-            );
-          }
-        }
-      );
-
-    document
-      .getElementById("guest-button")
-      .addEventListener(
-        "click",
-        async () => {
-          try {
-            const res =
-              await fetch(
-                "/api/auth/guest",
-                {
-                  method: "POST"
-                }
-              );
-
-            const data =
-              await res.json();
-
-            if (!res.ok) {
-              throw new Error(
-                data.error ||
-                "Guest sign-in failed."
-              );
-            }
-
-            acceptAuth(data);
-
-          } catch (err) {
-            setAuthError(
-              err.message ||
-              "Guest sign-in failed."
-            );
-          }
-        }
-      );
-
-    document
-      .getElementById("login-button")
-      .addEventListener(
-        "click",
-        () => {
-          setAuthMode(
-            authMode === "login"
-              ? "register"
-              : "login"
-          );
-        }
-      );
-
+    document.getElementById("login-button").addEventListener("click", () => {
+      setAuthMode(authMode === "login" ? "register" : "login");
+    });
 
     /* =========================================================
        LINKS
        ========================================================= */
-
     function toggleLinksPanel() {
       document.getElementById("links-panel").classList.toggle("show");
     }
 
-    document
-      .getElementById("links-close")
-      .addEventListener("click", () => {
-        document.getElementById("links-panel").classList.remove("show");
-      });
+    document.getElementById("links-close").addEventListener("click", () => {
+      document.getElementById("links-panel").classList.remove("show");
+    });
 
     /* =========================================================
        START MENU
        ========================================================= */
-
     function toggleStartMenu() {
-      document.getElementById("start-menu").classList.toggle("show");
+      const menu = document.getElementById("start-menu");
+      const btn  = document.getElementById("taskbar-start");
+      menu.classList.toggle("show");
+      btn.classList.toggle("active", menu.classList.contains("show"));
     }
 
     function closeStartMenu() {
       document.getElementById("start-menu").classList.remove("show");
+      document.getElementById("taskbar-start").classList.remove("active");
     }
 
     document.addEventListener("click", e => {
@@ -2180,593 +2204,181 @@
       const btn  = document.getElementById("taskbar-start");
       if (!menu.contains(e.target) && !btn.contains(e.target)) {
         menu.classList.remove("show");
+        btn.classList.remove("active");
       }
     });
 
     /* =========================================================
-       TASKBAR CLOCK
+       PLAYER COUNT
        ========================================================= */
-
-    function updateClock() {
-      const now = new Date();
-      const h = String(now.getHours()).padStart(2, "0");
-      const m = String(now.getMinutes()).padStart(2, "0");
-      document.getElementById("taskbar-clock").textContent = h + ":" + m;
-    }
-    updateClock();
-    setInterval(updateClock, 15000);
-
-
-    /* =========================================================
-       /api/stats
-       KEEPING THIS FOR YOUR VM STATS
-       ========================================================= */
-
     async function fetchPlayerCount() {
       try {
-        const controller =
-          new AbortController();
-
-        const timeout =
-          setTimeout(
-            () => controller.abort(),
-            5000
-          );
-
-        const res =
-          await fetch(
-            "/api/stats",
-            {
-              signal: controller.signal,
-              cache: "no-store"
-            }
-          );
-
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 5000);
+        const res = await fetch("/api/stats", { signal: controller.signal, cache: "no-store" });
         clearTimeout(timeout);
-
-        if (!res.ok) {
-          throw new Error(
-            `HTTP ${res.status}`
-          );
-        }
-
-        const data =
-          await res.json();
-
-        const count =
-          data.online ??
-          data.count ??
-          data.players ??
-          null;
-
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        const count = data.online ?? data.count ?? data.players ?? null;
         if (count !== null) {
-          document.getElementById(
-            "player-count-text"
-          ).textContent =
-            `${count} online`;
+          document.getElementById("player-count-text").textContent = `${count} online`;
         }
-
       } catch (err) {
-        /*
-         * IMPORTANT:
-         * Do NOT remove /api/stats.
-         *
-         * A 404 here means the current server deployment
-         * does not expose the endpoint. It does not break
-         * the VM buttons or Scramjet.
-         */
-
-        console.warn(
-          "Player count request failed:",
-          err
-        );
+        console.warn("Player count request failed:", err);
       }
     }
 
-
-    /* =========================================================
-       INITIAL PAGE LOAD
-       ========================================================= */
-
-    document.addEventListener(
-      "DOMContentLoaded",
-      () => {
-        checkAuth();
-
-        fetchPlayerCount();
-
-        setInterval(
-          fetchPlayerCount,
-          15000
-        );
-      }
-    );
-
+    document.addEventListener("DOMContentLoaded", () => {
+      checkAuth();
+      fetchPlayerCount();
+      setInterval(fetchPlayerCount, 15000);
+    });
 
     /* =========================================================
        VM
        ========================================================= */
-
     function openVM(url) {
-      if (!url) {
-        throw new Error(
-          "No VM URL was provided."
-        );
-      }
-
+      if (!url) throw new Error("No VM URL was provided.");
       currentUrl = url;
-
-      const frame =
-        document.getElementById(
-          "vm-frame"
-        );
-
-      const wrapper =
-        document.getElementById(
-          "vm-frame-wrap"
-        );
-
+      const frame = document.getElementById("vm-frame");
+      const wrapper = document.getElementById("vm-frame-wrap");
       frame.src = "about:blank";
-
       wrapper.style.display = "flex";
-
       startVMTimer();
-
-      setTimeout(() => {
-        frame.src = url;
-      }, 50);
-
+      setTimeout(() => { frame.src = url; }, 50);
       setStatus("VM connected.");
-
       setLaunching(false);
-
       toast("VM launched!");
-
       if (fsOnLaunch) {
-        try { document.getElementById("vm-frame-wrap").requestFullscreen(); } catch (_) {}
+        try { wrapper.requestFullscreen(); } catch (_) {}
       }
     }
 
-    document
-      .getElementById("vm-frame")
-      .addEventListener(
-        "load",
-        () => {
-          if (currentUrl) {
-            setStatus(
-              "VM stream loaded."
-            );
-          }
-        }
-      );
+    document.getElementById("vm-frame").addEventListener("load", () => {
+      if (currentUrl) setStatus("VM stream loaded.");
+    });
 
     async function closeVM() {
       clearInterval(pollInterval);
-
       stopVMTimer();
-
-      const frame =
-        document.getElementById(
-          "vm-frame"
-        );
-
-      const wrapper =
-        document.getElementById(
-          "vm-frame-wrap"
-        );
-
+      const frame = document.getElementById("vm-frame");
+      const wrapper = document.getElementById("vm-frame-wrap");
       frame.src = "about:blank";
-
       wrapper.style.display = "none";
-
-      if (
-        currentContainerId &&
-        currentVMType === "gpu"
-      ) {
-        try {
-          await fetch(
-            `/api/vm/${encodeURIComponent(
-              currentContainerId
-            )}`,
-            {
-              method: "DELETE"
-            }
-          );
-        } catch (err) {
-          console.warn(
-            "GPU cleanup failed:",
-            err
-          );
-        }
+      if (currentContainerId && currentVMType === "gpu") {
+        try { await fetch(`/api/vm/${encodeURIComponent(currentContainerId)}`, { method: "DELETE" }); } catch (err) { console.warn("GPU cleanup failed:", err); }
       }
-
-      if (
-        currentContainerId &&
-        currentVMType === "e2b"
-      ) {
-        try {
-          await fetch(
-            `/api/e2b/${encodeURIComponent(
-              currentContainerId
-            )}`,
-            {
-              method: "DELETE"
-            }
-          );
-        } catch (err) {
-          console.warn(
-            "E2B cleanup failed:",
-            err
-          );
-        }
+      if (currentContainerId && currentVMType === "e2b") {
+        try { await fetch(`/api/e2b/${encodeURIComponent(currentContainerId)}`, { method: "DELETE" }); } catch (err) { console.warn("E2B cleanup failed:", err); }
       }
-
       currentContainerId = null;
       currentVMType = null;
       currentUrl = null;
-
       setStatus("VM closed.");
-
       toast("VM closed.");
     }
 
     async function toggleFullscreen() {
-      const vm =
-        document.getElementById(
-          "vm-frame-wrap"
-        );
-
+      const vm = document.getElementById("vm-frame-wrap");
       try {
-        if (!document.fullscreenElement) {
-          await vm.requestFullscreen();
-        } else {
-          await document.exitFullscreen();
-        }
+        if (!document.fullscreenElement) await vm.requestFullscreen();
+        else await document.exitFullscreen();
       } catch (err) {
-        toast(
-          "Fullscreen failed: " +
-          err.message,
-          true
-        );
+        toast("Fullscreen failed: " + err.message, true);
       }
     }
 
-
     /* =========================================================
-       SCRAMJET
+       SCRAMJET BROWSER
        ========================================================= */
-
     let scramjetController = null;
     let scramjetFrame = null;
     let scramjetBrowserReady = false;
     let scramjetStarting = null;
 
-
-    function setBrowserStatus(
-      message,
-      show = true
-    ) {
-      const el =
-        document.getElementById(
-          "browser-status"
-        );
-
+    function setBrowserStatus(message, show = true) {
+      const el = document.getElementById("browser-status");
       el.textContent = message;
-
-      el.style.display =
-        show ? "block" : "none";
+      el.style.display = show ? "block" : "none";
     }
 
-
-    /*
-     * Wait until the service worker actually controls
-     * this page.
-     *
-     * register-sw.js performs the registration.
-     */
-
-    async function waitForScramjetControl(
-      registration
-    ) {
-      if (
-        navigator.serviceWorker.controller
-      ) {
-        return navigator.serviceWorker.controller;
-      }
-
-      const existing =
-        registration.active ||
-        registration.waiting ||
-        registration.installing;
-
-      if (
-        existing &&
-        existing.state !== "activated"
-      ) {
+    async function waitForScramjetControl(registration) {
+      if (navigator.serviceWorker.controller) return navigator.serviceWorker.controller;
+      const existing = registration.active || registration.waiting || registration.installing;
+      if (existing && existing.state !== "activated") {
         await new Promise((resolve, reject) => {
-          const worker = existing;
-
-          const timeout =
-            setTimeout(
-              () => reject(new Error(
-                "Scramjet service worker did not activate within 10 seconds. Try refreshing."
-              )),
-              10000
-            );
-
-          worker.addEventListener(
-            "statechange",
-            () => {
-              if (
-                worker.state ===
-                "activated"
-              ) {
-                clearTimeout(timeout);
-                resolve();
-              } else if (
-                worker.state ===
-                "redundant"
-              ) {
-                clearTimeout(timeout);
-                reject(new Error(
-                  "Scramjet service worker became redundant. Try refreshing."
-                ));
-              }
-            },
-            { once: false }
-          );
+          const timeout = setTimeout(() => reject(new Error("Scramjet service worker did not activate within 10 seconds. Try refreshing.")), 10000);
+          existing.addEventListener("statechange", () => {
+            if (existing.state === "activated") { clearTimeout(timeout); resolve(); }
+            else if (existing.state === "redundant") { clearTimeout(timeout); reject(new Error("Scramjet service worker became redundant. Try refreshing.")); }
+          }, { once: false });
         });
       }
-
-      if (
-        navigator.serviceWorker.controller
-      ) {
-        return navigator.serviceWorker.controller;
+      if (navigator.serviceWorker.controller) return navigator.serviceWorker.controller;
+      if (sessionStorage.getItem("scramjet_sw_reload") !== "1") {
+        sessionStorage.setItem("scramjet_sw_reload", "1");
+        throw new Error("Scramjet service worker activated. Refreshing once so it can control this page.");
       }
-
-      /*
-       * Ask the page to reload itself once.
-       *
-       * This fixes the common case where the SW has just
-       * activated but the first page was loaded before it
-       * became the controller.
-       */
-
-      if (
-        sessionStorage.getItem(
-          "scramjet_sw_reload"
-        ) !== "1"
-      ) {
-        sessionStorage.setItem(
-          "scramjet_sw_reload",
-          "1"
-        );
-
-        throw new Error(
-          "Scramjet service worker activated. Refreshing once so it can control this page."
-        );
-      }
-
-      throw new Error(
-        "Scramjet service worker is active but is not controlling this page. Please refresh the page."
-      );
+      throw new Error("Scramjet service worker is active but is not controlling this page. Please refresh the page.");
     }
 
-
-    /*
-     * Load Controller.
-     *
-     * IMPORTANT:
-     * We intentionally do NOT destructure BareResponse
-     * from globalThis.$scramjet here.
-     *
-     * BareMuxConnection (bare-mux 2.x) handles the transport.
-     */
-
     function loadScramjetControllerApi() {
-      // controller 0.0.14: $scramjetController is exposed by
-      // /controller/controller.api.js loaded in the page.
-      if (
-        typeof $scramjetController === "undefined" ||
-        typeof $scramjetController.Controller !== "function"
-      ) {
-        throw new Error(
-          "controller.api.js did not expose $scramjetController.Controller. " +
-          "Check that /controller/controller.api.js is being served correctly."
-        );
+      if (typeof $scramjetController === "undefined" || typeof $scramjetController.Controller !== "function") {
+        throw new Error("controller.api.js did not expose $scramjetController.Controller.");
       }
       return $scramjetController;
     }
 
-
     async function initScramjetBrowser(frameEl, tab) {
-      // If controller already ready, just attach a new frame for this tab
       if (scramjetBrowserReady && scramjetController && frameEl && tab && !tab.sjFrame) {
         tab.sjFrame = scramjetController.createFrame(frameEl);
         return;
       }
-
-      if (scramjetBrowserReady && scramjetController && !frameEl) {
-        return;
-      }
-
-      /*
-       * Prevent two clicks from initializing
-       * Scramjet twice simultaneously.
-       */
-
-      if (scramjetStarting) {
-        return scramjetStarting;
-      }
-
-      scramjetStarting =
-        (async () => {
-
-          setBrowserStatus(
-            "Starting Scramjet…",
-            true
-          );
-
-          if (
-            !("serviceWorker" in navigator)
-          ) {
-            throw new Error(
-              "This browser does not support service workers."
-            );
-          }
-
-
-          /*
-           * register-sw.js should expose this.
-           */
-
-          if (
-            typeof window
-              .registerScramjetServiceWorker !==
-            "function"
-          ) {
-            throw new Error(
-              "register-sw.js did not expose registerScramjetServiceWorker()."
-            );
-          }
-
-          const registration =
-            await window.registerScramjetServiceWorker();
-
-
-          /*
-           * Make sure the SW controls the page.
-           */
-
-          const serviceWorker =
-            await waitForScramjetControl(
-              registration
-            );
-
-
-          setBrowserStatus(
-            "Loading Scramjet controller…",
-            true
-          );
-
-
-          /*
-           * Load the controller only after the SW
-           * is controlling the page.
-           */
-
-          const api =
-            loadScramjetControllerApi();
-
-
-          /*
-           * libcurl transport for bare-mux 2.x.
-           * The transport instance is passed directly to the controller
-           * (controller 0.0.14 API) rather than set globally on BareMuxConnection.
-           */
-
-          const wispUrl =
-            `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/wisp/`;
-
-          const { default: LibcurlClient } =
-            await import("/libcurl/index.mjs");
-
-          const transport =
-            new LibcurlClient({ wisp: wispUrl });
-
-
-          /*
-           * controller 0.0.14: pass serviceworker + transport into the
-           * constructor alongside config and scramjetConfig.
-           * Note: strictRewrites was removed in 2.x and does nothing;
-           *       it has been dropped here.
-           */
-
-          scramjetController =
-            new api.Controller({
-              serviceworker: serviceWorker,
-              transport,
-
-              config: {
-                prefix:      "/~/sj/",
-                scramjetPath: "/scramjet/scramjet.js",
-                wasmPath:    "/scramjet/scramjet.wasm",
-                injectPath:  "/controller/controller.inject.js"
-              },
-
-              scramjetConfig: {
-                flags: {
-                  captureErrors: true,
-                  allowInvalidJs: true
-                }
-              }
-            });
-
-
-          setBrowserStatus(
-            "Initializing browser engine…",
-            true
-          );
-
-
-          // controller.wait() replaces init() in controller 0.0.14.
-          // It waits for the SW handshake and wasm compilation to complete.
-          await scramjetController.wait();
-
-
-          // Keepalive: post a ping every 15 s to prevent the browser from
-          // terminating the idle service worker (upstream bug — routing state
-          // is lost on SW restart, causing 404s until page reload).
-          setInterval(() => {
-            navigator.serviceWorker.controller?.postMessage("keepalive");
-          }, 15000);
-
-
-          const frameElement = frameEl || document.querySelector(".browser-frame");
-
-          scramjetFrame =
-            scramjetController.createFrame(
-              frameElement
-            );
-
-          if (tab) {
-            tab.sjFrame = scramjetFrame;
-          }
-
-          scramjetBrowserReady = true;
-
-
-          sessionStorage.removeItem(
-            "scramjet_sw_reload"
-          );
-
-
-          setBrowserStatus(
-            "",
-            false
-          );
-
-        })();
-
-      try {
-        await scramjetStarting;
-      } finally {
-        scramjetStarting = null;
-      }
+      if (scramjetBrowserReady && scramjetController && !frameEl) return;
+      if (scramjetStarting) return scramjetStarting;
+      scramjetStarting = (async () => {
+        setBrowserStatus("Starting Scramjet…", true);
+        if (!("serviceWorker" in navigator)) throw new Error("This browser does not support service workers.");
+        if (typeof window.registerScramjetServiceWorker !== "function") throw new Error("register-sw.js did not expose registerScramjetServiceWorker().");
+        const registration = await window.registerScramjetServiceWorker();
+        const serviceWorker = await waitForScramjetControl(registration);
+        setBrowserStatus("Loading Scramjet controller…", true);
+        const api = loadScramjetControllerApi();
+        const wispUrl = `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/wisp/`;
+        const { default: LibcurlClient } = await import("/libcurl/index.mjs");
+        const transport = new LibcurlClient({ wisp: wispUrl });
+        scramjetController = new api.Controller({
+          serviceworker: serviceWorker,
+          transport,
+          config: {
+            prefix: "/~/sj/",
+            scramjetPath: "/scramjet/scramjet.js",
+            wasmPath: "/scramjet/scramjet.wasm",
+            injectPath: "/controller/controller.inject.js"
+          },
+          scramjetConfig: { flags: { captureErrors: true, allowInvalidJs: true } }
+        });
+        setBrowserStatus("Initializing browser engine…", true);
+        await scramjetController.wait();
+        setInterval(() => { navigator.serviceWorker.controller?.postMessage("keepalive"); }, 15000);
+        const frameElement = frameEl || document.querySelector(".browser-frame");
+        scramjetFrame = scramjetController.createFrame(frameElement);
+        if (tab) tab.sjFrame = scramjetFrame;
+        scramjetBrowserReady = true;
+        sessionStorage.removeItem("scramjet_sw_reload");
+        setBrowserStatus("", false);
+      })();
+      try { await scramjetStarting; } finally { scramjetStarting = null; }
     }
 
-
     /* =========================================================
-       TABS STATE
+       TABS
        ========================================================= */
-
-    let tabs = [];        // { id, title, url, frame, sjFrame }
+    let tabs = [];
     let activeTabId = null;
     let tabCounter = 0;
 
-    function getActiveTab() {
-      return tabs.find(t => t.id === activeTabId) || null;
-    }
+    function getActiveTab() { return tabs.find(t => t.id === activeTabId) || null; }
 
     function renderTabBar() {
       const list = document.getElementById("tab-list");
@@ -2775,26 +2387,17 @@
         const el = document.createElement("div");
         el.className = "tab" + (tab.id === activeTabId ? " active" : "");
         el.dataset.id = tab.id;
-        el.innerHTML = `
-          <span class="tab-title">${tab.title}</span>
-          <span class="tab-close" data-id="${tab.id}">✕</span>
-        `;
+        el.innerHTML = `<span class="tab-title">${tab.title}</span><span class="tab-close" data-id="${tab.id}">✕</span>`;
         el.addEventListener("click", e => {
-          if (e.target.classList.contains("tab-close")) {
-            closeTab(tab.id);
-          } else {
-            switchTab(tab.id);
-          }
+          if (e.target.classList.contains("tab-close")) closeTab(tab.id);
+          else switchTab(tab.id);
         });
         list.appendChild(el);
       });
     }
 
     function switchTab(id) {
-      // hide all frames
-      tabs.forEach(t => {
-        if (t.frame) t.frame.classList.remove("active");
-      });
+      tabs.forEach(t => { if (t.frame) t.frame.classList.remove("active"); });
       activeTabId = id;
       const tab = getActiveTab();
       if (tab && tab.frame) {
@@ -2808,18 +2411,10 @@
       const idx = tabs.findIndex(t => t.id === id);
       if (idx === -1) return;
       const tab = tabs[idx];
-      if (tab.frame) {
-        try { tab.frame.src = "about:blank"; } catch (_) {}
-        tab.frame.remove();
-      }
+      if (tab.frame) { try { tab.frame.src = "about:blank"; } catch (_) {} tab.frame.remove(); }
       tabs.splice(idx, 1);
-      if (tabs.length === 0) {
-        closeScramjetBrowser();
-        return;
-      }
-      // switch to adjacent tab
-      const next = tabs[Math.min(idx, tabs.length - 1)];
-      switchTab(next.id);
+      if (tabs.length === 0) { closeScramjetBrowser(); return; }
+      switchTab(tabs[Math.min(idx, tabs.length - 1)].id);
     }
 
     async function newTab(url) {
@@ -2830,21 +2425,15 @@
       frameEl.allow = "fullscreen; autoplay; clipboard-read; clipboard-write; encrypted-media; picture-in-picture";
       frameEl.referrerPolicy = "no-referrer";
       document.getElementById("browser-frames").appendChild(frameEl);
-
       const tab = { id, title: "New Tab", url: url || browserHomepage || "https://www.google.com/", frame: frameEl, sjFrame: null };
       tabs.push(tab);
       switchTab(id);
-
-      // init scramjet into this frame
       try {
         await initScramjetBrowser(frameEl, tab);
         await navigateScramjet(url || "https://www.google.com/", tab);
       } catch (err) {
         console.error("Tab init failed:", err);
-        if (err?.message?.includes("Refreshing once")) {
-          toast("Scramjet is installing. Refreshing page…");
-          setTimeout(() => location.reload(), 700);
-        }
+        if (err?.message?.includes("Refreshing once")) { toast("Scramjet is installing. Refreshing page…"); setTimeout(() => location.reload(), 700); }
       }
     }
 
@@ -2852,112 +2441,45 @@
       const browser = document.getElementById("browser-wrap");
       browser.style.display = "flex";
       document.getElementById("vm-frame-wrap").style.display = "none";
-
-      if (tabs.length === 0) {
-        await newTab(initialUrl || "https://www.google.com/");
-      } else if (initialUrl) {
-        await navigateScramjet(initialUrl);
-      }
+      if (tabs.length === 0) await newTab(initialUrl || "https://www.google.com/");
+      else if (initialUrl) await navigateScramjet(initialUrl);
     }
 
     async function navigateScramjet(value, tab) {
       const t = tab || getActiveTab();
       if (!t) return;
-
       try {
-        if (!t.sjFrame) {
-          await initScramjetBrowser(t.frame, t);
-        }
-
+        if (!t.sjFrame) await initScramjetBrowser(t.frame, t);
         const raw = typeof value === "string" ? value.trim() : document.getElementById("browser-address").value.trim();
         if (!raw) return;
-
         const url = normalizeBrowserUrl(raw);
         t.url = url;
         document.getElementById("browser-address").value = url;
-
-        // update tab title while loading
         t.title = new URL(url).hostname || "Loading…";
         renderTabBar();
-
         setBrowserStatus("Loading…", true);
         t.sjFrame.go(url);
         setTimeout(() => setBrowserStatus("", false), 1500);
-
       } catch (err) {
         console.error("Scramjet navigation failed:", err);
-
-
-        setBrowserStatus(
-          "Navigation error: " +
-          (
-            err?.message ||
-            err
-          ),
-          true
-        );
+        setBrowserStatus("Navigation error: " + (err?.message || err), true);
       }
     }
 
-
-    function normalizeBrowserUrl(
-      value
-    ) {
-
-      if (
-        /^[a-z][a-z0-9+.-]*:\/\//i.test(
-          value
-        )
-      ) {
-        return value;
-      }
-
-
-      if (
-        /^[a-z][a-z0-9+.-]*:/i.test(
-          value
-        )
-      ) {
-        return value;
-      }
-
-
-      if (
-        /^[^\s.]+\.[^\s]+$/.test(
-          value
-        )
-      ) {
-        return (
-          "https://" +
-          value
-        );
-      }
-
-
+    function normalizeBrowserUrl(value) {
+      if (/^[a-z][a-z0-9+.-]*:\/\//i.test(value)) return value;
+      if (/^[a-z][a-z0-9+.-]*:/i.test(value)) return value;
+      if (/^[^\s.]+\.[^\s]+$/.test(value)) return "https://" + value;
       return browserSearchUrl(value);
     }
 
-
-    function scramjetBack() {
-      const t = getActiveTab();
-      if (t?.sjFrame) t.sjFrame.back();
-    }
-
-    function scramjetForward() {
-      const t = getActiveTab();
-      if (t?.sjFrame) t.sjFrame.forward();
-    }
-
-    function scramjetReload() {
-      const t = getActiveTab();
-      if (t?.sjFrame) t.sjFrame.reload();
-    }
+    function scramjetBack()    { const t = getActiveTab(); if (t?.sjFrame) t.sjFrame.back(); }
+    function scramjetForward() { const t = getActiveTab(); if (t?.sjFrame) t.sjFrame.forward(); }
+    function scramjetReload()  { const t = getActiveTab(); if (t?.sjFrame) t.sjFrame.reload(); }
 
     function closeScramjetBrowser() {
       document.getElementById("browser-wrap").style.display = "none";
-      tabs.forEach(t => {
-        try { if (t.frame) t.frame.src = "about:blank"; } catch (_) {}
-      });
+      tabs.forEach(t => { try { if (t.frame) t.frame.src = "about:blank"; } catch (_) {} });
       tabs = [];
       activeTabId = null;
       tabCounter = 0;
@@ -2966,356 +2488,99 @@
       document.getElementById("tab-list").innerHTML = "";
     }
 
-
     /* =========================================================
        E2B VM
        ========================================================= */
-
     async function launchE2BVM() {
       clearInterval(pollInterval);
-
       setLaunching(true);
-
-      setStatus(
-        "Starting E2B Desktop VM..."
-      );
-
+      setStatus("Starting E2B Desktop VM...");
       try {
-
-        const res =
-          await fetch(
-            "/api/e2b/start",
-            {
-              method: "POST",
-              headers: {
-                "Content-Type":
-                  "application/json"
-              }
-            }
-          );
-
-
-        const data =
-          await res.json();
-
-
-        if (!res.ok) {
-          throw new Error(
-            data.error ||
-            data.message ||
-            `E2B server returned HTTP ${res.status}.`
-          );
-        }
-
-
-        if (
-          data.status &&
-          data.status !==
-          "success"
-        ) {
-          throw new Error(
-            data.error ||
-            data.message ||
-            "E2B sandbox did not start successfully."
-          );
-        }
-
-
-        if (!data.sandboxId) {
-          throw new Error(
-            "E2B did not return a sandbox ID."
-          );
-        }
-
-
-        if (!data.url) {
-          throw new Error(
-            "E2B did not return a desktop stream URL."
-          );
-        }
-
-
-        currentContainerId =
-          data.sandboxId;
-
-        currentVMType =
-          "e2b";
-
-
+        const res = await fetch("/api/e2b/start", { method: "POST", headers: { "Content-Type": "application/json" } });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || data.message || `E2B server returned HTTP ${res.status}.`);
+        if (data.status && data.status !== "success") throw new Error(data.error || data.message || "E2B sandbox did not start successfully.");
+        if (!data.sandboxId) throw new Error("E2B did not return a sandbox ID.");
+        if (!data.url) throw new Error("E2B did not return a desktop stream URL.");
+        currentContainerId = data.sandboxId;
+        currentVMType = "e2b";
         openVM(data.url);
-
       } catch (err) {
-
-        setStatus(
-          "Error: " +
-          err.message
-        );
-
-
-        toast(
-          "E2B launch failed: " +
-          err.message,
-          true
-        );
-
-
-        currentContainerId =
-          null;
-
-        currentVMType =
-          null;
-
-        currentUrl =
-          null;
-
-
+        setStatus("Error: " + err.message);
+        toast("E2B launch failed: " + err.message, true);
+        currentContainerId = null;
+        currentVMType = null;
+        currentUrl = null;
         setLaunching(false);
       }
     }
-
 
     /* =========================================================
        GPU VM
        ========================================================= */
-
     async function launchGPUVM() {
       clearInterval(pollInterval);
-
       setLaunching(true);
-
-      setStatus(
-        "Requesting GPU instance..."
-      );
-
+      setStatus("Requesting GPU instance...");
       try {
-
-        const res =
-          await fetch(
-            "/api/launch?gpu=true"
-          );
-
-
-        const data =
-          await res.json();
-
-
-        if (!res.ok) {
-          throw new Error(
-            data.error ||
-            data.message ||
-            `GPU server returned HTTP ${res.status}.`
-          );
-        }
-
-
-        if (
-          data.status ===
-          "success"
-        ) {
-
-          currentContainerId =
-            data.container_id;
-
-          currentVMType =
-            "gpu";
-
-          openVM(data.url);
-
-          return;
-        }
-
-
-        if (
-          data.status ===
-          "queued"
-        ) {
-
-          setStatus(
-            `Queued — position ${data.position ?? "?"}. Waiting…`
-          );
-
-          pollQueue(data.token);
-
-          return;
-        }
-
-
-        throw new Error(
-          data.error ||
-          data.message ||
-          JSON.stringify(data)
-        );
-
+        const res = await fetch("/api/launch?gpu=true");
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || data.message || `GPU server returned HTTP ${res.status}.`);
+        if (data.status === "success") { currentContainerId = data.container_id; currentVMType = "gpu"; openVM(data.url); return; }
+        if (data.status === "queued")  { setStatus(`Queued — position ${data.position ?? "?"}. Waiting…`); pollQueue(data.token); return; }
+        throw new Error(data.error || data.message || JSON.stringify(data));
       } catch (err) {
-
-        setStatus(
-          "Error: " +
-          err.message
-        );
-
-
-        toast(
-          "GPU launch failed: " +
-          err.message,
-          true
-        );
-
-
+        setStatus("Error: " + err.message);
+        toast("GPU launch failed: " + err.message, true);
         setLaunching(false);
       }
     }
 
-
     /* =========================================================
-       GPU QUEUE
+       GPU QUEUE POLL
        ========================================================= */
-
     async function pollQueue(token) {
       clearInterval(pollInterval);
-
-      if (!token) {
-
-        setLaunching(false);
-
-        throw new Error(
-          "GPU queue did not return a token."
-        );
-      }
-
-
-      pollInterval =
-        setInterval(
-          async () => {
-
-            try {
-
-              const res =
-                await fetch(
-                  `/api/queue?token=${encodeURIComponent(
-                    token
-                  )}`
-                );
-
-
-              const data =
-                await res.json();
-
-
-              if (!res.ok) {
-                throw new Error(
-                  data.error ||
-                  data.message ||
-                  `Queue request failed with HTTP ${res.status}.`
-                );
-              }
-
-
-              if (
-                data.status ===
-                "allocated"
-              ) {
-
-                clearInterval(
-                  pollInterval
-                );
-
-
-                currentContainerId =
-                  data.container_id;
-
-                currentVMType =
-                  "gpu";
-
-
-                openVM(
-                  data.url
-                );
-
-                return;
-              }
-
-
-              if (
-                data.status ===
-                "failed"
-              ) {
-
-                clearInterval(
-                  pollInterval
-                );
-
-
-                setStatus(
-                  "Failed: " +
-                  (
-                    data.reason ||
-                    "unknown"
-                  )
-                );
-
-
-                toast(
-                  "Queue failed: " +
-                  (
-                    data.reason ||
-                    "unknown"
-                  ),
-                  true
-                );
-
-
-                setLaunching(false);
-
-                return;
-              }
-
-
-              if (
-                data.position !==
-                undefined
-              ) {
-
-                setStatus(
-                  `Queued — position ${data.position}. Waiting…`
-                );
-
-              } else {
-
-                setStatus(
-                  "Waiting for GPU instance..."
-                );
-              }
-
-            } catch (err) {
-
-              console.warn(
-                "Queue polling error:",
-                err
-              );
-            }
-
-          },
-          4000
-        );
+      if (!token) { setLaunching(false); throw new Error("GPU queue did not return a token."); }
+      pollInterval = setInterval(async () => {
+        try {
+          const res = await fetch(`/api/queue?token=${encodeURIComponent(token)}`);
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || data.message || `Queue request failed with HTTP ${res.status}.`);
+          if (data.status === "allocated") {
+            clearInterval(pollInterval);
+            currentContainerId = data.container_id;
+            currentVMType = "gpu";
+            openVM(data.url);
+            return;
+          }
+          if (data.status === "failed") {
+            clearInterval(pollInterval);
+            setStatus("Failed: " + (data.reason || "unknown"));
+            toast("Queue failed: " + (data.reason || "unknown"), true);
+            setLaunching(false);
+            return;
+          }
+          setStatus(data.position !== undefined ? `Queued — position ${data.position}. Waiting…` : "Waiting for GPU instance...");
+        } catch (err) { console.warn("Queue polling error:", err); }
+      }, 4000);
     }
 
-
     /* =========================================================
-       GAMES PANEL
+       GAMES
        ========================================================= */
-
     const GAMES = [
-      { name: "Roadblock",        img: "https://nowgg.fun/img/roadblock.png",       url: "https://nowgg.fun/apps/a/19900/b.html" },
-      { name: "Stumble Guys",     img: "https://nowgg.fun/img/stumbleguys.jpg",     url: "https://nowgg.fun/apps/a/10011/b.html" },
-      { name: "Fortnite",         img: "https://nowgg.fun/img/fortnite.png",        url: "https://nowgg.fun/apps/aptoide/5874/aptoide.html?deep_link=aptoidesearch://com.epicgames.fortnite" },
-      { name: "Call of Duty",     img: "https://nowgg.fun/img/cod.jpg",             url: "https://nowgg.fun/apps/a/10008/b.html" },
-      { name: "Melon Sandbox",    img: "https://nowgg.fun/img/melon-sandbox.png",   url: "https://nowgg.fun/apps/playducky/7199/melon-sandbox.html" },
-      { name: "Aptoide",          img: "https://nowgg.fun/img/aptoide.png",         url: "https://nowgg.fun/apps/aptoide/5874/aptoide.html" },
-      { name: "Android",          img: "https://nowgg.fun/img/android.jpg",         url: "https://nowgg.fun/apps/uncube/7074/now.html" },
-      { name: "Cookie Run",       img: "https://nowgg.fun/img/cookierun.jpg",       url: "https://nowgg.fun/apps/a/10019/b.html" },
-      { name: "Geometry Dash",    img: "https://nowgg.fun/img/geodash.png",         url: "https://nowgg.fun/apps/robtop-games/1400/geometry-dash.html" },
-      { name: "Rocket League",    img: "https://nowgg.fun/img/rocketleague.webp",   url: "https://nowgg.fun/apps/psyonix-studios/4656/rocket-league.html" },
-      { name: "Minecraft",        img: "https://nowgg.fun/img/minecraft.png",       url: "https://nowgg.fun/apps/aptoide/5874/aptoide.html?deep_link=aptoidesearch://com.mojang.minecrafttrialpe" },
+      { name: "Roadblock",     img: "https://nowgg.fun/img/roadblock.png",     url: "https://nowgg.fun/apps/a/19900/b.html" },
+      { name: "Stumble Guys",  img: "https://nowgg.fun/img/stumbleguys.jpg",   url: "https://nowgg.fun/apps/a/10011/b.html" },
+      { name: "Fortnite",      img: "https://nowgg.fun/img/fortnite.png",      url: "https://nowgg.fun/apps/aptoide/5874/aptoide.html?deep_link=aptoidesearch://com.epicgames.fortnite" },
+      { name: "Call of Duty",  img: "https://nowgg.fun/img/cod.jpg",           url: "https://nowgg.fun/apps/a/10008/b.html" },
+      { name: "Melon Sandbox", img: "https://nowgg.fun/img/melon-sandbox.png", url: "https://nowgg.fun/apps/playducky/7199/melon-sandbox.html" },
+      { name: "Aptoide",       img: "https://nowgg.fun/img/aptoide.png",       url: "https://nowgg.fun/apps/aptoide/5874/aptoide.html" },
+      { name: "Android",       img: "https://nowgg.fun/img/android.jpg",       url: "https://nowgg.fun/apps/uncube/7074/now.html" },
+      { name: "Cookie Run",    img: "https://nowgg.fun/img/cookierun.jpg",     url: "https://nowgg.fun/apps/a/10019/b.html" },
+      { name: "Geometry Dash", img: "https://nowgg.fun/img/geodash.png",       url: "https://nowgg.fun/apps/robtop-games/1400/geometry-dash.html" },
+      { name: "Rocket League", img: "https://nowgg.fun/img/rocketleague.webp", url: "https://nowgg.fun/apps/psyonix-studios/4656/rocket-league.html" },
+      { name: "Minecraft",     img: "https://nowgg.fun/img/minecraft.png",     url: "https://nowgg.fun/apps/aptoide/5874/aptoide.html?deep_link=aptoidesearch://com.mojang.minecrafttrialpe" },
     ];
 
     let filteredGames = [...GAMES];
@@ -3327,25 +2592,19 @@
         const card = document.createElement("div");
         card.className = "game-card";
         card.onclick = () => launchGame(game.url);
-        card.innerHTML = `
-          <img src="${game.img}" alt="${game.name}" loading="lazy" onerror="this.style.background='#1b1b20';this.style.height='130px'">
-          <div class="game-card-name">${game.name}</div>
-        `;
+        card.innerHTML = `<img src="${game.img}" alt="${game.name}" loading="lazy" onerror="this.style.background='#1c1c20';this.style.height='140px'"><div class="game-card-name">${game.name}</div>`;
         grid.appendChild(card);
       });
     }
 
     function filterGames(query) {
       const q = query.toLowerCase().trim();
-      filteredGames = q
-        ? GAMES.filter(g => g.name.toLowerCase().includes(q))
-        : [...GAMES];
+      filteredGames = q ? GAMES.filter(g => g.name.toLowerCase().includes(q)) : [...GAMES];
       renderGames(filteredGames);
     }
 
     function openGamesPanel() {
-      const panel = document.getElementById("games-panel");
-      panel.classList.add("show");
+      document.getElementById("games-panel").classList.add("show");
       renderGames(GAMES);
     }
 
@@ -3364,30 +2623,13 @@
     /* =========================================================
        SETTINGS
        ========================================================= */
-
-    // Load saved settings from localStorage on boot
     const CFG_KEY = "willies_vm_settings";
+    function loadCfg() { try { return JSON.parse(localStorage.getItem(CFG_KEY)) || {}; } catch { return {}; } }
+    function saveCfg(patch) { const cfg = { ...loadCfg(), ...patch }; localStorage.setItem(CFG_KEY, JSON.stringify(cfg)); return cfg; }
 
-    function loadCfg() {
-      try { return JSON.parse(localStorage.getItem(CFG_KEY)) || {}; } catch { return {}; }
-    }
+    function openSettings()  { document.getElementById("settings-panel").classList.add("show"); }
+    function closeSettings() { document.getElementById("settings-panel").classList.remove("show"); }
 
-    function saveCfg(patch) {
-      const cfg = { ...loadCfg(), ...patch };
-      localStorage.setItem(CFG_KEY, JSON.stringify(cfg));
-      return cfg;
-    }
-
-    // --- open / close ---
-    function openSettings() {
-      document.getElementById("settings-panel").classList.add("show");
-    }
-
-    function closeSettings() {
-      document.getElementById("settings-panel").classList.remove("show");
-    }
-
-    // --- tab switching ---
     function switchSettingsTab(el, name) {
       document.querySelectorAll(".settings-tab").forEach(t => t.classList.remove("active"));
       document.querySelectorAll(".settings-page").forEach(p => p.classList.remove("active"));
@@ -3395,153 +2637,54 @@
       document.getElementById("tab-" + name).classList.add("active");
     }
 
-    // --- APPEARANCE: background ---
-    let bgMode = "snow";
-    let matrixAnim = null;
-
-    function setBg(mode) {
-      bgMode = mode;
-      saveCfg({ bg: mode });
-      document.querySelectorAll(".bg-opt").forEach(o => o.classList.toggle("active", o.dataset.bg === mode));
-      const canvas = document.getElementById("snow");
-
-      if (mode === "none") {
-        canvas.style.opacity = "0";
-        stopMatrix();
-      } else if (mode === "snow") {
-        canvas.style.opacity = "1";
-        stopMatrix();
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        initFlakes();
-      } else if (mode === "matrix") {
-        canvas.style.opacity = "1";
-        stopMatrix();
-        flakes = []; // pause snow
-        startMatrix();
-      } else if (mode === "stars") {
-        canvas.style.opacity = "1";
-        stopMatrix();
-        flakes = [];
-        startStars();
-      }
-    }
-
-    // matrix rain
-    let matrixCols = [], matrixInterval = null;
-
-    function startMatrix() {
-      const c = document.getElementById("snow");
-      c.width = window.innerWidth; c.height = window.innerHeight;
-      const cols = Math.floor(c.width / 14);
-      matrixCols = Array(cols).fill(0);
-      matrixInterval = setInterval(() => {
-        ctx.fillStyle = "rgba(0,0,0,0.05)";
-        ctx.fillRect(0, 0, c.width, c.height);
-        ctx.fillStyle = "#0f0";
-        ctx.font = "13px monospace";
-        matrixCols.forEach((y, i) => {
-          const ch = String.fromCharCode(0x30A0 + Math.random() * 96);
-          ctx.fillText(ch, i * 14, y);
-          matrixCols[i] = y > c.height && Math.random() > 0.975 ? 0 : y + 14;
-        });
-      }, 50);
-    }
-
-    function stopMatrix() {
-      if (matrixInterval) { clearInterval(matrixInterval); matrixInterval = null; }
-    }
-
-    // stars
-    let stars = [], starsAnim = null;
-
-    function startStars() {
-      const c = document.getElementById("snow");
-      c.width = window.innerWidth; c.height = window.innerHeight;
-      stars = Array.from({ length: 180 }, () => ({
-        x: Math.random() * c.width, y: Math.random() * c.height,
-        r: Math.random() * 1.5 + 0.3, op: Math.random(),
-        speed: Math.random() * 0.005 + 0.002
-      }));
-      function drawStars() {
-        if (bgMode !== "stars") return;
-        ctx.clearRect(0, 0, c.width, c.height);
-        stars.forEach(s => {
-          s.op += s.speed * (Math.random() > 0.5 ? 1 : -1);
-          s.op = Math.max(0.1, Math.min(1, s.op));
-          ctx.globalAlpha = s.op;
-          ctx.fillStyle = "#fff";
-          ctx.beginPath();
-          ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
-          ctx.fill();
-        });
-        ctx.globalAlpha = 1;
-        requestAnimationFrame(drawStars);
-      }
-      drawStars();
-    }
-
-    // --- APPEARANCE: density ---
     function setDensity(val) {
       document.getElementById("density-val").textContent = val;
       saveCfg({ density: +val });
-      flakes = [];
-      for (let i = 0; i < +val; i++) {
-        const f = makeFlake();
-        f.y = Math.random() * canvas.height;
-        flakes.push(f);
+      if (bgMode === "snow") {
+        flakes = [];
+        for (let i = 0; i < +val; i++) { const f = makeFlake(); f.y = Math.random() * canvas.height; flakes.push(f); }
       }
     }
 
-    // --- APPEARANCE: accent color ---
     function setAccent(color) {
       document.documentElement.style.setProperty("--accent", color);
+      document.documentElement.style.setProperty("--accent-hover", color);
       saveCfg({ accent: color });
-      document.querySelectorAll(".accent-opt").forEach(o =>
-        o.classList.toggle("active", o.dataset.color === color)
-      );
+      document.querySelectorAll(".accent-opt").forEach(o => o.classList.toggle("active", o.dataset.color === color));
     }
 
-    // --- APPEARANCE: taskbar position ---
     function setTaskbarPos(pos) {
       saveCfg({ taskbarPos: pos });
       const tb = document.getElementById("taskbar");
-      const panels = ["links-panel", "games-panel", "settings-panel"];
+      const panels = ["links-panel","games-panel","settings-panel"];
       if (pos === "top") {
         tb.style.top = "0"; tb.style.bottom = "auto";
+        tb.style.borderTop = "none"; tb.style.borderBottom = "1px solid rgba(255,255,255,0.07)";
         document.getElementById("desktop").style.top = "48px";
         document.getElementById("desktop").style.bottom = "0";
         document.getElementById("start-menu").style.top = "52px";
         document.getElementById("start-menu").style.bottom = "auto";
-        panels.forEach(id => {
-          const el = document.getElementById(id);
-          el.style.top = "48px"; el.style.bottom = "0";
-        });
+        panels.forEach(id => { const el = document.getElementById(id); el.style.top = "48px"; el.style.bottom = "0"; });
       } else {
         tb.style.top = "auto"; tb.style.bottom = "0";
+        tb.style.borderTop = "1px solid rgba(255,255,255,0.07)"; tb.style.borderBottom = "none";
         document.getElementById("desktop").style.top = "0";
         document.getElementById("desktop").style.bottom = "48px";
         document.getElementById("start-menu").style.top = "auto";
         document.getElementById("start-menu").style.bottom = "52px";
-        panels.forEach(id => {
-          const el = document.getElementById(id);
-          el.style.top = "0"; el.style.bottom = "48px";
-        });
+        panels.forEach(id => { const el = document.getElementById(id); el.style.top = "0"; el.style.bottom = "48px"; });
       }
       document.querySelectorAll("[id^='tb-pos-']").forEach(b => b.classList.remove("active"));
       document.getElementById("tb-pos-" + pos)?.classList.add("active");
     }
 
-    // --- APPEARANCE: cursor ---
     function setCursor(type) {
       document.body.style.cursor = type;
       saveCfg({ cursor: type });
-      ["cur-default","cur-crosshair","cur-none"].forEach(id =>
-        document.getElementById(id)?.classList.remove("active")
-      );
+      ["cur-default","cur-crosshair","cur-none"].forEach(id => document.getElementById(id)?.classList.remove("active"));
       document.getElementById("cur-" + type)?.classList.add("active");
     }
 
-    // --- BROWSER: homepage ---
     let browserHomepage = "https://www.google.com/";
 
     function saveHomepage() {
@@ -3551,29 +2694,21 @@
       toast("Homepage saved!");
     }
 
-    // --- BROWSER: clear tabs ---
     function clearAllTabs() {
       if (!tabs.length) { toast("No open tabs."); return; }
       closeScramjetBrowser();
       toast("All tabs closed.");
     }
 
-    // --- VM: timer toggle ---
     function toggleVMTimer(on) {
       saveCfg({ showTimer: on });
       const t = document.getElementById("vm-timer");
       if (t) t.style.display = on ? "" : "none";
     }
 
-    // --- VM: fullscreen on launch ---
     let fsOnLaunch = false;
+    function toggleFullscreenOnLaunch(on) { fsOnLaunch = on; saveCfg({ fsOnLaunch: on }); }
 
-    function toggleFullscreenOnLaunch(on) {
-      fsOnLaunch = on;
-      saveCfg({ fsOnLaunch: on });
-    }
-
-    // --- ABOUT: site name ---
     function saveSiteName() {
       const val = document.getElementById("sitename-input").value.trim() || "william's virtual machine";
       document.getElementById("desktop-title").textContent = val;
@@ -3582,20 +2717,18 @@
       toast("Site name updated!");
     }
 
-    // --- ABOUT: player count toggle ---
     function togglePlayerCount(on) {
       saveCfg({ showPlayerCount: on });
       document.getElementById("player-count").style.display = on ? "" : "none";
     }
 
-    // --- ABOUT: reset ---
     function resetAllSettings() {
       localStorage.removeItem(CFG_KEY);
       toast("Settings reset — reloading...");
       setTimeout(() => location.reload(), 800);
     }
 
-    // --- BOOT: apply saved settings ---
+    /* apply saved settings on boot */
     (function applySettings() {
       const cfg = loadCfg();
       if (cfg.bg)           setBg(cfg.bg);
@@ -3613,19 +2746,8 @@
     /* =========================================================
        BEFORE UNLOAD
        ========================================================= */
-
-    window.addEventListener(
-      "beforeunload",
-      event => {
-
-        event.preventDefault();
-
-        event.returnValue = "";
-
-      }
-    );
+    window.addEventListener("beforeunload", e => { e.preventDefault(); e.returnValue = ""; });
 
   </script>
-
 </body>
 </html>
