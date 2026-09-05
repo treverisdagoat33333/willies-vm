@@ -1,0 +1,2515 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0, maximum-scale=1.0"
+  >
+
+  <title>william's virtual machine</title>
+
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      background: #0a0a0b;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      overflow: hidden;
+      font-family: sans-serif;
+    }
+
+    canvas {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+    }
+
+    .center {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1.5rem;
+    }
+
+    h1 {
+      color: #eef0f4;
+      font-size: 1.4rem;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      text-align: center;
+    }
+
+    #vm-buttons {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .vm-button {
+      padding: 0.85rem 1.5rem;
+      background: #c8cdd8;
+      color: #0a0a0b;
+      border: none;
+      border-radius: 4px;
+      font-size: 0.9rem;
+      font-weight: 700;
+      cursor: pointer;
+      letter-spacing: 0.03em;
+      transition: 0.15s ease;
+    }
+
+    .vm-button:hover:not(:disabled) {
+      background: #eef0f4;
+      transform: translateY(-1px);
+    }
+
+    .vm-button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    #links-toggle {
+      padding: 0.7rem 1.3rem;
+      color: #0a0a0b;
+      background: #c8cdd8;
+      border: none;
+      border-radius: 4px;
+      font-size: 0.85rem;
+      font-weight: 700;
+      cursor: pointer;
+      letter-spacing: 0.03em;
+      transition: 0.15s ease;
+    }
+
+    #links-toggle:hover {
+      background: #eef0f4;
+      transform: translateY(-1px);
+    }
+
+    #links-panel {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 5000;
+      overflow-y: auto;
+      padding: 5rem 1rem 2rem;
+      background: rgba(10, 10, 11, 0.97);
+    }
+
+    #links-panel.show {
+      display: block;
+    }
+
+    #links-close {
+      position: fixed;
+      top: 1rem;
+      right: 1rem;
+      z-index: 5001;
+      padding: 0.65rem 0.9rem;
+      color: #eef0f4;
+      background: #1b1b20;
+      border: 1px solid #33343b;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+    #links-close:hover {
+      background: #292930;
+    }
+
+    .link-section {
+      width: min(720px, 100%);
+      margin: 0 auto 1.25rem;
+      padding: 1rem;
+      border: 1px solid #2a2a30;
+      border-radius: 6px;
+      background: #111114;
+    }
+
+    .link-section h2 {
+      margin-bottom: 0.8rem;
+      color: #eef0f4;
+      font-size: 0.9rem;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    .link-grid {
+      display: grid;
+      grid-template-columns: repeat(
+        auto-fit,
+        minmax(120px, 1fr)
+      );
+      gap: 8px;
+    }
+
+    .link-grid a {
+      display: block;
+      padding: 0.7rem 0.8rem;
+      color: #0a0a0b;
+      background: #c8cdd8;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      text-align: center;
+      text-decoration: none;
+      transition: 0.15s ease;
+    }
+
+    .link-grid a:hover {
+      background: #eef0f4;
+      transform: translateY(-1px);
+    }
+
+    #status {
+      color: #7a8194;
+      font-size: 0.78rem;
+      font-family: monospace;
+      min-height: 1.2em;
+      text-align: center;
+      max-width: 90vw;
+      word-break: break-word;
+    }
+
+    #status.error {
+      color: #f87171;
+    }
+
+    #player-count {
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
+      color: #7a8194;
+      font-size: 0.78rem;
+      font-family: monospace;
+    }
+
+    #player-count .dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #4ade80;
+      box-shadow: 0 0 6px #4ade80;
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% {
+        opacity: 1;
+      }
+
+      50% {
+        opacity: 0.4;
+      }
+    }
+
+    #auth-wrap {
+      position: fixed;
+      inset: 0;
+      z-index: 10001;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+      background: rgba(0, 0, 0, 0.78);
+      opacity: 1;
+      transition:
+        opacity 0.35s ease,
+        visibility 0.35s ease;
+    }
+
+    #auth-wrap.hidden {
+      display: flex;
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+
+    #auth-card {
+      position: relative;
+      width: min(390px, 100%);
+      display: flex;
+      flex-direction: column;
+      gap: 0.8rem;
+      padding: 1.5rem;
+      overflow: hidden;
+      border: 1px solid #2a2a30;
+      border-radius: 8px;
+      background: #16161a;
+      animation: auth-card-in 0.55s
+        cubic-bezier(0.16, 1, 0.3, 1)
+        both;
+    }
+
+    #auth-card::before {
+      content: "";
+      position: absolute;
+      top: -90px;
+      left: 50%;
+      width: 220px;
+      height: 220px;
+      border-radius: 50%;
+      background: radial-gradient(
+        circle,
+        rgba(200, 205, 216, 0.14),
+        transparent 68%
+      );
+      transform: translateX(-50%);
+      pointer-events: none;
+      animation: auth-glow 4s ease-in-out infinite;
+    }
+
+    #auth-card > * {
+      position: relative;
+      z-index: 1;
+    }
+
+    #auth-card h2 {
+      color: #eef0f4;
+      font-size: 1.15rem;
+      animation: auth-fade-up 0.45s 0.08s ease both;
+    }
+
+    #auth-description {
+      color: #aab2c5;
+      font-size: 0.82rem;
+      line-height: 1.4;
+      animation: auth-fade-up 0.45s 0.14s ease both;
+    }
+
+    #auth-card input {
+      width: 100%;
+      padding: 0.8rem;
+      border: 1px solid #33343b;
+      border-radius: 4px;
+      color: #eef0f4;
+      background: #0a0a0b;
+      outline: none;
+      transition:
+        border-color 0.2s ease,
+        box-shadow 0.2s ease,
+        transform 0.2s ease,
+        background 0.2s ease;
+      animation: auth-fade-up 0.45s ease both;
+    }
+
+    #auth-username {
+      animation-delay: 0.2s;
+    }
+
+    #auth-password {
+      animation-delay: 0.26s;
+    }
+
+    #auth-card input:hover {
+      border-color: #555864;
+    }
+
+    #auth-card input:focus {
+      border-color: #c8cdd8;
+      background: #0d0d10;
+      box-shadow:
+        0 0 0 3px rgba(200, 205, 216, 0.1);
+      transform: translateY(-1px);
+    }
+
+    #auth-card button {
+      transition:
+        transform 0.16s ease,
+        background 0.16s ease,
+        border-color 0.16s ease,
+        box-shadow 0.16s ease;
+      animation: auth-fade-up 0.45s ease both;
+    }
+
+    #guest-button,
+    #login-button {
+      padding: 0.7rem;
+      color: #c8cdd8;
+      background: transparent;
+      border: 1px solid #33343b;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    #guest-button {
+      animation-delay: 0.38s;
+    }
+
+    #login-button {
+      animation-delay: 0.44s;
+    }
+
+    #auth-card button:hover {
+      transform: translateY(-2px);
+    }
+
+    #auth-card button:active {
+      transform: translateY(0) scale(0.98);
+    }
+
+    #guest-button:hover,
+    #login-button:hover {
+      color: #eef0f4;
+      background: #1b1b20;
+      border-color: #555864;
+    }
+
+    #auth-error {
+      min-height: 1.2em;
+      color: #f87171;
+      font-family: monospace;
+      font-size: 0.75rem;
+    }
+
+    @keyframes auth-card-in {
+      from {
+        opacity: 0;
+        transform: translateY(18px) scale(0.97);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+
+    @keyframes auth-fade-up {
+      from {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes auth-glow {
+      0%, 100% {
+        opacity: 0.45;
+        transform: translateX(-50%) scale(0.9);
+      }
+
+      50% {
+        opacity: 1;
+        transform: translateX(-50%) scale(1.12);
+      }
+    }
+
+    #vm-frame-wrap {
+      display: none;
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      background: #000;
+      z-index: 9999;
+      flex-direction: column;
+    }
+
+    #vm-toolbar {
+      height: 50px;
+      min-height: 50px;
+      background: #111114;
+      color: #eef0f4;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 12px;
+    }
+
+    .vm-toolbar-right {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    #vm-timer {
+      color: #aab2c5;
+      font-family: monospace;
+      font-size: 0.82rem;
+      font-variant-numeric: tabular-nums;
+      padding: 7px 8px;
+      margin-right: 2px;
+    }
+
+    #vm-toolbar button {
+      background: #1b1b20;
+      color: #eef0f4;
+      border: 1px solid #33343b;
+      border-radius: 6px;
+      padding: 7px 12px;
+      cursor: pointer;
+    }
+
+    #vm-toolbar button:hover {
+      background: #292930;
+    }
+
+    #vm-frame {
+      width: 100%;
+      height: calc(100vh - 50px);
+      flex: 1;
+      border: 0;
+      background: #000;
+    }
+
+    #browser-wrap {
+      display: none;
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      background: #000;
+      z-index: 10000;
+      flex-direction: column;
+    }
+
+    #browser-toolbar {
+      min-height: 58px;
+      background: #111114;
+      color: #eef0f4;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 10px;
+      border-bottom: 1px solid #2a2a30;
+    }
+
+    #browser-toolbar button {
+      background: #1b1b20;
+      color: #eef0f4;
+      border: 1px solid #33343b;
+      border-radius: 6px;
+      padding: 8px 10px;
+      cursor: pointer;
+    }
+
+    #browser-toolbar button:hover {
+      background: #292930;
+    }
+
+    #browser-address {
+      flex: 1;
+      min-width: 0;
+      background: #0a0a0b;
+      color: #eef0f4;
+      border: 1px solid #33343b;
+      border-radius: 6px;
+      padding: 9px 11px;
+      outline: none;
+      font: 14px monospace;
+    }
+
+    #browser-address:focus {
+      border-color: #626a7e;
+    }
+
+    #browser-frame {
+      flex: 1;
+      width: 100%;
+      min-height: 0;
+      border: 0;
+      background: #fff;
+    }
+
+    #browser-status {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      display: none;
+      max-width: 80vw;
+      padding: 12px 16px;
+      border: 1px solid #33343b;
+      border-radius: 7px;
+      background: #111114;
+      color: #c8cdd8;
+      font: 13px monospace;
+      text-align: center;
+      z-index: 2;
+    }
+
+    #toast {
+      position: fixed;
+      bottom: 1.5rem;
+      right: 1.5rem;
+      max-width: min(500px, calc(100vw - 3rem));
+      background: #16161a;
+      border: 1px solid #2a2a30;
+      border-radius: 6px;
+      padding: 0.75rem 1rem;
+      font-size: 0.75rem;
+      font-family: monospace;
+      color: #c8cdd8;
+      z-index: 10002;
+      transform: translateY(120%);
+      transition: transform 0.25s ease;
+      word-break: break-word;
+    }
+
+    #toast.show {
+      transform: translateY(0);
+    }
+
+    #toast.error {
+      border-color: #f87171;
+      color: #f87171;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *,
+      *::before,
+      *::after {
+        animation: none !important;
+        transition: none !important;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- AUTH -->
+
+  <div id="auth-wrap">
+    <form id="auth-card">
+
+      <h2>welcome</h2>
+
+      <p id="auth-description">
+        Create an account for 1 hour of VM time, or continue as a guest for 30 minutes.
+      </p>
+
+      <input
+        id="auth-username"
+        type="text"
+        placeholder="username"
+        autocomplete="username"
+        maxlength="24"
+        required
+      >
+
+      <input
+        id="auth-password"
+        type="password"
+        placeholder="password"
+        autocomplete="new-password"
+        minlength="8"
+        required
+      >
+
+      <button
+        class="vm-button"
+        type="submit"
+      >
+        Create account — 1 hour
+      </button>
+
+      <button
+        id="guest-button"
+        type="button"
+      >
+        Continue as guest — 30 minutes
+      </button>
+
+      <button
+        id="login-button"
+        type="button"
+      >
+        Already have an account? Log in
+      </button>
+
+      <div id="auth-error"></div>
+
+    </form>
+  </div>
+
+  <!-- BACKGROUND -->
+
+  <canvas id="snow"></canvas>
+
+  <!-- HOME -->
+
+  <div class="center">
+
+    <h1>william's virtual machine</h1>
+
+    <div id="vm-buttons">
+
+      <button
+        class="vm-button"
+        id="e2b-btn"
+        type="button"
+        onclick="launchE2BVM()"
+      >
+        vm #1 (blocked but works at home)
+      </button>
+
+      <button
+        class="vm-button"
+        id="gpu-btn"
+        type="button"
+        onclick="launchGPUVM()"
+      >
+        vm #2 (currently working)
+      </button>
+
+      <button
+        class="vm-button"
+        id="browser-btn"
+        type="button"
+        onclick="openScramjetBrowser()"
+      >
+        browser (beta v2)
+      </button>
+
+    </div>
+
+    <button
+      id="links-toggle"
+      type="button"
+    >
+      links
+    </button>
+
+    <div id="status"></div>
+
+    <div id="player-count">
+      <span class="dot"></span>
+      <span id="player-count-text">
+        1 vms are working
+      </span>
+    </div>
+
+  </div>
+
+  <!-- LINKS -->
+
+  <div id="links-panel">
+
+    <button
+      id="links-close"
+      type="button"
+    >
+      ✕ Close
+    </button>
+
+    <section class="link-section">
+      <h2>SolaraOS (updated 8/30/26 5pm)</h2>
+
+      <div class="link-grid">
+        <a href="https://solara.noordware.com" target="_blank" rel="noopener noreferrer">link 1</a>
+        <a href="https://solara.fiwers.cl" target="_blank" rel="noopener noreferrer">link 2</a>
+        <a href="https://solara.nirbika.com.np" target="_blank" rel="noopener noreferrer">link 3</a>
+        <a href="https://don.axsetubal.pt" target="_blank" rel="noopener noreferrer">link 4</a>
+        <a href="https://solara.blackfaldsabbey.ca" target="_blank" rel="noopener noreferrer">link 5</a>
+      </div>
+    </section>
+
+    <section class="link-section">
+      <h2>Voya (updated today)</h2>
+
+      <div class="link-grid">
+        <a href="https://voya.opan.biz" target="_blank" rel="noopener noreferrer">link 1</a>
+        <a href="https://voya.noordware.com" target="_blank" rel="noopener noreferrer">link 2</a>
+        <a href="https://voya.fiwers.cl" target="_blank" rel="noopener noreferrer">link 3</a>
+        <a href="https://voya.nirbika.com.np" target="_blank" rel="noopener noreferrer">link 4</a>
+        <a href="https://voya.blackfaldsabbey.ca" target="_blank" rel="noopener noreferrer">link 5</a>
+      </div>
+    </section>
+
+    <section class="link-section">
+      <h2>Xylora (added today)</h2>
+
+      <div class="link-grid">
+        <a href="https://math.noordware.com" target="_blank" rel="noopener noreferrer">link 6</a>
+        <a href="https://yellows.centrodiagnosticogenetico.com" target="_blank" rel="noopener noreferrer">link 7</a>
+        <a href="https://apples.informaticapalafrugell.com" target="_blank" rel="noopener noreferrer">link 8</a>
+        <a href="https://algebra.blackfaldsabbey.ca" target="_blank" rel="noopener noreferrer">link 9</a>
+        <a href="https://host.echoschool.cfd" target="_blank" rel="noopener noreferrer">link 10</a>
+      </div>
+    </section>
+
+    <section class="link-section">
+      <h2>all willie vm links </h2>
+
+      <div class="link-grid">
+        <a href="https://eba-academics.niyari.org/" target="_blank" rel="noopener noreferrer">link 11</a>
+        <a href="https://eba-test.yaculture.org/" target="_blank" rel="noopener noreferrer">link 12</a>
+      </div>
+    </section>
+
+    <section class="link-section">
+      <h2>Strawberri</h2>
+
+      <div class="link-grid">
+        <a href="https://stroberri.opan.biz" target="_blank" rel="noopener noreferrer">link 13</a>
+        <a href="https://stroberri.noordware.com" target="_blank" rel="noopener noreferrer">link 14</a>
+        <a href="https://stroberri.fiwers.cl" target="_blank" rel="noopener noreferrer">link 14</a>
+        <a href="https://stroberri.nirbika.com.np" target="_blank" rel="noopener noreferrer">link 15</a>
+        <a href="https://stroberri.blackfaldsabbey.ca" target="_blank" rel="noopener noreferrer">link 16</a>
+      </div>
+    </section>
+
+    <section class="link-section">
+      <h2>gn-math & Opium</h2>
+
+      <div class="link-grid">
+        <a href="https://storage.googleapis.com/mathlearning/ilovessp/500k/gn-math_4" target="_blank" rel="noopener noreferrer">link 17</a>
+        <a href="https://storage.googleapis.com/mathlearning/ilovessp/500k/gn-math_25" target="_blank" rel="noopener noreferrer">link 18</a>
+        <a href="https://opiumisbest.s3.amazonaws.com/index.html" target="_blank" rel="noopener noreferrer">link 19</a>
+        <a href="https://cdn.jsdelivr.net/gh/opiumbest/svg/index.svg" target="_blank" rel="noopener noreferrer">link 20</a>
+      </div>
+    </section>
+
+    <section class="link-section">
+      <h2>Nocturne & Quasar</h2>
+
+      <div class="link-grid">
+        <a href="https://responsibleuse.org/" target="_blank" rel="noopener noreferrer">link 21</a>
+        <a href="https://cdn.jsdelivr.net/gh/lolration/svg/index.svg" target="_blank" rel="noopener noreferrer">link 22</a>
+        <a href="https://noc.zaka13.com/" target="_blank" rel="noopener noreferrer">link 23</a>
+        <a href="https://thermowavetherapy.com/" target="_blank" rel="noopener noreferrer">link 24</a>
+        <a href="https://bakersfieldps.com/" target="_blank" rel="noopener noreferrer">link 25</a>
+        <a href="https://noc.exploits-bg.com/" target="_blank" rel="noopener noreferrer">link 26</a>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- SCRAMJET BROWSER -->
+
+  <div id="browser-wrap">
+
+    <div id="browser-toolbar">
+
+      <button
+        type="button"
+        onclick="scramjetBack()"
+        aria-label="Back"
+      >
+        ←
+      </button>
+
+      <button
+        type="button"
+        onclick="scramjetForward()"
+        aria-label="Forward"
+      >
+        →
+      </button>
+
+      <button
+        type="button"
+        onclick="scramjetReload()"
+        aria-label="Reload"
+      >
+        ↻
+      </button>
+
+      <input
+        id="browser-address"
+        type="text"
+        value="https://www.google.com/"
+        placeholder="Enter a URL or search"
+        autocomplete="off"
+        spellcheck="false"
+        onkeydown="if(event.key === 'Enter') navigateScramjet()"
+      >
+
+      <button
+        type="button"
+        onclick="navigateScramjet()"
+      >
+        Go
+      </button>
+
+      <button
+        type="button"
+        onclick="closeScramjetBrowser()"
+      >
+        ✕ Close
+      </button>
+
+    </div>
+
+    <div id="browser-status" style="display:none"></div>
+
+    <iframe
+      id="browser-frame"
+      title="Scramjet Browser"
+      allow="fullscreen; autoplay; clipboard-read; clipboard-write; encrypted-media; picture-in-picture"
+      referrerpolicy="no-referrer"
+    ></iframe>
+
+  </div>
+
+  <!-- VM -->
+
+  <div id="vm-frame-wrap">
+
+    <div id="vm-toolbar">
+
+      <span>private vm</span>
+
+      <div class="vm-toolbar-right">
+
+        <span
+          id="vm-timer"
+          aria-live="polite"
+        >
+          00:00
+        </span>
+
+        <button
+          type="button"
+          onclick="toggleFullscreen()"
+        >
+          ⛶ Fullscreen
+        </button>
+
+        <button
+          type="button"
+          onclick="closeVM()"
+        >
+          ✕ Close
+        </button>
+
+      </div>
+
+    </div>
+
+    <iframe
+      id="vm-frame"
+      title="Virtual Machine"
+      allow="fullscreen; autoplay; clipboard-read; clipboard-write"
+      referrerpolicy="no-referrer"
+    ></iframe>
+
+  </div>
+
+  <div id="toast"></div>
+
+  <!-- IMPORTANT:
+       register-sw.js remains responsible for the Scramjet service worker. -->
+
+  <script src="/baremux/bare.cjs"></script>
+  <!-- Scramjet 2.x + controller 0.0.14: load core, controller API, then utils -->
+  <script src="/scramjet/scramjet.js"></script>
+  <script src="/controller/controller.api.js"></script>
+  <script src="/utils/scramjet-utils.js"></script>
+  <script src="/register-sw.js"></script>
+  <script src="/search.js"></script>
+
+  <script>
+    /* =========================================================
+       SNOW
+       ========================================================= */
+
+    const canvas = document.getElementById("snow");
+    const ctx = canvas.getContext("2d");
+
+    let flakes = [];
+
+    function resize() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
+
+    function makeFlake() {
+      return {
+        x: Math.random() * canvas.width,
+        y: Math.random() * -canvas.height,
+        r: Math.random() * 2.5 + 0.5,
+        speed: Math.random() * 0.8 + 0.3,
+        drift: Math.random() * 0.4 - 0.2,
+        op: Math.random() * 0.5 + 0.2
+      };
+    }
+
+    function initFlakes() {
+      flakes = [];
+
+      for (let i = 0; i < 120; i++) {
+        const f = makeFlake();
+        f.y = Math.random() * canvas.height;
+        flakes.push(f);
+      }
+    }
+
+    function drawSnow() {
+      ctx.clearRect(
+        0,
+        0,
+        canvas.width,
+        canvas.height
+      );
+
+      ctx.fillStyle = "#fff";
+
+      for (const f of flakes) {
+        ctx.globalAlpha = f.op;
+
+        ctx.beginPath();
+
+        ctx.arc(
+          f.x,
+          f.y,
+          f.r,
+          0,
+          Math.PI * 2
+        );
+
+        ctx.fill();
+
+        f.y += f.speed;
+        f.x += f.drift;
+
+        if (f.y > canvas.height + 5) {
+          Object.assign(
+            f,
+            makeFlake()
+          );
+        }
+      }
+
+      ctx.globalAlpha = 1;
+
+      requestAnimationFrame(drawSnow);
+    }
+
+    resize();
+    initFlakes();
+    drawSnow();
+
+    window.addEventListener(
+      "resize",
+      () => {
+        resize();
+        initFlakes();
+      }
+    );
+
+
+    /* =========================================================
+       GLOBAL STATE
+       ========================================================= */
+
+    let currentContainerId = null;
+    let currentVMType = null;
+    let currentUrl = null;
+
+    let pollInterval = null;
+    let vmTimerInterval = null;
+
+    let vmStartedAt = null;
+
+    let vmTimeLimitSeconds = 30 * 60;
+
+    let authMode = "register";
+
+
+    /* =========================================================
+       TOAST / STATUS
+       ========================================================= */
+
+    function toast(msg, isError = false) {
+      const element =
+        document.getElementById("toast");
+
+      element.textContent = msg;
+
+      element.className =
+        "show" +
+        (isError ? " error" : "");
+
+      setTimeout(() => {
+        element.className = "";
+      }, 5000);
+    }
+
+    function setStatus(msg) {
+      const element =
+        document.getElementById("status");
+
+      element.textContent = msg;
+
+      element.className =
+        msg.startsWith("Error") ||
+        msg.startsWith("Failed")
+          ? "error"
+          : "";
+    }
+
+    function setLaunching(on) {
+      document
+        .querySelectorAll(".vm-button")
+        .forEach(button => {
+          button.disabled = on;
+        });
+    }
+
+
+    /* =========================================================
+       VM TIMER
+       ========================================================= */
+
+    function formatVMTime(totalSeconds) {
+      const hours =
+        Math.floor(totalSeconds / 3600);
+
+      const minutes =
+        Math.floor(
+          (totalSeconds % 3600) / 60
+        );
+
+      const seconds =
+        totalSeconds % 60;
+
+      const twoDigits =
+        value =>
+          String(value).padStart(2, "0");
+
+      return hours > 0
+        ? `${twoDigits(hours)}:${twoDigits(minutes)}:${twoDigits(seconds)}`
+        : `${twoDigits(minutes)}:${twoDigits(seconds)}`;
+    }
+
+    function updateVMTimer() {
+      if (!vmStartedAt) {
+        return;
+      }
+
+      const elapsedSeconds =
+        Math.floor(
+          (Date.now() - vmStartedAt) / 1000
+        );
+
+      if (
+        elapsedSeconds >=
+        vmTimeLimitSeconds
+      ) {
+        toast(
+          "Your VM time has ended.",
+          true
+        );
+
+        closeVM();
+
+        return;
+      }
+
+      document.getElementById(
+        "vm-timer"
+      ).textContent =
+        formatVMTime(elapsedSeconds);
+    }
+
+    function startVMTimer() {
+      clearInterval(vmTimerInterval);
+
+      vmStartedAt = Date.now();
+
+      updateVMTimer();
+
+      vmTimerInterval =
+        setInterval(
+          updateVMTimer,
+          1000
+        );
+    }
+
+    function stopVMTimer() {
+      clearInterval(vmTimerInterval);
+
+      vmTimerInterval = null;
+      vmStartedAt = null;
+
+      document.getElementById(
+        "vm-timer"
+      ).textContent = "00:00";
+    }
+
+
+    /* =========================================================
+       AUTH
+       ========================================================= */
+
+    function setAuthError(message = "") {
+      document.getElementById(
+        "auth-error"
+      ).textContent = message;
+    }
+
+    function setAuthMode(mode) {
+      authMode = mode;
+
+      const submit =
+        document.querySelector(
+          "#auth-card button[type='submit']"
+        );
+
+      const loginButton =
+        document.getElementById(
+          "login-button"
+        );
+
+      const password =
+        document.getElementById(
+          "auth-password"
+        );
+
+      if (mode === "login") {
+        submit.textContent =
+          "Log in — 1 hour";
+
+        loginButton.textContent =
+          "Need an account? Create one";
+
+        password.autocomplete =
+          "current-password";
+      } else {
+        submit.textContent =
+          "Create account — 1 hour";
+
+        loginButton.textContent =
+          "Already have an account? Log in";
+
+        password.autocomplete =
+          "new-password";
+      }
+
+      setAuthError();
+    }
+
+    function acceptAuth(data) {
+      vmTimeLimitSeconds =
+        data.vmMinutes * 60;
+
+      document
+        .getElementById("auth-wrap")
+        .classList.add("hidden");
+
+      toast(
+        `${data.username}: ${data.vmMinutes} minutes of VM time available.`
+      );
+    }
+
+    async function checkAuth() {
+      try {
+        const res =
+          await fetch("/api/auth/me");
+
+        const data =
+          await res.json();
+
+        if (data.loggedIn) {
+          acceptAuth(data);
+        }
+      } catch (_) {
+        // Auth check can fail without blocking the page.
+      }
+    }
+
+    document
+      .getElementById("auth-card")
+      .addEventListener(
+        "submit",
+        async event => {
+          event.preventDefault();
+
+          const username =
+            document.getElementById(
+              "auth-username"
+            ).value.trim();
+
+          const password =
+            document.getElementById(
+              "auth-password"
+            ).value;
+
+          try {
+            const res =
+              await fetch(
+                authMode === "login"
+                  ? "/api/auth/login"
+                  : "/api/auth/register",
+                {
+                  method: "POST",
+                  headers: {
+                    "Content-Type":
+                      "application/json"
+                  },
+                  body: JSON.stringify({
+                    username,
+                    password
+                  })
+                }
+              );
+
+            const data =
+              await res.json();
+
+            if (!res.ok) {
+              throw new Error(
+                data.error ||
+                "Authentication failed."
+              );
+            }
+
+            acceptAuth(data);
+
+          } catch (err) {
+            setAuthError(
+              err.message ||
+              "Authentication failed."
+            );
+          }
+        }
+      );
+
+    document
+      .getElementById("guest-button")
+      .addEventListener(
+        "click",
+        async () => {
+          try {
+            const res =
+              await fetch(
+                "/api/auth/guest",
+                {
+                  method: "POST"
+                }
+              );
+
+            const data =
+              await res.json();
+
+            if (!res.ok) {
+              throw new Error(
+                data.error ||
+                "Guest sign-in failed."
+              );
+            }
+
+            acceptAuth(data);
+
+          } catch (err) {
+            setAuthError(
+              err.message ||
+              "Guest sign-in failed."
+            );
+          }
+        }
+      );
+
+    document
+      .getElementById("login-button")
+      .addEventListener(
+        "click",
+        () => {
+          setAuthMode(
+            authMode === "login"
+              ? "register"
+              : "login"
+          );
+        }
+      );
+
+
+    /* =========================================================
+       LINKS
+       ========================================================= */
+
+    document
+      .getElementById("links-toggle")
+      .addEventListener(
+        "click",
+        () => {
+          document
+            .getElementById("links-panel")
+            .classList.add("show");
+        }
+      );
+
+    document
+      .getElementById("links-close")
+      .addEventListener(
+        "click",
+        () => {
+          document
+            .getElementById("links-panel")
+            .classList.remove("show");
+        }
+      );
+
+
+    /* =========================================================
+       /api/stats
+       KEEPING THIS FOR YOUR VM STATS
+       ========================================================= */
+
+    async function fetchPlayerCount() {
+      try {
+        const controller =
+          new AbortController();
+
+        const timeout =
+          setTimeout(
+            () => controller.abort(),
+            5000
+          );
+
+        const res =
+          await fetch(
+            "/api/stats",
+            {
+              signal: controller.signal,
+              cache: "no-store"
+            }
+          );
+
+        clearTimeout(timeout);
+
+        if (!res.ok) {
+          throw new Error(
+            `HTTP ${res.status}`
+          );
+        }
+
+        const data =
+          await res.json();
+
+        const count =
+          data.online ??
+          data.count ??
+          data.players ??
+          null;
+
+        if (count !== null) {
+          document.getElementById(
+            "player-count-text"
+          ).textContent =
+            `${count} online`;
+        }
+
+      } catch (err) {
+        /*
+         * IMPORTANT:
+         * Do NOT remove /api/stats.
+         *
+         * A 404 here means the current server deployment
+         * does not expose the endpoint. It does not break
+         * the VM buttons or Scramjet.
+         */
+
+        console.warn(
+          "Player count request failed:",
+          err
+        );
+      }
+    }
+
+
+    /* =========================================================
+       INITIAL PAGE LOAD
+       ========================================================= */
+
+    document.addEventListener(
+      "DOMContentLoaded",
+      () => {
+        checkAuth();
+
+        fetchPlayerCount();
+
+        setInterval(
+          fetchPlayerCount,
+          15000
+        );
+      }
+    );
+
+
+    /* =========================================================
+       VM
+       ========================================================= */
+
+    function openVM(url) {
+      if (!url) {
+        throw new Error(
+          "No VM URL was provided."
+        );
+      }
+
+      currentUrl = url;
+
+      const frame =
+        document.getElementById(
+          "vm-frame"
+        );
+
+      const wrapper =
+        document.getElementById(
+          "vm-frame-wrap"
+        );
+
+      frame.src = "about:blank";
+
+      wrapper.style.display = "flex";
+
+      startVMTimer();
+
+      setTimeout(() => {
+        frame.src = url;
+      }, 50);
+
+      setStatus("VM connected.");
+
+      setLaunching(false);
+
+      toast("VM launched!");
+    }
+
+    document
+      .getElementById("vm-frame")
+      .addEventListener(
+        "load",
+        () => {
+          if (currentUrl) {
+            setStatus(
+              "VM stream loaded."
+            );
+          }
+        }
+      );
+
+    async function closeVM() {
+      clearInterval(pollInterval);
+
+      stopVMTimer();
+
+      const frame =
+        document.getElementById(
+          "vm-frame"
+        );
+
+      const wrapper =
+        document.getElementById(
+          "vm-frame-wrap"
+        );
+
+      frame.src = "about:blank";
+
+      wrapper.style.display = "none";
+
+      if (
+        currentContainerId &&
+        currentVMType === "gpu"
+      ) {
+        try {
+          await fetch(
+            `/api/vm/${encodeURIComponent(
+              currentContainerId
+            )}`,
+            {
+              method: "DELETE"
+            }
+          );
+        } catch (err) {
+          console.warn(
+            "GPU cleanup failed:",
+            err
+          );
+        }
+      }
+
+      if (
+        currentContainerId &&
+        currentVMType === "e2b"
+      ) {
+        try {
+          await fetch(
+            `/api/e2b/${encodeURIComponent(
+              currentContainerId
+            )}`,
+            {
+              method: "DELETE"
+            }
+          );
+        } catch (err) {
+          console.warn(
+            "E2B cleanup failed:",
+            err
+          );
+        }
+      }
+
+      currentContainerId = null;
+      currentVMType = null;
+      currentUrl = null;
+
+      setStatus("VM closed.");
+
+      toast("VM closed.");
+    }
+
+    async function toggleFullscreen() {
+      const vm =
+        document.getElementById(
+          "vm-frame-wrap"
+        );
+
+      try {
+        if (!document.fullscreenElement) {
+          await vm.requestFullscreen();
+        } else {
+          await document.exitFullscreen();
+        }
+      } catch (err) {
+        toast(
+          "Fullscreen failed: " +
+          err.message,
+          true
+        );
+      }
+    }
+
+
+    /* =========================================================
+       SCRAMJET
+       ========================================================= */
+
+    let scramjetController = null;
+    let scramjetFrame = null;
+    let scramjetBrowserReady = false;
+    let scramjetStarting = null;
+
+
+    function setBrowserStatus(
+      message,
+      show = true
+    ) {
+      const el =
+        document.getElementById(
+          "browser-status"
+        );
+
+      el.textContent = message;
+
+      el.style.display =
+        show ? "block" : "none";
+    }
+
+
+    /*
+     * Wait until the service worker actually controls
+     * this page.
+     *
+     * register-sw.js performs the registration.
+     */
+
+    async function waitForScramjetControl(
+      registration
+    ) {
+      if (
+        navigator.serviceWorker.controller
+      ) {
+        return navigator.serviceWorker.controller;
+      }
+
+      const existing =
+        registration.active ||
+        registration.waiting ||
+        registration.installing;
+
+      if (
+        existing &&
+        existing.state !== "activated"
+      ) {
+        await new Promise((resolve, reject) => {
+          const worker = existing;
+
+          const timeout =
+            setTimeout(
+              () => reject(new Error(
+                "Scramjet service worker did not activate within 10 seconds. Try refreshing."
+              )),
+              10000
+            );
+
+          worker.addEventListener(
+            "statechange",
+            () => {
+              if (
+                worker.state ===
+                "activated"
+              ) {
+                clearTimeout(timeout);
+                resolve();
+              } else if (
+                worker.state ===
+                "redundant"
+              ) {
+                clearTimeout(timeout);
+                reject(new Error(
+                  "Scramjet service worker became redundant. Try refreshing."
+                ));
+              }
+            },
+            { once: false }
+          );
+        });
+      }
+
+      if (
+        navigator.serviceWorker.controller
+      ) {
+        return navigator.serviceWorker.controller;
+      }
+
+      /*
+       * Ask the page to reload itself once.
+       *
+       * This fixes the common case where the SW has just
+       * activated but the first page was loaded before it
+       * became the controller.
+       */
+
+      if (
+        sessionStorage.getItem(
+          "scramjet_sw_reload"
+        ) !== "1"
+      ) {
+        sessionStorage.setItem(
+          "scramjet_sw_reload",
+          "1"
+        );
+
+        throw new Error(
+          "Scramjet service worker activated. Refreshing once so it can control this page."
+        );
+      }
+
+      throw new Error(
+        "Scramjet service worker is active but is not controlling this page. Please refresh the page."
+      );
+    }
+
+
+    /*
+     * Load Controller.
+     *
+     * IMPORTANT:
+     * We intentionally do NOT destructure BareResponse
+     * from globalThis.$scramjet here.
+     *
+     * BareMuxConnection (bare-mux 2.x) handles the transport.
+     */
+
+    function loadScramjetControllerApi() {
+      // controller 0.0.14: $scramjetController is exposed by
+      // /controller/controller.api.js loaded in the page.
+      if (
+        typeof $scramjetController === "undefined" ||
+        typeof $scramjetController.Controller !== "function"
+      ) {
+        throw new Error(
+          "controller.api.js did not expose $scramjetController.Controller. " +
+          "Check that /controller/controller.api.js is being served correctly."
+        );
+      }
+      return $scramjetController;
+    }
+
+
+    async function initScramjetBrowser() {
+      if (
+        scramjetBrowserReady &&
+        scramjetController &&
+        scramjetFrame
+      ) {
+        return;
+      }
+
+      /*
+       * Prevent two clicks from initializing
+       * Scramjet twice simultaneously.
+       */
+
+      if (scramjetStarting) {
+        return scramjetStarting;
+      }
+
+      scramjetStarting =
+        (async () => {
+
+          setBrowserStatus(
+            "Starting Scramjet…",
+            true
+          );
+
+          if (
+            !("serviceWorker" in navigator)
+          ) {
+            throw new Error(
+              "This browser does not support service workers."
+            );
+          }
+
+
+          /*
+           * register-sw.js should expose this.
+           */
+
+          if (
+            typeof window
+              .registerScramjetServiceWorker !==
+            "function"
+          ) {
+            throw new Error(
+              "register-sw.js did not expose registerScramjetServiceWorker()."
+            );
+          }
+
+          const registration =
+            await window.registerScramjetServiceWorker();
+
+
+          /*
+           * Make sure the SW controls the page.
+           */
+
+          const serviceWorker =
+            await waitForScramjetControl(
+              registration
+            );
+
+
+          setBrowserStatus(
+            "Loading Scramjet controller…",
+            true
+          );
+
+
+          /*
+           * Load the controller only after the SW
+           * is controlling the page.
+           */
+
+          const api =
+            loadScramjetControllerApi();
+
+
+          /*
+           * libcurl transport for bare-mux 2.x.
+           * The transport instance is passed directly to the controller
+           * (controller 0.0.14 API) rather than set globally on BareMuxConnection.
+           */
+
+          const wispUrl =
+            `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/wisp/`;
+
+          const { default: LibcurlClient } =
+            await import("/libcurl/index.mjs");
+
+          const transport =
+            new LibcurlClient({ wisp: wispUrl });
+
+
+          /*
+           * controller 0.0.14: pass serviceworker + transport into the
+           * constructor alongside config and scramjetConfig.
+           * Note: strictRewrites was removed in 2.x and does nothing;
+           *       it has been dropped here.
+           */
+
+          scramjetController =
+            new api.Controller({
+              serviceworker: serviceWorker,
+              transport,
+
+              config: {
+                prefix:      "/~/sj/",
+                scramjetPath: "/scramjet/scramjet.js",
+                wasmPath:    "/scramjet/scramjet.wasm",
+                injectPath:  "/controller/controller.inject.js"
+              },
+
+              scramjetConfig: {
+                flags: {
+                  captureErrors: true,
+                  allowInvalidJs: true
+                }
+              }
+            });
+
+
+          setBrowserStatus(
+            "Initializing browser engine…",
+            true
+          );
+
+
+          // controller.wait() replaces init() in controller 0.0.14.
+          // It waits for the SW handshake and wasm compilation to complete.
+          await scramjetController.wait();
+
+
+          // Keepalive: post a ping every 15 s to prevent the browser from
+          // terminating the idle service worker (upstream bug — routing state
+          // is lost on SW restart, causing 404s until page reload).
+          setInterval(() => {
+            navigator.serviceWorker.controller?.postMessage("keepalive");
+          }, 15000);
+
+
+          const frameElement =
+            document.getElementById(
+              "browser-frame"
+            );
+
+
+          scramjetFrame =
+            scramjetController.createFrame(
+              frameElement
+            );
+
+
+          scramjetBrowserReady = true;
+
+
+          sessionStorage.removeItem(
+            "scramjet_sw_reload"
+          );
+
+
+          setBrowserStatus(
+            "",
+            false
+          );
+
+        })();
+
+      try {
+        await scramjetStarting;
+      } finally {
+        scramjetStarting = null;
+      }
+    }
+
+
+    async function openScramjetBrowser() {
+      const browser =
+        document.getElementById(
+          "browser-wrap"
+        );
+
+      browser.style.display =
+        "flex";
+
+      document.getElementById(
+        "vm-frame-wrap"
+      ).style.display =
+        "none";
+
+      try {
+
+        await initScramjetBrowser();
+
+        const address =
+          document.getElementById(
+            "browser-address"
+          );
+
+        const initialUrl =
+          address.value.trim() ||
+          "https://www.google.com/";
+
+
+        await navigateScramjet(
+          initialUrl
+        );
+
+
+        address.focus();
+        address.select();
+
+      } catch (err) {
+
+        console.error(
+          "Scramjet initialization failed:",
+          err
+        );
+
+
+        /*
+         * If the SW was just installed, reload once.
+         */
+
+        if (
+          err &&
+          typeof err.message ===
+          "string" &&
+          err.message.includes(
+            "Refreshing once"
+          )
+        ) {
+          setBrowserStatus(
+            err.message,
+            true
+          );
+
+          toast(
+            "Scramjet is installing. Refreshing page…"
+          );
+
+          setTimeout(
+            () => {
+              location.reload();
+            },
+            700
+          );
+
+          return;
+        }
+
+
+        setBrowserStatus(
+          "Scramjet error: " +
+          (
+            err?.message ||
+            err
+          ),
+          true
+        );
+
+
+        toast(
+          "Scramjet failed to start: " +
+          (
+            err?.message ||
+            err
+          ),
+          true
+        );
+      }
+    }
+
+
+    async function navigateScramjet(
+      value
+    ) {
+      try {
+
+        if (!scramjetFrame) {
+          await initScramjetBrowser();
+        }
+
+
+        const input =
+          document.getElementById(
+            "browser-address"
+          );
+
+
+        const raw =
+          typeof value === "string"
+            ? value.trim()
+            : input.value.trim();
+
+
+        if (!raw) {
+          return;
+        }
+
+
+        const url =
+          normalizeBrowserUrl(raw);
+
+
+        input.value = url;
+
+
+        setBrowserStatus(
+          "Loading…",
+          true
+        );
+
+
+        scramjetFrame.go(url);
+
+
+        setTimeout(
+          () => {
+            setBrowserStatus(
+              "",
+              false
+            );
+          },
+          1500
+        );
+
+      } catch (err) {
+
+        console.error(
+          "Scramjet navigation failed:",
+          err
+        );
+
+
+        setBrowserStatus(
+          "Navigation error: " +
+          (
+            err?.message ||
+            err
+          ),
+          true
+        );
+      }
+    }
+
+
+    function normalizeBrowserUrl(
+      value
+    ) {
+
+      if (
+        /^[a-z][a-z0-9+.-]*:\/\//i.test(
+          value
+        )
+      ) {
+        return value;
+      }
+
+
+      if (
+        /^[a-z][a-z0-9+.-]*:/i.test(
+          value
+        )
+      ) {
+        return value;
+      }
+
+
+      if (
+        /^[^\s.]+\.[^\s]+$/.test(
+          value
+        )
+      ) {
+        return (
+          "https://" +
+          value
+        );
+      }
+
+
+      return browserSearchUrl(value);
+    }
+
+
+    function scramjetBack() {
+      if (scramjetFrame) {
+        scramjetFrame.back();
+      }
+    }
+
+
+    function scramjetForward() {
+      if (scramjetFrame) {
+        scramjetFrame.forward();
+      }
+    }
+
+
+    function scramjetReload() {
+      if (scramjetFrame) {
+        scramjetFrame.reload();
+      }
+    }
+
+
+    function closeScramjetBrowser() {
+      document.getElementById(
+        "browser-wrap"
+      ).style.display =
+        "none";
+
+      if (scramjetFrame) {
+        try {
+          scramjetFrame.element.src =
+            "about:blank";
+        } catch (_) {}
+      }
+    }
+
+
+    /* =========================================================
+       E2B VM
+       ========================================================= */
+
+    async function launchE2BVM() {
+      clearInterval(pollInterval);
+
+      setLaunching(true);
+
+      setStatus(
+        "Starting E2B Desktop VM..."
+      );
+
+      try {
+
+        const res =
+          await fetch(
+            "/api/e2b/start",
+            {
+              method: "POST",
+              headers: {
+                "Content-Type":
+                  "application/json"
+              }
+            }
+          );
+
+
+        const data =
+          await res.json();
+
+
+        if (!res.ok) {
+          throw new Error(
+            data.error ||
+            data.message ||
+            `E2B server returned HTTP ${res.status}.`
+          );
+        }
+
+
+        if (
+          data.status &&
+          data.status !==
+          "success"
+        ) {
+          throw new Error(
+            data.error ||
+            data.message ||
+            "E2B sandbox did not start successfully."
+          );
+        }
+
+
+        if (!data.sandboxId) {
+          throw new Error(
+            "E2B did not return a sandbox ID."
+          );
+        }
+
+
+        if (!data.url) {
+          throw new Error(
+            "E2B did not return a desktop stream URL."
+          );
+        }
+
+
+        currentContainerId =
+          data.sandboxId;
+
+        currentVMType =
+          "e2b";
+
+
+        openVM(data.url);
+
+      } catch (err) {
+
+        setStatus(
+          "Error: " +
+          err.message
+        );
+
+
+        toast(
+          "E2B launch failed: " +
+          err.message,
+          true
+        );
+
+
+        currentContainerId =
+          null;
+
+        currentVMType =
+          null;
+
+        currentUrl =
+          null;
+
+
+        setLaunching(false);
+      }
+    }
+
+
+    /* =========================================================
+       GPU VM
+       ========================================================= */
+
+    async function launchGPUVM() {
+      clearInterval(pollInterval);
+
+      setLaunching(true);
+
+      setStatus(
+        "Requesting GPU instance..."
+      );
+
+      try {
+
+        const res =
+          await fetch(
+            "/api/launch?gpu=true"
+          );
+
+
+        const data =
+          await res.json();
+
+
+        if (!res.ok) {
+          throw new Error(
+            data.error ||
+            data.message ||
+            `GPU server returned HTTP ${res.status}.`
+          );
+        }
+
+
+        if (
+          data.status ===
+          "success"
+        ) {
+
+          currentContainerId =
+            data.container_id;
+
+          currentVMType =
+            "gpu";
+
+          openVM(data.url);
+
+          return;
+        }
+
+
+        if (
+          data.status ===
+          "queued"
+        ) {
+
+          setStatus(
+            `Queued — position ${data.position ?? "?"}. Waiting…`
+          );
+
+          pollQueue(data.token);
+
+          return;
+        }
+
+
+        throw new Error(
+          data.error ||
+          data.message ||
+          JSON.stringify(data)
+        );
+
+      } catch (err) {
+
+        setStatus(
+          "Error: " +
+          err.message
+        );
+
+
+        toast(
+          "GPU launch failed: " +
+          err.message,
+          true
+        );
+
+
+        setLaunching(false);
+      }
+    }
+
+
+    /* =========================================================
+       GPU QUEUE
+       ========================================================= */
+
+    async function pollQueue(token) {
+      clearInterval(pollInterval);
+
+      if (!token) {
+
+        setLaunching(false);
+
+        throw new Error(
+          "GPU queue did not return a token."
+        );
+      }
+
+
+      pollInterval =
+        setInterval(
+          async () => {
+
+            try {
+
+              const res =
+                await fetch(
+                  `/api/queue?token=${encodeURIComponent(
+                    token
+                  )}`
+                );
+
+
+              const data =
+                await res.json();
+
+
+              if (!res.ok) {
+                throw new Error(
+                  data.error ||
+                  data.message ||
+                  `Queue request failed with HTTP ${res.status}.`
+                );
+              }
+
+
+              if (
+                data.status ===
+                "allocated"
+              ) {
+
+                clearInterval(
+                  pollInterval
+                );
+
+
+                currentContainerId =
+                  data.container_id;
+
+                currentVMType =
+                  "gpu";
+
+
+                openVM(
+                  data.url
+                );
+
+                return;
+              }
+
+
+              if (
+                data.status ===
+                "failed"
+              ) {
+
+                clearInterval(
+                  pollInterval
+                );
+
+
+                setStatus(
+                  "Failed: " +
+                  (
+                    data.reason ||
+                    "unknown"
+                  )
+                );
+
+
+                toast(
+                  "Queue failed: " +
+                  (
+                    data.reason ||
+                    "unknown"
+                  ),
+                  true
+                );
+
+
+                setLaunching(false);
+
+                return;
+              }
+
+
+              if (
+                data.position !==
+                undefined
+              ) {
+
+                setStatus(
+                  `Queued — position ${data.position}. Waiting…`
+                );
+
+              } else {
+
+                setStatus(
+                  "Waiting for GPU instance..."
+                );
+              }
+
+            } catch (err) {
+
+              console.warn(
+                "Queue polling error:",
+                err
+              );
+            }
+
+          },
+          4000
+        );
+    }
+
+
+    /* =========================================================
+       BEFORE UNLOAD
+       ========================================================= */
+
+    window.addEventListener(
+      "beforeunload",
+      event => {
+
+        event.preventDefault();
+
+        event.returnValue = "";
+
+      }
+    );
+
+  </script>
+
+</body>
+</html>
