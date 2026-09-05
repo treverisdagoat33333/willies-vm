@@ -481,15 +481,115 @@
       flex-direction: column;
     }
 
+    /* TAB BAR */
+    #tab-bar {
+      display: flex;
+      align-items: center;
+      background: #0d0d10;
+      border-bottom: 1px solid #2a2a30;
+      overflow-x: auto;
+      overflow-y: hidden;
+      scrollbar-width: none;
+      flex-shrink: 0;
+      min-height: 36px;
+    }
+
+    #tab-bar::-webkit-scrollbar { display: none; }
+
+    #tab-list {
+      display: flex;
+      align-items: stretch;
+      flex: 1;
+      min-width: 0;
+    }
+
+    .tab {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 0 10px;
+      min-width: 100px;
+      max-width: 180px;
+      height: 36px;
+      background: #111114;
+      border-right: 1px solid #2a2a30;
+      cursor: pointer;
+      flex-shrink: 0;
+      position: relative;
+      transition: background 0.1s;
+    }
+
+    .tab.active {
+      background: #1b1b20;
+      border-top: 2px solid #c8cdd8;
+    }
+
+    .tab:hover:not(.active) {
+      background: #161618;
+    }
+
+    .tab-title {
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: #aab2c5;
+      font-size: 0.75rem;
+      font-family: sans-serif;
+    }
+
+    .tab.active .tab-title {
+      color: #eef0f4;
+    }
+
+    .tab-close {
+      width: 16px;
+      height: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 3px;
+      color: #7a8194;
+      font-size: 0.7rem;
+      flex-shrink: 0;
+      transition: background 0.1s, color 0.1s;
+    }
+
+    .tab-close:hover {
+      background: #33343b;
+      color: #eef0f4;
+    }
+
+    #tab-new {
+      width: 36px;
+      height: 36px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #7a8194;
+      font-size: 1.1rem;
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: color 0.1s, background 0.1s;
+    }
+
+    #tab-new:hover {
+      color: #eef0f4;
+      background: #1b1b20;
+    }
+
+    /* TOOLBAR */
     #browser-toolbar {
-      min-height: 58px;
+      min-height: 46px;
       background: #111114;
       color: #eef0f4;
       display: flex;
       align-items: center;
       gap: 8px;
-      padding: 8px 10px;
+      padding: 6px 10px;
       border-bottom: 1px solid #2a2a30;
+      flex-shrink: 0;
     }
 
     #browser-toolbar button {
@@ -497,8 +597,9 @@
       color: #eef0f4;
       border: 1px solid #33343b;
       border-radius: 6px;
-      padding: 8px 10px;
+      padding: 6px 10px;
       cursor: pointer;
+      white-space: nowrap;
     }
 
     #browser-toolbar button:hover {
@@ -512,7 +613,7 @@
       color: #eef0f4;
       border: 1px solid #33343b;
       border-radius: 6px;
-      padding: 9px 11px;
+      padding: 7px 11px;
       outline: none;
       font: 14px monospace;
     }
@@ -521,12 +622,25 @@
       border-color: #626a7e;
     }
 
-    #browser-frame {
+    /* FRAMES CONTAINER */
+    #browser-frames {
       flex: 1;
-      width: 100%;
+      position: relative;
       min-height: 0;
+    }
+
+    .browser-frame {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
       border: 0;
       background: #fff;
+      display: none;
+    }
+
+    .browser-frame.active {
+      display: block;
     }
 
     #browser-status {
@@ -934,31 +1048,17 @@
 
   <div id="browser-wrap">
 
+    <!-- TAB BAR -->
+    <div id="tab-bar">
+      <div id="tab-list"></div>
+      <div id="tab-new" title="New tab" onclick="newTab()">+</div>
+    </div>
+
+    <!-- ADDRESS BAR -->
     <div id="browser-toolbar">
-
-      <button
-        type="button"
-        onclick="scramjetBack()"
-        aria-label="Back"
-      >
-        ←
-      </button>
-
-      <button
-        type="button"
-        onclick="scramjetForward()"
-        aria-label="Forward"
-      >
-        →
-      </button>
-
-      <button
-        type="button"
-        onclick="scramjetReload()"
-        aria-label="Reload"
-      >
-        ↻
-      </button>
+      <button type="button" onclick="scramjetBack()" aria-label="Back">←</button>
+      <button type="button" onclick="scramjetForward()" aria-label="Forward">→</button>
+      <button type="button" onclick="scramjetReload()" aria-label="Reload">↻</button>
 
       <input
         id="browser-address"
@@ -970,30 +1070,14 @@
         onkeydown="if(event.key === 'Enter') navigateScramjet()"
       >
 
-      <button
-        type="button"
-        onclick="navigateScramjet()"
-      >
-        Go
-      </button>
-
-      <button
-        type="button"
-        onclick="closeScramjetBrowser()"
-      >
-        ✕ Close
-      </button>
-
+      <button type="button" onclick="navigateScramjet()">Go</button>
+      <button type="button" onclick="closeScramjetBrowser()">✕ Close</button>
     </div>
 
-    <div id="browser-status" style="display:none"></div>
-
-    <iframe
-      id="browser-frame"
-      title="Scramjet Browser"
-      allow="fullscreen; autoplay; clipboard-read; clipboard-write; encrypted-media; picture-in-picture"
-      referrerpolicy="no-referrer"
-    ></iframe>
+    <!-- FRAMES -->
+    <div id="browser-frames">
+      <div id="browser-status" style="display:none"></div>
+    </div>
 
   </div>
 
@@ -1875,12 +1959,14 @@
     }
 
 
-    async function initScramjetBrowser() {
-      if (
-        scramjetBrowserReady &&
-        scramjetController &&
-        scramjetFrame
-      ) {
+    async function initScramjetBrowser(frameEl, tab) {
+      // If controller already ready, just attach a new frame for this tab
+      if (scramjetBrowserReady && scramjetController && frameEl && tab && !tab.sjFrame) {
+        tab.sjFrame = scramjetController.createFrame(frameEl);
+        return;
+      }
+
+      if (scramjetBrowserReady && scramjetController && !frameEl) {
         return;
       }
 
@@ -2016,17 +2102,16 @@
           }, 15000);
 
 
-          const frameElement =
-            document.getElementById(
-              "browser-frame"
-            );
-
+          const frameElement = frameEl || document.querySelector(".browser-frame");
 
           scramjetFrame =
             scramjetController.createFrame(
               frameElement
             );
 
+          if (tab) {
+            tab.sjFrame = scramjetFrame;
+          }
 
           scramjetBrowserReady = true;
 
@@ -2051,163 +2136,136 @@
     }
 
 
-    async function openScramjetBrowser() {
-      const browser =
-        document.getElementById(
-          "browser-wrap"
-        );
+    /* =========================================================
+       TABS STATE
+       ========================================================= */
 
-      browser.style.display =
-        "flex";
+    let tabs = [];        // { id, title, url, frame, sjFrame }
+    let activeTabId = null;
+    let tabCounter = 0;
 
-      document.getElementById(
-        "vm-frame-wrap"
-      ).style.display =
-        "none";
+    function getActiveTab() {
+      return tabs.find(t => t.id === activeTabId) || null;
+    }
 
+    function renderTabBar() {
+      const list = document.getElementById("tab-list");
+      list.innerHTML = "";
+      tabs.forEach(tab => {
+        const el = document.createElement("div");
+        el.className = "tab" + (tab.id === activeTabId ? " active" : "");
+        el.dataset.id = tab.id;
+        el.innerHTML = `
+          <span class="tab-title">${tab.title}</span>
+          <span class="tab-close" data-id="${tab.id}">✕</span>
+        `;
+        el.addEventListener("click", e => {
+          if (e.target.classList.contains("tab-close")) {
+            closeTab(tab.id);
+          } else {
+            switchTab(tab.id);
+          }
+        });
+        list.appendChild(el);
+      });
+    }
+
+    function switchTab(id) {
+      // hide all frames
+      tabs.forEach(t => {
+        if (t.frame) t.frame.classList.remove("active");
+      });
+      activeTabId = id;
+      const tab = getActiveTab();
+      if (tab && tab.frame) {
+        tab.frame.classList.add("active");
+        document.getElementById("browser-address").value = tab.url || "";
+      }
+      renderTabBar();
+    }
+
+    function closeTab(id) {
+      const idx = tabs.findIndex(t => t.id === id);
+      if (idx === -1) return;
+      const tab = tabs[idx];
+      if (tab.frame) {
+        try { tab.frame.src = "about:blank"; } catch (_) {}
+        tab.frame.remove();
+      }
+      tabs.splice(idx, 1);
+      if (tabs.length === 0) {
+        closeScramjetBrowser();
+        return;
+      }
+      // switch to adjacent tab
+      const next = tabs[Math.min(idx, tabs.length - 1)];
+      switchTab(next.id);
+    }
+
+    async function newTab(url) {
+      const id = ++tabCounter;
+      const frameEl = document.createElement("iframe");
+      frameEl.className = "browser-frame";
+      frameEl.title = "Tab " + id;
+      frameEl.allow = "fullscreen; autoplay; clipboard-read; clipboard-write; encrypted-media; picture-in-picture";
+      frameEl.referrerPolicy = "no-referrer";
+      document.getElementById("browser-frames").appendChild(frameEl);
+
+      const tab = { id, title: "New Tab", url: url || "https://www.google.com/", frame: frameEl, sjFrame: null };
+      tabs.push(tab);
+      switchTab(id);
+
+      // init scramjet into this frame
       try {
-
-        await initScramjetBrowser();
-
-        const address =
-          document.getElementById(
-            "browser-address"
-          );
-
-        const initialUrl =
-          address.value.trim() ||
-          "https://www.google.com/";
-
-
-        await navigateScramjet(
-          initialUrl
-        );
-
-
-        address.focus();
-        address.select();
-
+        await initScramjetBrowser(frameEl, tab);
+        await navigateScramjet(url || "https://www.google.com/", tab);
       } catch (err) {
-
-        console.error(
-          "Scramjet initialization failed:",
-          err
-        );
-
-
-        /*
-         * If the SW was just installed, reload once.
-         */
-
-        if (
-          err &&
-          typeof err.message ===
-          "string" &&
-          err.message.includes(
-            "Refreshing once"
-          )
-        ) {
-          setBrowserStatus(
-            err.message,
-            true
-          );
-
-          toast(
-            "Scramjet is installing. Refreshing page…"
-          );
-
-          setTimeout(
-            () => {
-              location.reload();
-            },
-            700
-          );
-
-          return;
+        console.error("Tab init failed:", err);
+        if (err?.message?.includes("Refreshing once")) {
+          toast("Scramjet is installing. Refreshing page…");
+          setTimeout(() => location.reload(), 700);
         }
-
-
-        setBrowserStatus(
-          "Scramjet error: " +
-          (
-            err?.message ||
-            err
-          ),
-          true
-        );
-
-
-        toast(
-          "Scramjet failed to start: " +
-          (
-            err?.message ||
-            err
-          ),
-          true
-        );
       }
     }
 
+    async function openScramjetBrowser(initialUrl) {
+      const browser = document.getElementById("browser-wrap");
+      browser.style.display = "flex";
+      document.getElementById("vm-frame-wrap").style.display = "none";
 
-    async function navigateScramjet(
-      value
-    ) {
+      if (tabs.length === 0) {
+        await newTab(initialUrl || "https://www.google.com/");
+      } else if (initialUrl) {
+        await navigateScramjet(initialUrl);
+      }
+    }
+
+    async function navigateScramjet(value, tab) {
+      const t = tab || getActiveTab();
+      if (!t) return;
+
       try {
-
-        if (!scramjetFrame) {
-          await initScramjetBrowser();
+        if (!t.sjFrame) {
+          await initScramjetBrowser(t.frame, t);
         }
 
+        const raw = typeof value === "string" ? value.trim() : document.getElementById("browser-address").value.trim();
+        if (!raw) return;
 
-        const input =
-          document.getElementById(
-            "browser-address"
-          );
+        const url = normalizeBrowserUrl(raw);
+        t.url = url;
+        document.getElementById("browser-address").value = url;
 
+        // update tab title while loading
+        t.title = new URL(url).hostname || "Loading…";
+        renderTabBar();
 
-        const raw =
-          typeof value === "string"
-            ? value.trim()
-            : input.value.trim();
-
-
-        if (!raw) {
-          return;
-        }
-
-
-        const url =
-          normalizeBrowserUrl(raw);
-
-
-        input.value = url;
-
-
-        setBrowserStatus(
-          "Loading…",
-          true
-        );
-
-
-        scramjetFrame.go(url);
-
-
-        setTimeout(
-          () => {
-            setBrowserStatus(
-              "",
-              false
-            );
-          },
-          1500
-        );
+        setBrowserStatus("Loading…", true);
+        t.sjFrame.go(url);
+        setTimeout(() => setBrowserStatus("", false), 1500);
 
       } catch (err) {
-
-        console.error(
-          "Scramjet navigation failed:",
-          err
-        );
+        console.error("Scramjet navigation failed:", err);
 
 
         setBrowserStatus(
@@ -2261,38 +2319,31 @@
 
 
     function scramjetBack() {
-      if (scramjetFrame) {
-        scramjetFrame.back();
-      }
+      const t = getActiveTab();
+      if (t?.sjFrame) t.sjFrame.back();
     }
-
 
     function scramjetForward() {
-      if (scramjetFrame) {
-        scramjetFrame.forward();
-      }
+      const t = getActiveTab();
+      if (t?.sjFrame) t.sjFrame.forward();
     }
-
 
     function scramjetReload() {
-      if (scramjetFrame) {
-        scramjetFrame.reload();
-      }
+      const t = getActiveTab();
+      if (t?.sjFrame) t.sjFrame.reload();
     }
 
-
     function closeScramjetBrowser() {
-      document.getElementById(
-        "browser-wrap"
-      ).style.display =
-        "none";
-
-      if (scramjetFrame) {
-        try {
-          scramjetFrame.element.src =
-            "about:blank";
-        } catch (_) {}
-      }
+      document.getElementById("browser-wrap").style.display = "none";
+      tabs.forEach(t => {
+        try { if (t.frame) t.frame.src = "about:blank"; } catch (_) {}
+      });
+      tabs = [];
+      activeTabId = null;
+      tabCounter = 0;
+      scramjetFrame = null;
+      scramjetBrowserReady = false;
+      document.getElementById("tab-list").innerHTML = "";
     }
 
 
@@ -2634,17 +2685,17 @@
        ========================================================= */
 
     const GAMES = [
-      { name: "Roblox",           img: "https://upload.wikimedia.org/wikipedia/commons/1/1e/Roblox_Logo_2025.png?utm_source=commons.wikimedia.org&utm_campaign=index&utm_content=original",       url: "https://nowgg.fun/apps/a/19900/b.html" },
-      { name: "Stumble Guys",     img: "https://img.utdstc.com/icon/0b3/29b/0b329b476699f6cb248922d2500289df9a9bd58a7cc95a967fc4c3c5cb4f14d4:600",     url: "https://nowgg.fun/apps/a/10011/b.html" },
-      { name: "Fortnite",         img: "https://assets-prd.ignimgs.com/2025/04/02/nintendoswitch2-fortnite-keyart-square-1743635675429.jpg",        url: "https://nowgg.fun/apps/aptoide/5874/aptoide.html?deep_link=aptoidesearch://com.epicgames.fortnite" },
-      { name: "Call of Duty",     img: "https://play-lh.googleusercontent.com/cKXlbU72_2wSXdjcD_zPWED3EVaaOQVqqHgiA9JoRQMprYen49arNUMTngcRc9UWLnv-ANT9gyQBDQpvAn61lg",             url: "https://nowgg.fun/apps/a/10008/b.html" },
-      { name: "Melon Sandbox",    img: "https://melonsandbox.com/icon-512.png",   url: "https://nowgg.fun/apps/playducky/7199/melon-sandbox.html" },
-      { name: "Aptoide",          img: "https://cdn.aptoide.com/imgs/a/4/a/a4a27be4bb6f17cd3fbb159dd7344146_icon.png",         url: "https://nowgg.fun/apps/aptoide/5874/aptoide.html" },
-      { name: "Android",          img: "https://cdn.now.gg/apps-content/com.uncube.launcher3/icon/now.png",         url: "https://nowgg.fun/apps/uncube/7074/now.html" },
-      { name: "Cookie Run",       img: "https://static.wikia.nocookie.net/dubbing9585/images/5/51/CookieRun_Kingdom.png/revision/latest?cb=20250613233254",       url: "https://nowgg.fun/apps/a/10019/b.html" },
-      { name: "Geometry Dash",    img: "https://static.wikia.nocookie.net/logopedia/images/4/41/Geometry_Dash_Icon.svg/revision/latest?cb=20220220121501",         url: "https://nowgg.fun/apps/robtop-games/1400/geometry-dash.html" },
-      { name: "Rocket League",    img: "https://upload.wikimedia.org/wikipedia/commons/e/e0/Rocket_League_coverart.jpg?utm_source=en.wikipedia.org&utm_campaign=index&utm_content=original",   url: "https://nowgg.fun/apps/psyonix-studios/4656/rocket-league.html" },
-      { name: "Minecraft",        img: "https://assets-prd.ignimgs.com/2021/12/14/minecraft-1639513933156.jpg",       url: "https://nowgg.fun/apps/aptoide/5874/aptoide.html?deep_link=aptoidesearch://com.mojang.minecrafttrialpe" },
+      { name: "Roadblock",        img: "https://nowgg.fun/img/roadblock.png",       url: "https://nowgg.fun/apps/a/19900/b.html" },
+      { name: "Stumble Guys",     img: "https://nowgg.fun/img/stumbleguys.jpg",     url: "https://nowgg.fun/apps/a/10011/b.html" },
+      { name: "Fortnite",         img: "https://nowgg.fun/img/fortnite.png",        url: "https://nowgg.fun/apps/aptoide/5874/aptoide.html?deep_link=aptoidesearch://com.epicgames.fortnite" },
+      { name: "Call of Duty",     img: "https://nowgg.fun/img/cod.jpg",             url: "https://nowgg.fun/apps/a/10008/b.html" },
+      { name: "Melon Sandbox",    img: "https://nowgg.fun/img/melon-sandbox.png",   url: "https://nowgg.fun/apps/playducky/7199/melon-sandbox.html" },
+      { name: "Aptoide",          img: "https://nowgg.fun/img/aptoide.png",         url: "https://nowgg.fun/apps/aptoide/5874/aptoide.html" },
+      { name: "Android",          img: "https://nowgg.fun/img/android.jpg",         url: "https://nowgg.fun/apps/uncube/7074/now.html" },
+      { name: "Cookie Run",       img: "https://nowgg.fun/img/cookierun.jpg",       url: "https://nowgg.fun/apps/a/10019/b.html" },
+      { name: "Geometry Dash",    img: "https://nowgg.fun/img/geodash.png",         url: "https://nowgg.fun/apps/robtop-games/1400/geometry-dash.html" },
+      { name: "Rocket League",    img: "https://nowgg.fun/img/rocketleague.webp",   url: "https://nowgg.fun/apps/psyonix-studios/4656/rocket-league.html" },
+      { name: "Minecraft",        img: "https://nowgg.fun/img/minecraft.png",       url: "https://nowgg.fun/apps/aptoide/5874/aptoide.html?deep_link=aptoidesearch://com.mojang.minecrafttrialpe" },
     ];
 
     let filteredGames = [...GAMES];
@@ -2684,13 +2735,10 @@
 
     function launchGame(url) {
       closeGamesPanel();
-      // reuse the existing scramjet browser
-      openScramjetBrowser();
-      setTimeout(() => {
-        const addrBar = document.getElementById("browser-address");
-        if (addrBar) addrBar.value = url;
-        navigateScramjet(url);
-      }, 200);
+      const browser = document.getElementById("browser-wrap");
+      browser.style.display = "flex";
+      document.getElementById("vm-frame-wrap").style.display = "none";
+      newTab(url);
     }
 
     /* =========================================================
