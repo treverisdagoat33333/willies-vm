@@ -19,44 +19,12 @@
 
     body {
       background: #0a0a0b;
-      display: flex;
-      align-items: center;
-      justify-content: center;
       height: 100vh;
       overflow: hidden;
       font-family: sans-serif;
     }
 
-    canvas {
-      position: fixed;
-      inset: 0;
-      z-index: 0;
-    }
-
-    .center {
-      position: relative;
-      z-index: 1;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 1.5rem;
-    }
-
-    h1 {
-      color: #eef0f4;
-      font-size: 1.4rem;
-      font-weight: 600;
-      letter-spacing: 0.05em;
-      text-align: center;
-    }
-
-    #vm-buttons {
-      display: flex;
-      gap: 10px;
-      justify-content: center;
-      flex-wrap: wrap;
-    }
-
+    /* used on auth card submit */
     .vm-button {
       padding: 0.85rem 1.5rem;
       background: #c8cdd8;
@@ -81,31 +49,238 @@
       transform: none;
     }
 
-    #links-toggle {
-      padding: 0.7rem 1.3rem;
-      color: #0a0a0b;
-      background: #c8cdd8;
-      border: none;
-      border-radius: 4px;
-      font-size: 0.85rem;
-      font-weight: 700;
-      cursor: pointer;
-      letter-spacing: 0.03em;
-      transition: 0.15s ease;
+    /* ── DESKTOP ── */
+    #desktop {
+      position: fixed;
+      inset: 0;
+      bottom: 48px;
+      z-index: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 1.5rem;
     }
 
-    #links-toggle:hover {
-      background: #eef0f4;
-      transform: translateY(-1px);
+    #desktop h1 {
+      color: #eef0f4;
+      font-size: 1.3rem;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      text-align: center;
+      text-shadow: 0 2px 12px rgba(0,0,0,0.7);
+    }
+
+    /* desktop icons grid */
+    #desktop-icons {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 18px;
+      justify-content: center;
+      max-width: 520px;
+    }
+
+    .desktop-icon {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      user-select: none;
+      width: 72px;
+    }
+
+    .desktop-icon .icon-img {
+      width: 52px;
+      height: 52px;
+      border-radius: 12px;
+      background: rgba(200,205,216,0.12);
+      border: 1px solid rgba(200,205,216,0.18);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.6rem;
+      backdrop-filter: blur(6px);
+      transition: transform 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.4);
+    }
+
+    .desktop-icon:hover .icon-img {
+      transform: translateY(-4px) scale(1.07);
+      background: rgba(200,205,216,0.22);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+    }
+
+    .desktop-icon span {
+      color: #eef0f4;
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-align: center;
+      text-shadow: 0 1px 4px rgba(0,0,0,0.9);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      width: 100%;
+    }
+
+    /* status + player count on desktop */
+    #desktop-footer {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* ── TASKBAR ── */
+    #taskbar {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 48px;
+      background: rgba(17,17,20,0.92);
+      backdrop-filter: blur(16px);
+      border-top: 1px solid #2a2a30;
+      z-index: 20000;
+      display: flex;
+      align-items: center;
+      padding: 0 10px;
+      gap: 6px;
+    }
+
+    /* start button */
+    #taskbar-start {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      background: rgba(200,205,216,0.12);
+      border: 1px solid rgba(200,205,216,0.18);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.1rem;
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: background 0.15s;
+    }
+
+    #taskbar-start:hover {
+      background: rgba(200,205,216,0.22);
+    }
+
+    #taskbar-divider {
+      width: 1px;
+      height: 28px;
+      background: #2a2a30;
+      flex-shrink: 0;
+      margin: 0 4px;
+    }
+
+    /* taskbar app buttons */
+    .tb-btn {
+      height: 36px;
+      padding: 0 12px;
+      background: rgba(200,205,216,0.08);
+      border: 1px solid rgba(200,205,216,0.12);
+      border-radius: 6px;
+      color: #c8cdd8;
+      font-size: 0.78rem;
+      font-weight: 700;
+      cursor: pointer;
+      letter-spacing: 0.02em;
+      white-space: nowrap;
+      transition: background 0.12s, color 0.12s, border-color 0.12s;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .tb-btn:hover {
+      background: rgba(200,205,216,0.18);
+      color: #eef0f4;
+      border-color: rgba(200,205,216,0.28);
+    }
+
+    .tb-btn.active {
+      background: rgba(200,205,216,0.22);
+      border-color: rgba(200,205,216,0.4);
+      color: #eef0f4;
+    }
+
+    /* taskbar right side - clock */
+    #taskbar-right {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
+    }
+
+    #taskbar-clock {
+      color: #aab2c5;
+      font-family: monospace;
+      font-size: 0.78rem;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* start menu */
+    #start-menu {
+      display: none;
+      position: fixed;
+      bottom: 52px;
+      left: 10px;
+      width: 220px;
+      background: rgba(22,22,26,0.97);
+      backdrop-filter: blur(20px);
+      border: 1px solid #2a2a30;
+      border-radius: 10px;
+      z-index: 20001;
+      padding: 8px;
+      box-shadow: 0 -4px 32px rgba(0,0,0,0.6);
+    }
+
+    #start-menu.show {
+      display: block;
+    }
+
+    .start-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 10px;
+      border-radius: 6px;
+      cursor: pointer;
+      color: #c8cdd8;
+      font-size: 0.82rem;
+      font-weight: 600;
+      transition: background 0.12s, color 0.12s;
+    }
+
+    .start-item:hover {
+      background: rgba(200,205,216,0.12);
+      color: #eef0f4;
+    }
+
+    .start-item .si-icon {
+      font-size: 1.1rem;
+      width: 24px;
+      text-align: center;
+    }
+
+    #start-menu hr {
+      border: none;
+      border-top: 1px solid #2a2a30;
+      margin: 6px 0;
     }
 
     #links-panel {
       display: none;
       position: fixed;
       inset: 0;
-      z-index: 5000;
+      bottom: 48px;
+      z-index: 19000;
       overflow-y: auto;
-      padding: 5rem 1rem 2rem;
+      padding: 4rem 1rem 2rem;
       background: rgba(10, 10, 11, 0.97);
     }
 
@@ -692,7 +867,8 @@
       display: none;
       position: fixed;
       inset: 0;
-      z-index: 5000;
+      bottom: 48px;
+      z-index: 19000;
       background: rgba(10, 10, 11, 0.97);
       flex-direction: column;
     }
@@ -794,6 +970,241 @@
       text-overflow: ellipsis;
     }
 
+    /* ── SETTINGS PANEL ── */
+    #settings-panel {
+      display: none;
+      position: fixed;
+      inset: 0;
+      bottom: 48px;
+      z-index: 19000;
+      flex-direction: column;
+      background: rgba(10,10,11,0.98);
+    }
+
+    #settings-panel.show {
+      display: flex;
+    }
+
+    #settings-header {
+      min-height: 52px;
+      background: #111114;
+      border-bottom: 1px solid #2a2a30;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 16px;
+      flex-shrink: 0;
+    }
+
+    #settings-header h2 {
+      color: #eef0f4;
+      font-size: 0.95rem;
+      font-weight: 700;
+    }
+
+    #settings-close {
+      padding: 0.55rem 0.9rem;
+      background: #1b1b20;
+      border: 1px solid #33343b;
+      border-radius: 6px;
+      color: #eef0f4;
+      cursor: pointer;
+      font-size: 0.82rem;
+    }
+
+    #settings-close:hover { background: #292930; }
+
+    #settings-body {
+      display: flex;
+      flex: 1;
+      min-height: 0;
+    }
+
+    #settings-sidebar {
+      width: 160px;
+      flex-shrink: 0;
+      background: #0d0d10;
+      border-right: 1px solid #2a2a30;
+      padding: 12px 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      overflow-y: auto;
+    }
+
+    .settings-tab {
+      padding: 9px 12px;
+      border-radius: 6px;
+      color: #7a8194;
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.12s, color 0.12s;
+    }
+
+    .settings-tab:hover { background: #1b1b20; color: #c8cdd8; }
+    .settings-tab.active { background: #1b1b20; color: #eef0f4; }
+
+    #settings-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px 24px;
+    }
+
+    .settings-page { display: none; }
+    .settings-page.active { display: block; }
+
+    .setting-group {
+      margin-bottom: 28px;
+      padding-bottom: 24px;
+      border-bottom: 1px solid #1e1e24;
+    }
+
+    .setting-group:last-child { border-bottom: none; }
+
+    .setting-label {
+      color: #eef0f4;
+      font-size: 0.88rem;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+
+    .setting-desc {
+      color: #7a8194;
+      font-size: 0.78rem;
+      margin-bottom: 12px;
+    }
+
+    .setting-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .setting-row.gap8 { gap: 8px; }
+
+    .setting-row input[type="range"] {
+      flex: 1;
+      accent-color: var(--accent, #c8cdd8);
+    }
+
+    .setting-row span {
+      color: #aab2c5;
+      font-size: 0.8rem;
+      font-family: monospace;
+      min-width: 28px;
+    }
+
+    .set-input {
+      flex: 1;
+      background: #0a0a0b;
+      border: 1px solid #33343b;
+      border-radius: 6px;
+      color: #eef0f4;
+      padding: 7px 10px;
+      font-size: 0.82rem;
+      outline: none;
+    }
+
+    .set-input:focus { border-color: #626a7e; }
+
+    .set-btn {
+      padding: 7px 14px;
+      background: #1b1b20;
+      border: 1px solid #33343b;
+      border-radius: 6px;
+      color: #c8cdd8;
+      font-size: 0.8rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.12s, color 0.12s, border-color 0.12s;
+      white-space: nowrap;
+    }
+
+    .set-btn:hover { background: #292930; color: #eef0f4; }
+    .set-btn.active { background: rgba(200,205,216,0.18); color: #eef0f4; border-color: rgba(200,205,216,0.4); }
+    .set-btn.danger { border-color: #7f1d1d; color: #f87171; }
+    .set-btn.danger:hover { background: #7f1d1d; color: #fff; }
+
+    /* background picker */
+    .bg-options {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .bg-opt {
+      padding: 8px 14px;
+      background: #1b1b20;
+      border: 1px solid #33343b;
+      border-radius: 6px;
+      color: #c8cdd8;
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.12s, border-color 0.12s, color 0.12s;
+    }
+
+    .bg-opt:hover { background: #292930; color: #eef0f4; }
+    .bg-opt.active { border-color: var(--accent, #c8cdd8); color: #eef0f4; background: rgba(200,205,216,0.12); }
+
+    /* accent picker */
+    .accent-options {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .accent-opt {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      cursor: pointer;
+      border: 2px solid transparent;
+      transition: transform 0.15s, border-color 0.15s;
+    }
+
+    .accent-opt:hover { transform: scale(1.15); }
+    .accent-opt.active { border-color: #eef0f4; transform: scale(1.15); }
+
+    /* toggle switch */
+    .toggle-switch {
+      display: flex;
+      align-items: center;
+      cursor: pointer;
+      gap: 10px;
+    }
+
+    .toggle-switch input { display: none; }
+
+    .toggle-track {
+      width: 40px;
+      height: 22px;
+      background: #33343b;
+      border-radius: 11px;
+      position: relative;
+      transition: background 0.2s;
+    }
+
+    .toggle-switch input:checked + .toggle-track {
+      background: var(--accent, #c8cdd8);
+    }
+
+    .toggle-thumb {
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      width: 16px;
+      height: 16px;
+      background: #fff;
+      border-radius: 50%;
+      transition: left 0.2s;
+    }
+
+    .toggle-switch input:checked + .toggle-track .toggle-thumb {
+      left: 21px;
+    }
+
     @media (prefers-reduced-motion: reduce) {
       *,
       *::before,
@@ -863,69 +1274,93 @@
   </div>
 
   <!-- BACKGROUND -->
-
   <canvas id="snow"></canvas>
 
-  <!-- HOME -->
+  <!-- DESKTOP -->
+  <div id="desktop">
+    <h1 id="desktop-title">william's virtual machine</h1>
 
-  <div class="center">
+    <div id="desktop-icons">
 
-    <h1>william's virtual machine</h1>
+      <div class="desktop-icon" onclick="launchE2BVM()">
+        <div class="icon-img">🖥️</div>
+        <span>VM #1</span>
+      </div>
 
-    <div id="vm-buttons">
+      <div class="desktop-icon" onclick="launchGPUVM()">
+        <div class="icon-img">⚡</div>
+        <span>VM #2</span>
+      </div>
 
-      <button
-        class="vm-button"
-        id="e2b-btn"
-        type="button"
-        onclick="launchE2BVM()"
-      >
-        vm #1 (blocked but works at home)
-      </button>
+      <div class="desktop-icon" onclick="openScramjetBrowser()">
+        <div class="icon-img">🌐</div>
+        <span>Browser</span>
+      </div>
 
-      <button
-        class="vm-button"
-        id="gpu-btn"
-        type="button"
-        onclick="launchGPUVM()"
-      >
-        vm #2 (currently working)
-      </button>
+      <div class="desktop-icon" onclick="openGamesPanel()">
+        <div class="icon-img">🎮</div>
+        <span>Games</span>
+      </div>
 
-      <button
-        class="vm-button"
-        id="browser-btn"
-        type="button"
-        onclick="openScramjetBrowser()"
-      >
-        browser (beta v2)
-      </button>
+      <div class="desktop-icon" onclick="toggleLinksPanel()">
+        <div class="icon-img">🔗</div>
+        <span>Links</span>
+      </div>
 
-      <button
-        class="vm-button"
-        id="games-btn"
-        type="button"
-        onclick="openGamesPanel()"
-      >
-        games
-      </button>
+      <div class="desktop-icon" onclick="openSettings()">
+        <div class="icon-img">⚙️</div>
+        <span>Settings</span>
+      </div>
 
     </div>
 
-    <button
-      id="links-toggle"
-      type="button"
-    >
-      links
-    </button>
+    <div id="desktop-footer">
+      <div id="status"></div>
+      <div id="player-count">
+        <span class="dot"></span>
+        <span id="player-count-text">1 vms are working</span>
+      </div>
+    </div>
+  </div>
 
-    <div id="status"></div>
+  <!-- START MENU -->
+  <div id="start-menu">
+    <div class="start-item" onclick="launchE2BVM(); closeStartMenu()">
+      <span class="si-icon">🖥️</span> VM #1 (home only)
+    </div>
+    <div class="start-item" onclick="launchGPUVM(); closeStartMenu()">
+      <span class="si-icon">⚡</span> VM #2 (working)
+    </div>
+    <hr>
+    <div class="start-item" onclick="openScramjetBrowser(); closeStartMenu()">
+      <span class="si-icon">🌐</span> Browser (beta v2)
+    </div>
+    <div class="start-item" onclick="openGamesPanel(); closeStartMenu()">
+      <span class="si-icon">🎮</span> Games
+    </div>
+    <div class="start-item" onclick="toggleLinksPanel(); closeStartMenu()">
+      <span class="si-icon">🔗</span> Links
+    </div>
+    <div class="start-item" onclick="openSettings(); closeStartMenu()">
+      <span class="si-icon">⚙️</span> Settings
+    </div>
+  </div>
 
-    <div id="player-count">
-      <span class="dot"></span>
-      <span id="player-count-text">
-        1 vms are working
-      </span>
+  <!-- TASKBAR -->
+  <div id="taskbar">
+
+    <div id="taskbar-start" onclick="toggleStartMenu()" title="Start">⊞</div>
+    <div id="taskbar-divider"></div>
+
+    <button class="tb-btn" id="tb-vm1" onclick="launchE2BVM()">🖥️ VM #1</button>
+    <button class="tb-btn" id="tb-vm2" onclick="launchGPUVM()">⚡ VM #2</button>
+    <button class="tb-btn" id="tb-browser" onclick="openScramjetBrowser()">🌐 Browser</button>
+    <button class="tb-btn" id="tb-games" onclick="openGamesPanel()">🎮 Games</button>
+    <button class="tb-btn" id="tb-links" onclick="toggleLinksPanel()">🔗 Links</button>
+    <button class="tb-btn" id="tb-settings" onclick="openSettings()">⚙️ Settings</button>
+
+    <div id="taskbar-right">
+      <div id="taskbar-clock">--:--</div>
     </div>
 
   </div>
@@ -1022,6 +1457,166 @@
       </div>
     </section>
 
+  </div>
+
+  <!-- SETTINGS PANEL -->
+  <div id="settings-panel">
+
+    <div id="settings-header">
+      <h2>⚙️ Settings</h2>
+      <button id="settings-close" onclick="closeSettings()">✕ Close</button>
+    </div>
+
+    <div id="settings-body">
+
+      <!-- SIDEBAR -->
+      <div id="settings-sidebar">
+        <div class="settings-tab active" data-tab="appearance" onclick="switchSettingsTab(this,'appearance')">🎨 Appearance</div>
+        <div class="settings-tab" data-tab="browser"    onclick="switchSettingsTab(this,'browser')">🌐 Browser</div>
+        <div class="settings-tab" data-tab="vm"         onclick="switchSettingsTab(this,'vm')">🖥️ VM</div>
+        <div class="settings-tab" data-tab="about"      onclick="switchSettingsTab(this,'about')">ℹ️ About</div>
+      </div>
+
+      <!-- PAGES -->
+      <div id="settings-content">
+
+        <!-- APPEARANCE -->
+        <div class="settings-page active" id="tab-appearance">
+
+          <div class="setting-group">
+            <div class="setting-label">Background</div>
+            <div class="setting-desc">Choose the desktop background effect</div>
+            <div class="bg-options">
+              <div class="bg-opt active" data-bg="snow"   onclick="setBg('snow')">❄️ Snow</div>
+              <div class="bg-opt"        data-bg="matrix" onclick="setBg('matrix')">🟢 Matrix</div>
+              <div class="bg-opt"        data-bg="stars"  onclick="setBg('stars')">✨ Stars</div>
+              <div class="bg-opt"        data-bg="none"   onclick="setBg('none')">⬛ None</div>
+            </div>
+          </div>
+
+          <div class="setting-group">
+            <div class="setting-label">Particle Density</div>
+            <div class="setting-desc">Number of particles in the background</div>
+            <div class="setting-row">
+              <input type="range" id="density-slider" min="20" max="300" value="120" oninput="setDensity(this.value)">
+              <span id="density-val">120</span>
+            </div>
+          </div>
+
+          <div class="setting-group">
+            <div class="setting-label">Accent Color</div>
+            <div class="setting-desc">Changes highlight color across the UI</div>
+            <div class="accent-options">
+              <div class="accent-opt active" data-color="#c8cdd8" style="background:#c8cdd8" onclick="setAccent('#c8cdd8')"></div>
+              <div class="accent-opt"        data-color="#818cf8" style="background:#818cf8" onclick="setAccent('#818cf8')"></div>
+              <div class="accent-opt"        data-color="#34d399" style="background:#34d399" onclick="setAccent('#34d399')"></div>
+              <div class="accent-opt"        data-color="#f87171" style="background:#f87171" onclick="setAccent('#f87171')"></div>
+              <div class="accent-opt"        data-color="#fbbf24" style="background:#fbbf24" onclick="setAccent('#fbbf24')"></div>
+              <div class="accent-opt"        data-color="#38bdf8" style="background:#38bdf8" onclick="setAccent('#38bdf8')"></div>
+            </div>
+          </div>
+
+          <div class="setting-group">
+            <div class="setting-label">Taskbar Position</div>
+            <div class="setting-desc">Move the taskbar to the top or bottom</div>
+            <div class="setting-row gap8">
+              <button class="set-btn active" id="tb-pos-bottom" onclick="setTaskbarPos('bottom')">Bottom</button>
+              <button class="set-btn"        id="tb-pos-top"    onclick="setTaskbarPos('top')">Top</button>
+            </div>
+          </div>
+
+          <div class="setting-group">
+            <div class="setting-label">Custom Cursor</div>
+            <div class="setting-desc">Override the default mouse cursor</div>
+            <div class="setting-row gap8">
+              <button class="set-btn active" id="cur-default" onclick="setCursor('default')">Default</button>
+              <button class="set-btn"        id="cur-crosshair" onclick="setCursor('crosshair')">Crosshair</button>
+              <button class="set-btn"        id="cur-none"    onclick="setCursor('none')">Hidden</button>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- BROWSER -->
+        <div class="settings-page" id="tab-browser">
+
+          <div class="setting-group">
+            <div class="setting-label">Default Homepage</div>
+            <div class="setting-desc">URL loaded when you open a new tab</div>
+            <div class="setting-row gap8">
+              <input type="text" id="homepage-input" class="set-input" placeholder="https://www.google.com/" value="https://www.google.com/">
+              <button class="set-btn" onclick="saveHomepage()">Save</button>
+            </div>
+          </div>
+
+          <div class="setting-group">
+            <div class="setting-label">Clear All Tabs</div>
+            <div class="setting-desc">Close every open browser tab</div>
+            <button class="set-btn danger" onclick="clearAllTabs()">Close All Tabs</button>
+          </div>
+
+        </div>
+
+        <!-- VM -->
+        <div class="settings-page" id="tab-vm">
+
+          <div class="setting-group">
+            <div class="setting-label">Show VM Timer</div>
+            <div class="setting-desc">Display session timer in the VM toolbar</div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="toggle-timer" checked onchange="toggleVMTimer(this.checked)">
+              <span class="toggle-track"><span class="toggle-thumb"></span></span>
+            </label>
+          </div>
+
+          <div class="setting-group">
+            <div class="setting-label">Fullscreen on Launch</div>
+            <div class="setting-desc">Automatically go fullscreen when a VM starts</div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="toggle-fs-launch" onchange="toggleFullscreenOnLaunch(this.checked)">
+              <span class="toggle-track"><span class="toggle-thumb"></span></span>
+            </label>
+          </div>
+
+        </div>
+
+        <!-- ABOUT -->
+        <div class="settings-page" id="tab-about">
+
+          <div class="setting-group">
+            <div class="setting-label">Site Name</div>
+            <div class="setting-desc">The title shown on the desktop</div>
+            <div class="setting-row gap8">
+              <input type="text" id="sitename-input" class="set-input" placeholder="william's virtual machine" value="william's virtual machine">
+              <button class="set-btn" onclick="saveSiteName()">Save</button>
+            </div>
+          </div>
+
+          <div class="setting-group">
+            <div class="setting-label">Show Player Count</div>
+            <div class="setting-desc">Display the online player counter on the desktop</div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="toggle-playercount" checked onchange="togglePlayerCount(this.checked)">
+              <span class="toggle-track"><span class="toggle-thumb"></span></span>
+            </label>
+          </div>
+
+          <div class="setting-group">
+            <div class="setting-label">Version</div>
+            <div class="setting-desc">Current build info</div>
+            <div style="color:#7a8194;font-size:0.82rem;font-family:monospace;">willies-vm v3.0 · webOS UI</div>
+          </div>
+
+          <div class="setting-group">
+            <div class="setting-label">Reset All Settings</div>
+            <div class="setting-desc">Restore everything to defaults</div>
+            <button class="set-btn danger" onclick="resetAllSettings()">Reset to Defaults</button>
+          </div>
+
+        </div>
+
+      </div>
+    </div>
   </div>
 
   <!-- GAMES PANEL -->
@@ -1558,27 +2153,48 @@
        LINKS
        ========================================================= */
 
-    document
-      .getElementById("links-toggle")
-      .addEventListener(
-        "click",
-        () => {
-          document
-            .getElementById("links-panel")
-            .classList.add("show");
-        }
-      );
+    function toggleLinksPanel() {
+      document.getElementById("links-panel").classList.toggle("show");
+    }
 
     document
       .getElementById("links-close")
-      .addEventListener(
-        "click",
-        () => {
-          document
-            .getElementById("links-panel")
-            .classList.remove("show");
-        }
-      );
+      .addEventListener("click", () => {
+        document.getElementById("links-panel").classList.remove("show");
+      });
+
+    /* =========================================================
+       START MENU
+       ========================================================= */
+
+    function toggleStartMenu() {
+      document.getElementById("start-menu").classList.toggle("show");
+    }
+
+    function closeStartMenu() {
+      document.getElementById("start-menu").classList.remove("show");
+    }
+
+    document.addEventListener("click", e => {
+      const menu = document.getElementById("start-menu");
+      const btn  = document.getElementById("taskbar-start");
+      if (!menu.contains(e.target) && !btn.contains(e.target)) {
+        menu.classList.remove("show");
+      }
+    });
+
+    /* =========================================================
+       TASKBAR CLOCK
+       ========================================================= */
+
+    function updateClock() {
+      const now = new Date();
+      const h = String(now.getHours()).padStart(2, "0");
+      const m = String(now.getMinutes()).padStart(2, "0");
+      document.getElementById("taskbar-clock").textContent = h + ":" + m;
+    }
+    updateClock();
+    setInterval(updateClock, 15000);
 
 
     /* =========================================================
@@ -1705,6 +2321,10 @@
       setLaunching(false);
 
       toast("VM launched!");
+
+      if (fsOnLaunch) {
+        try { document.getElementById("vm-frame-wrap").requestFullscreen(); } catch (_) {}
+      }
     }
 
     document
@@ -2211,7 +2831,7 @@
       frameEl.referrerPolicy = "no-referrer";
       document.getElementById("browser-frames").appendChild(frameEl);
 
-      const tab = { id, title: "New Tab", url: url || "https://www.google.com/", frame: frameEl, sjFrame: null };
+      const tab = { id, title: "New Tab", url: url || browserHomepage || "https://www.google.com/", frame: frameEl, sjFrame: null };
       tabs.push(tab);
       switchTab(id);
 
@@ -2685,18 +3305,18 @@
        ========================================================= */
 
     const GAMES = [
-  { name: "Roblox", img: "/img/roblox.png", url: "https://nowgg.fun/apps/a/19900/b.html" },
-  { name: "Stumble Guys", img: "/img/stumbleguys.jpg", url: "https://nowgg.fun/apps/a/10011/b.html" },
-  { name: "Fortnite", img: "/img/fortnite.png", url: "https://nowgg.fun/apps/aptoide/5874/aptoide.html?deep_link=aptoidesearch://com.epicgames.fortnite" },
-  { name: "Call of Duty", img: "/img/cod.jpg", url: "https://nowgg.fun/apps/a/10008/b.html?" },
-  { name: "Melon Sandbox", img: "/img/melon-sandbox.png", url: "https://nowgg.fun/apps/playducky/7199/melon-sandbox.html?" },
-  { name: "Aptoide", img: "/img/aptoide.png", url: "https://nowgg.fun/apps/playducky/7199/melon-sandbox.html?" },
-  { name: "Android", img: "/img/android.jpg", url: "https://nowgg.fun/apps/uncube/7074/now.html?" },
-  { name: "Cookie Run", img: "/img/cookierun.png", url: "https://nowgg.fun/apps/a/10019/b.html?" },
-  { name: "Geometry Dash", img: "/img/geodash.jpeg", url: "https://nowgg.fun/apps/robtop-games/1400/geometry-dash.html" },
-  { name: "Rocket League", img: "/img/rocketleague.jpeg", url: "https://nowgg.fun/apps/psyonix-studios/4656/rocket-league.html?" },
-  { name: "Minecraft", img: "/img/minecraft.png", url: "https://nowgg.fun/apps/aptoide/5874/aptoide.html?deep_link=aptoidesearch://com.mojang.minecrafttrialpe" }
-];
+      { name: "Roadblock",        img: "https://nowgg.fun/img/roadblock.png",       url: "https://nowgg.fun/apps/a/19900/b.html" },
+      { name: "Stumble Guys",     img: "https://nowgg.fun/img/stumbleguys.jpg",     url: "https://nowgg.fun/apps/a/10011/b.html" },
+      { name: "Fortnite",         img: "https://nowgg.fun/img/fortnite.png",        url: "https://nowgg.fun/apps/aptoide/5874/aptoide.html?deep_link=aptoidesearch://com.epicgames.fortnite" },
+      { name: "Call of Duty",     img: "https://nowgg.fun/img/cod.jpg",             url: "https://nowgg.fun/apps/a/10008/b.html" },
+      { name: "Melon Sandbox",    img: "https://nowgg.fun/img/melon-sandbox.png",   url: "https://nowgg.fun/apps/playducky/7199/melon-sandbox.html" },
+      { name: "Aptoide",          img: "https://nowgg.fun/img/aptoide.png",         url: "https://nowgg.fun/apps/aptoide/5874/aptoide.html" },
+      { name: "Android",          img: "https://nowgg.fun/img/android.jpg",         url: "https://nowgg.fun/apps/uncube/7074/now.html" },
+      { name: "Cookie Run",       img: "https://nowgg.fun/img/cookierun.jpg",       url: "https://nowgg.fun/apps/a/10019/b.html" },
+      { name: "Geometry Dash",    img: "https://nowgg.fun/img/geodash.png",         url: "https://nowgg.fun/apps/robtop-games/1400/geometry-dash.html" },
+      { name: "Rocket League",    img: "https://nowgg.fun/img/rocketleague.webp",   url: "https://nowgg.fun/apps/psyonix-studios/4656/rocket-league.html" },
+      { name: "Minecraft",        img: "https://nowgg.fun/img/minecraft.png",       url: "https://nowgg.fun/apps/aptoide/5874/aptoide.html?deep_link=aptoidesearch://com.mojang.minecrafttrialpe" },
+    ];
 
     let filteredGames = [...GAMES];
 
@@ -2740,6 +3360,255 @@
       document.getElementById("vm-frame-wrap").style.display = "none";
       newTab(url);
     }
+
+    /* =========================================================
+       SETTINGS
+       ========================================================= */
+
+    // Load saved settings from localStorage on boot
+    const CFG_KEY = "willies_vm_settings";
+
+    function loadCfg() {
+      try { return JSON.parse(localStorage.getItem(CFG_KEY)) || {}; } catch { return {}; }
+    }
+
+    function saveCfg(patch) {
+      const cfg = { ...loadCfg(), ...patch };
+      localStorage.setItem(CFG_KEY, JSON.stringify(cfg));
+      return cfg;
+    }
+
+    // --- open / close ---
+    function openSettings() {
+      document.getElementById("settings-panel").classList.add("show");
+    }
+
+    function closeSettings() {
+      document.getElementById("settings-panel").classList.remove("show");
+    }
+
+    // --- tab switching ---
+    function switchSettingsTab(el, name) {
+      document.querySelectorAll(".settings-tab").forEach(t => t.classList.remove("active"));
+      document.querySelectorAll(".settings-page").forEach(p => p.classList.remove("active"));
+      el.classList.add("active");
+      document.getElementById("tab-" + name).classList.add("active");
+    }
+
+    // --- APPEARANCE: background ---
+    let bgMode = "snow";
+    let matrixAnim = null;
+
+    function setBg(mode) {
+      bgMode = mode;
+      saveCfg({ bg: mode });
+      document.querySelectorAll(".bg-opt").forEach(o => o.classList.toggle("active", o.dataset.bg === mode));
+      const canvas = document.getElementById("snow");
+
+      if (mode === "none") {
+        canvas.style.opacity = "0";
+        stopMatrix();
+      } else if (mode === "snow") {
+        canvas.style.opacity = "1";
+        stopMatrix();
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        initFlakes();
+      } else if (mode === "matrix") {
+        canvas.style.opacity = "1";
+        stopMatrix();
+        flakes = []; // pause snow
+        startMatrix();
+      } else if (mode === "stars") {
+        canvas.style.opacity = "1";
+        stopMatrix();
+        flakes = [];
+        startStars();
+      }
+    }
+
+    // matrix rain
+    let matrixCols = [], matrixInterval = null;
+
+    function startMatrix() {
+      const c = document.getElementById("snow");
+      c.width = window.innerWidth; c.height = window.innerHeight;
+      const cols = Math.floor(c.width / 14);
+      matrixCols = Array(cols).fill(0);
+      matrixInterval = setInterval(() => {
+        ctx.fillStyle = "rgba(0,0,0,0.05)";
+        ctx.fillRect(0, 0, c.width, c.height);
+        ctx.fillStyle = "#0f0";
+        ctx.font = "13px monospace";
+        matrixCols.forEach((y, i) => {
+          const ch = String.fromCharCode(0x30A0 + Math.random() * 96);
+          ctx.fillText(ch, i * 14, y);
+          matrixCols[i] = y > c.height && Math.random() > 0.975 ? 0 : y + 14;
+        });
+      }, 50);
+    }
+
+    function stopMatrix() {
+      if (matrixInterval) { clearInterval(matrixInterval); matrixInterval = null; }
+    }
+
+    // stars
+    let stars = [], starsAnim = null;
+
+    function startStars() {
+      const c = document.getElementById("snow");
+      c.width = window.innerWidth; c.height = window.innerHeight;
+      stars = Array.from({ length: 180 }, () => ({
+        x: Math.random() * c.width, y: Math.random() * c.height,
+        r: Math.random() * 1.5 + 0.3, op: Math.random(),
+        speed: Math.random() * 0.005 + 0.002
+      }));
+      function drawStars() {
+        if (bgMode !== "stars") return;
+        ctx.clearRect(0, 0, c.width, c.height);
+        stars.forEach(s => {
+          s.op += s.speed * (Math.random() > 0.5 ? 1 : -1);
+          s.op = Math.max(0.1, Math.min(1, s.op));
+          ctx.globalAlpha = s.op;
+          ctx.fillStyle = "#fff";
+          ctx.beginPath();
+          ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+          ctx.fill();
+        });
+        ctx.globalAlpha = 1;
+        requestAnimationFrame(drawStars);
+      }
+      drawStars();
+    }
+
+    // --- APPEARANCE: density ---
+    function setDensity(val) {
+      document.getElementById("density-val").textContent = val;
+      saveCfg({ density: +val });
+      flakes = [];
+      for (let i = 0; i < +val; i++) {
+        const f = makeFlake();
+        f.y = Math.random() * canvas.height;
+        flakes.push(f);
+      }
+    }
+
+    // --- APPEARANCE: accent color ---
+    function setAccent(color) {
+      document.documentElement.style.setProperty("--accent", color);
+      saveCfg({ accent: color });
+      document.querySelectorAll(".accent-opt").forEach(o =>
+        o.classList.toggle("active", o.dataset.color === color)
+      );
+    }
+
+    // --- APPEARANCE: taskbar position ---
+    function setTaskbarPos(pos) {
+      saveCfg({ taskbarPos: pos });
+      const tb = document.getElementById("taskbar");
+      const panels = ["links-panel", "games-panel", "settings-panel"];
+      if (pos === "top") {
+        tb.style.top = "0"; tb.style.bottom = "auto";
+        document.getElementById("desktop").style.top = "48px";
+        document.getElementById("desktop").style.bottom = "0";
+        document.getElementById("start-menu").style.top = "52px";
+        document.getElementById("start-menu").style.bottom = "auto";
+        panels.forEach(id => {
+          const el = document.getElementById(id);
+          el.style.top = "48px"; el.style.bottom = "0";
+        });
+      } else {
+        tb.style.top = "auto"; tb.style.bottom = "0";
+        document.getElementById("desktop").style.top = "0";
+        document.getElementById("desktop").style.bottom = "48px";
+        document.getElementById("start-menu").style.top = "auto";
+        document.getElementById("start-menu").style.bottom = "52px";
+        panels.forEach(id => {
+          const el = document.getElementById(id);
+          el.style.top = "0"; el.style.bottom = "48px";
+        });
+      }
+      document.querySelectorAll("[id^='tb-pos-']").forEach(b => b.classList.remove("active"));
+      document.getElementById("tb-pos-" + pos)?.classList.add("active");
+    }
+
+    // --- APPEARANCE: cursor ---
+    function setCursor(type) {
+      document.body.style.cursor = type;
+      saveCfg({ cursor: type });
+      ["cur-default","cur-crosshair","cur-none"].forEach(id =>
+        document.getElementById(id)?.classList.remove("active")
+      );
+      document.getElementById("cur-" + type)?.classList.add("active");
+    }
+
+    // --- BROWSER: homepage ---
+    let browserHomepage = "https://www.google.com/";
+
+    function saveHomepage() {
+      const val = document.getElementById("homepage-input").value.trim() || "https://www.google.com/";
+      browserHomepage = val;
+      saveCfg({ homepage: val });
+      toast("Homepage saved!");
+    }
+
+    // --- BROWSER: clear tabs ---
+    function clearAllTabs() {
+      if (!tabs.length) { toast("No open tabs."); return; }
+      closeScramjetBrowser();
+      toast("All tabs closed.");
+    }
+
+    // --- VM: timer toggle ---
+    function toggleVMTimer(on) {
+      saveCfg({ showTimer: on });
+      const t = document.getElementById("vm-timer");
+      if (t) t.style.display = on ? "" : "none";
+    }
+
+    // --- VM: fullscreen on launch ---
+    let fsOnLaunch = false;
+
+    function toggleFullscreenOnLaunch(on) {
+      fsOnLaunch = on;
+      saveCfg({ fsOnLaunch: on });
+    }
+
+    // --- ABOUT: site name ---
+    function saveSiteName() {
+      const val = document.getElementById("sitename-input").value.trim() || "william's virtual machine";
+      document.getElementById("desktop-title").textContent = val;
+      document.title = val;
+      saveCfg({ siteName: val });
+      toast("Site name updated!");
+    }
+
+    // --- ABOUT: player count toggle ---
+    function togglePlayerCount(on) {
+      saveCfg({ showPlayerCount: on });
+      document.getElementById("player-count").style.display = on ? "" : "none";
+    }
+
+    // --- ABOUT: reset ---
+    function resetAllSettings() {
+      localStorage.removeItem(CFG_KEY);
+      toast("Settings reset — reloading...");
+      setTimeout(() => location.reload(), 800);
+    }
+
+    // --- BOOT: apply saved settings ---
+    (function applySettings() {
+      const cfg = loadCfg();
+      if (cfg.bg)           setBg(cfg.bg);
+      if (cfg.density)      { document.getElementById("density-slider").value = cfg.density; setDensity(cfg.density); }
+      if (cfg.accent)       setAccent(cfg.accent);
+      if (cfg.taskbarPos)   setTaskbarPos(cfg.taskbarPos);
+      if (cfg.cursor)       setCursor(cfg.cursor);
+      if (cfg.homepage)     { browserHomepage = cfg.homepage; document.getElementById("homepage-input").value = cfg.homepage; }
+      if (cfg.siteName)     { document.getElementById("desktop-title").textContent = cfg.siteName; document.title = cfg.siteName; document.getElementById("sitename-input").value = cfg.siteName; }
+      if (cfg.showTimer === false) toggleVMTimer(false);
+      if (cfg.showPlayerCount === false) togglePlayerCount(false);
+      if (cfg.fsOnLaunch)   { fsOnLaunch = true; document.getElementById("toggle-fs-launch").checked = true; }
+    })();
 
     /* =========================================================
        BEFORE UNLOAD
