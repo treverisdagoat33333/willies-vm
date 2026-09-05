@@ -573,6 +573,113 @@
       color: #f87171;
     }
 
+    /* GAMES PANEL */
+    #games-panel {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 5000;
+      background: rgba(10, 10, 11, 0.97);
+      flex-direction: column;
+    }
+
+    #games-panel.show {
+      display: flex;
+    }
+
+    #games-header {
+      min-height: 54px;
+      background: #111114;
+      border-bottom: 1px solid #2a2a30;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 16px;
+      gap: 12px;
+      flex-shrink: 0;
+    }
+
+    #games-header h2 {
+      color: #eef0f4;
+      font-size: 0.95rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+    }
+
+    #games-search {
+      flex: 1;
+      max-width: 320px;
+      background: #0a0a0b;
+      color: #eef0f4;
+      border: 1px solid #33343b;
+      border-radius: 6px;
+      padding: 8px 11px;
+      outline: none;
+      font-size: 0.85rem;
+    }
+
+    #games-search:focus {
+      border-color: #626a7e;
+    }
+
+    #games-close {
+      padding: 0.65rem 0.9rem;
+      color: #eef0f4;
+      background: #1b1b20;
+      border: 1px solid #33343b;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.85rem;
+    }
+
+    #games-close:hover {
+      background: #292930;
+    }
+
+    #games-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+      gap: 12px;
+      padding: 20px;
+      overflow-y: auto;
+      flex: 1;
+    }
+
+    .game-card {
+      background: #111114;
+      border: 1px solid #2a2a30;
+      border-radius: 8px;
+      overflow: hidden;
+      cursor: pointer;
+      transition: transform 0.15s ease, border-color 0.15s ease;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .game-card:hover {
+      transform: translateY(-3px);
+      border-color: #555864;
+    }
+
+    .game-card img {
+      width: 100%;
+      aspect-ratio: 1;
+      object-fit: cover;
+      display: block;
+      background: #1b1b20;
+    }
+
+    .game-card-name {
+      padding: 7px 8px;
+      color: #c8cdd8;
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-align: center;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
     @media (prefers-reduced-motion: reduce) {
       *,
       *::before,
@@ -678,6 +785,15 @@
         onclick="openScramjetBrowser()"
       >
         browser (beta v2)
+      </button>
+
+      <button
+        class="vm-button"
+        id="games-btn"
+        type="button"
+        onclick="openGamesPanel()"
+      >
+        games
       </button>
 
     </div>
@@ -791,6 +907,26 @@
         <a href="https://noc.exploits-bg.com/" target="_blank" rel="noopener noreferrer">link 32</a>
       </div>
     </section>
+
+  </div>
+
+  <!-- GAMES PANEL -->
+
+  <div id="games-panel">
+
+    <div id="games-header">
+      <h2>🎮 games</h2>
+      <input
+        id="games-search"
+        type="text"
+        placeholder="search games..."
+        oninput="filterGames(this.value)"
+        autocomplete="off"
+      >
+      <button id="games-close" type="button" onclick="closeGamesPanel()">✕ Close</button>
+    </div>
+
+    <div id="games-grid"></div>
 
   </div>
 
@@ -2492,6 +2628,70 @@
         );
     }
 
+
+    /* =========================================================
+       GAMES PANEL
+       ========================================================= */
+
+    const GAMES = [
+      { name: "Roadblock",        img: "https://nowgg.fun/img/roadblock.png",       url: "https://nowgg.fun/apps/a/19900/b.html" },
+      { name: "Stumble Guys",     img: "https://nowgg.fun/img/stumbleguys.jpg",     url: "https://nowgg.fun/apps/a/10011/b.html" },
+      { name: "Fortnite",         img: "https://nowgg.fun/img/fortnite.png",        url: "https://nowgg.fun/apps/aptoide/5874/aptoide.html?deep_link=aptoidesearch://com.epicgames.fortnite" },
+      { name: "Call of Duty",     img: "https://nowgg.fun/img/cod.jpg",             url: "https://nowgg.fun/apps/a/10008/b.html" },
+      { name: "Melon Sandbox",    img: "https://nowgg.fun/img/melon-sandbox.png",   url: "https://nowgg.fun/apps/playducky/7199/melon-sandbox.html" },
+      { name: "Aptoide",          img: "https://nowgg.fun/img/aptoide.png",         url: "https://nowgg.fun/apps/aptoide/5874/aptoide.html" },
+      { name: "Android",          img: "https://nowgg.fun/img/android.jpg",         url: "https://nowgg.fun/apps/uncube/7074/now.html" },
+      { name: "Cookie Run",       img: "https://nowgg.fun/img/cookierun.jpg",       url: "https://nowgg.fun/apps/a/10019/b.html" },
+      { name: "Geometry Dash",    img: "https://nowgg.fun/img/geodash.png",         url: "https://nowgg.fun/apps/robtop-games/1400/geometry-dash.html" },
+      { name: "Rocket League",    img: "https://nowgg.fun/img/rocketleague.webp",   url: "https://nowgg.fun/apps/psyonix-studios/4656/rocket-league.html" },
+      { name: "Minecraft",        img: "https://nowgg.fun/img/minecraft.png",       url: "https://nowgg.fun/apps/aptoide/5874/aptoide.html?deep_link=aptoidesearch://com.mojang.minecrafttrialpe" },
+    ];
+
+    let filteredGames = [...GAMES];
+
+    function renderGames(list) {
+      const grid = document.getElementById("games-grid");
+      grid.innerHTML = "";
+      list.forEach(game => {
+        const card = document.createElement("div");
+        card.className = "game-card";
+        card.onclick = () => launchGame(game.url);
+        card.innerHTML = `
+          <img src="${game.img}" alt="${game.name}" loading="lazy" onerror="this.style.background='#1b1b20';this.style.height='130px'">
+          <div class="game-card-name">${game.name}</div>
+        `;
+        grid.appendChild(card);
+      });
+    }
+
+    function filterGames(query) {
+      const q = query.toLowerCase().trim();
+      filteredGames = q
+        ? GAMES.filter(g => g.name.toLowerCase().includes(q))
+        : [...GAMES];
+      renderGames(filteredGames);
+    }
+
+    function openGamesPanel() {
+      const panel = document.getElementById("games-panel");
+      panel.classList.add("show");
+      renderGames(GAMES);
+    }
+
+    function closeGamesPanel() {
+      document.getElementById("games-panel").classList.remove("show");
+    }
+
+    function launchGame(url) {
+      closeGamesPanel();
+      // reuse the existing scramjet browser
+      openScramjetBrowser();
+      setTimeout(() => {
+        const addrBar = document.getElementById("browser-address");
+        if (addrBar) addrBar.value = url;
+        navigateScramjet(url);
+      }, 200);
+    }
 
     /* =========================================================
        BEFORE UNLOAD
