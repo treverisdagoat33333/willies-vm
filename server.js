@@ -68,6 +68,7 @@ app.use(cookieParser());
 | /libcurl/    â†’ @mercuryworkshop/libcurl-transport
 |--------------------------------------------------------------------------
 */
+app.use("/scramjet/", express.static(scramjetPath));
 app.use("/scram/", express.static(scramjetPath));
 app.use("/controller/", express.static(dirOf("@mercuryworkshop/scramjet-controller")));
 app.use("/utils/", express.static(dirOf("@mercuryworkshop/scramjet-utils")));
