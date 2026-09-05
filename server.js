@@ -4,9 +4,37 @@ const crypto = require("crypto");
 const bcrypt = require("bcryptjs");
 const cookieParser = require("cookie-parser");
 const jwt = require("jsonwebtoken");
+const http = require("http");
 const { Sandbox } = require("@e2b/desktop");
 
+/*
+|--------------------------------------------------------------------------
+| Wisp WebSocket server (scramjet transport)
+|--------------------------------------------------------------------------
+*/
+let wispServer = null;
+try {
+  const { server: createWispServer } = require("@mercuryworkshop/wisp-js/server");
+  wispServer = createWispServer;
+} catch (e) {
+  console.warn("wisp-js not available, Wisp transport disabled:", e.message);
+}
+
 const app = express();
+const server = http.createServer(app);
+
+/*
+|--------------------------------------------------------------------------
+| Attach Wisp WebSocket upgrade handler at /wisp/
+|--------------------------------------------------------------------------
+*/
+if (wispServer) {
+  server.on("upgrade", (req, socket, head) => {
+    if (req.url.startsWith("/wisp/")) {
+      wispServer({ req, socket, head });
+    }
+  });
+}
 
 const PORT =
   process.env.PORT ||
@@ -43,12 +71,50 @@ if (!AUTH_SECRET) {
 app.use(express.json());
 app.use(cookieParser());
 
+/*
+|--------------------------------------------------------------------------
+| Serve Scramjet v2 static assets
+| /scram/   â†’ @mercuryworkshop/scramjet/dist
+| /controller/ â†’ @mercuryworkshop/scramjet-controller/dist
+| /baremux/ â†’ @mercuryworkshop/bare-mux/dist
+|--------------------------------------------------------------------------
+*/
+const scramjetDist = path.join(
+  __dirname,
+  "node_modules",
+  "@mercuryworkshop",
+  "scramjet",
+  "dist"
+);
+
+const scramjetControllerDist = path.join(
+  __dirname,
+  "node_modules",
+  "@mercuryworkshop",
+  "scramjet-controller",
+  "dist"
+);
+
+const bareMuxDist = path.join(
+  __dirname,
+  "node_modules",
+  "@mercuryworkshop",
+  "bare-mux",
+  "dist"
+);
+
+app.use("/scram", express.static(scramjetDist));
+app.use("/controller", express.static(scramjetControllerDist));
+app.use("/baremux", express.static(bareMuxDist));
+
+/*
+|--------------------------------------------------------------------------
+| Serve public static files (your frontend)
+|--------------------------------------------------------------------------
+*/
 app.use(
   express.static(
-    path.join(
-      __dirname,
-      "public"
-    )
+    path.join(__dirname, "public")
   )
 );
 
@@ -385,7 +451,9 @@ app.get(
       e2bConfigured:
         Boolean(E2B_API_KEY),
       xenvConfigured:
-        Boolean(XENV_API_KEY)
+        Boolean(XENV_API_KEY),
+      wispEnabled:
+        Boolean(wispServer)
     });
   }
 );
@@ -810,7 +878,12 @@ process.on(
   }
 );
 
-app.listen(
+/*
+|--------------------------------------------------------------------------
+| Start â€” use http.Server so Wisp WebSocket upgrades work
+|--------------------------------------------------------------------------
+*/
+server.listen(
   PORT,
   () => {
     console.log(
@@ -827,6 +900,14 @@ app.listen(
       `XENV configured: ${Boolean(
         XENV_API_KEY
       )}`
+    );
+
+    console.log(
+      `Wisp enabled: ${Boolean(wispServer)}`
+    );
+
+    console.log(
+      `Scramjet assets: /scram/, /controller/, /baremux/`
     );
   }
 );
