@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: willie-games-vm
+    env: node
+    buildCommand: npm install
+    startCommand: npm start
+
+    envVars:
+      - key: XENV_API_KEY
+        sync: false
+
+      - key: XENV_DEV_ID
+        value: willie-games-vm
+
+      - key: E2B_API_KEY
+        sync: false
+
+      - key: AUTH_SECRET
+        sync: false
