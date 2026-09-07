@@ -2,15 +2,35 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-
-  <meta
-    name="viewport"
-    content="width=device-width, initial-scale=1.0, maximum-scale=1.0"
-  >
-
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
   <title>william's virtual machine</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Segoe+UI:wght@300;400;600;700&display=swap" rel="stylesheet">
 
   <style>
+    :root {
+      --win11-accent: #0078d4;
+      --win11-accent-light: #1a86d8;
+      --win11-accent-hover: #005a9e;
+      --win11-surface: rgba(32, 32, 32, 0.75);
+      --win11-surface-solid: #202020;
+      --win11-surface-hover: rgba(255, 255, 255, 0.08);
+      --win11-surface-active: rgba(255, 255, 255, 0.05);
+      --win11-border: rgba(255, 255, 255, 0.12);
+      --win11-text: #ffffff;
+      --win11-text-secondary: rgba(255, 255, 255, 0.6);
+      --win11-text-tertiary: rgba(255, 255, 255, 0.4);
+      --win11-taskbar: rgba(20, 20, 20, 0.85);
+      --win11-titlebar: rgba(28, 28, 28, 0.95);
+      --win11-shadow: 0 8px 32px rgba(0,0,0,0.6), 0 2px 8px rgba(0,0,0,0.4);
+      --win11-radius: 8px;
+      --win11-radius-sm: 4px;
+      --win11-radius-lg: 12px;
+      --win11-blur: blur(40px) saturate(150%);
+      --taskbar-h: 48px;
+    }
+
     * {
       margin: 0;
       padding: 0;
@@ -18,184 +38,242 @@
     }
 
     body {
-      background: #0a0a0b;
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: #000;
       display: flex;
       align-items: center;
       justify-content: center;
       height: 100vh;
       overflow: hidden;
-      font-family: sans-serif;
+      color: var(--win11-text);
+      user-select: none;
     }
 
-    canvas {
+    /* ── ANIME BACKGROUND ── */
+    #desktop-bg {
       position: fixed;
       inset: 0;
       z-index: 0;
+      background-image: url('https://images.alphacoders.com/133/thumb-1920-1330185.jpeg');
+      background-size: cover;
+      background-position: center;
+      background-repeat: no-repeat;
     }
 
-    .center {
-      position: relative;
+    #desktop-bg::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(
+        to bottom,
+        rgba(0,0,0,0.05) 0%,
+        rgba(0,0,0,0.1) 80%,
+        rgba(0,0,0,0.5) 100%
+      );
+    }
+
+    /* ── DESKTOP LAYER ── */
+    #desktop {
+      position: fixed;
+      inset: 0;
+      bottom: var(--taskbar-h);
       z-index: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* ── WIN11 WINDOW (Main Hub) ── */
+    .win11-window {
+      position: relative;
+      background: var(--win11-surface);
+      backdrop-filter: var(--win11-blur);
+      -webkit-backdrop-filter: var(--win11-blur);
+      border: 1px solid var(--win11-border);
+      border-radius: var(--win11-radius-lg);
+      box-shadow: var(--win11-shadow);
+      overflow: hidden;
+      width: min(480px, 96vw);
+    }
+
+    /* title bar */
+    .win11-titlebar {
+      background: var(--win11-titlebar);
+      height: 32px;
+      display: flex;
+      align-items: center;
+      padding: 0 12px;
+      gap: 8px;
+      border-bottom: 1px solid var(--win11-border);
+      flex-shrink: 0;
+    }
+
+    .win11-titlebar-icon {
+      width: 14px;
+      height: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+    }
+
+    .win11-titlebar-title {
+      flex: 1;
+      font-size: 12px;
+      color: var(--win11-text-secondary);
+      font-weight: 400;
+    }
+
+    .win11-titlebar-controls {
+      display: flex;
+      gap: 0;
+      margin-right: -12px;
+    }
+
+    .win11-ctrl-btn {
+      width: 46px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      color: var(--win11-text-secondary);
+      cursor: pointer;
+      transition: background 0.1s;
+      border: none;
+      background: transparent;
+    }
+
+    .win11-ctrl-btn:hover {
+      background: var(--win11-surface-hover);
+      color: var(--win11-text);
+    }
+
+    .win11-ctrl-btn.close:hover {
+      background: #c42b1c;
+      color: #fff;
+    }
+
+    /* window body */
+    .win11-window-body {
+      padding: 24px;
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 1.5rem;
+      gap: 20px;
     }
 
-    h1 {
-      color: #eef0f4;
-      font-size: 1.4rem;
+    .win11-app-title {
+      font-size: 20px;
       font-weight: 600;
-      letter-spacing: 0.05em;
+      color: var(--win11-text);
+      letter-spacing: -0.3px;
       text-align: center;
     }
 
+    .win11-app-subtitle {
+      font-size: 13px;
+      color: var(--win11-text-secondary);
+      text-align: center;
+      margin-top: -12px;
+    }
+
+    /* button grid */
     #vm-buttons {
-      display: flex;
-      gap: 10px;
-      justify-content: center;
-      flex-wrap: wrap;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      width: 100%;
     }
 
     .vm-button {
-      padding: 0.85rem 1.5rem;
-      background: #c8cdd8;
-      color: #0a0a0b;
+      padding: 10px 16px;
+      background: var(--win11-accent);
+      color: #fff;
       border: none;
-      border-radius: 4px;
-      font-size: 0.9rem;
-      font-weight: 700;
+      border-radius: var(--win11-radius-sm);
+      font-size: 13px;
+      font-weight: 600;
+      font-family: inherit;
       cursor: pointer;
-      letter-spacing: 0.03em;
-      transition: 0.15s ease;
+      transition: background 0.15s, transform 0.1s, box-shadow 0.15s;
+      text-align: center;
+      box-shadow: 0 1px 4px rgba(0,120,212,0.3);
     }
 
     .vm-button:hover:not(:disabled) {
-      background: #eef0f4;
+      background: var(--win11-accent-light);
       transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(0,120,212,0.4);
+    }
+
+    .vm-button:active:not(:disabled) {
+      transform: translateY(0);
+      background: var(--win11-accent-hover);
     }
 
     .vm-button:disabled {
-      opacity: 0.5;
+      opacity: 0.4;
       cursor: not-allowed;
       transform: none;
     }
 
-    #links-toggle {
-      padding: 0.7rem 1.3rem;
-      color: #0a0a0b;
-      background: #c8cdd8;
-      border: none;
-      border-radius: 4px;
-      font-size: 0.85rem;
-      font-weight: 700;
+    /* secondary button */
+    .win11-btn-secondary {
+      padding: 8px 20px;
+      background: rgba(255,255,255,0.08);
+      color: var(--win11-text);
+      border: 1px solid var(--win11-border);
+      border-radius: var(--win11-radius-sm);
+      font-size: 13px;
+      font-weight: 400;
+      font-family: inherit;
       cursor: pointer;
-      letter-spacing: 0.03em;
-      transition: 0.15s ease;
+      transition: background 0.15s, transform 0.1s;
+    }
+
+    .win11-btn-secondary:hover {
+      background: rgba(255,255,255,0.12);
+      transform: translateY(-1px);
+    }
+
+    #links-toggle {
+      padding: 8px 20px;
+      background: rgba(255,255,255,0.08);
+      color: var(--win11-text);
+      border: 1px solid var(--win11-border);
+      border-radius: var(--win11-radius-sm);
+      font-size: 13px;
+      font-family: inherit;
+      cursor: pointer;
+      transition: background 0.15s, transform 0.1s;
     }
 
     #links-toggle:hover {
-      background: #eef0f4;
+      background: rgba(255,255,255,0.14);
       transform: translateY(-1px);
     }
 
-    #links-panel {
-      display: none;
-      position: fixed;
-      inset: 0;
-      z-index: 5000;
-      overflow-y: auto;
-      padding: 5rem 1rem 2rem;
-      background: rgba(10, 10, 11, 0.97);
-    }
-
-    #links-panel.show {
-      display: block;
-    }
-
-    #links-close {
-      position: fixed;
-      top: 1rem;
-      right: 1rem;
-      z-index: 5001;
-      padding: 0.65rem 0.9rem;
-      color: #eef0f4;
-      background: #1b1b20;
-      border: 1px solid #33343b;
-      border-radius: 6px;
-      cursor: pointer;
-    }
-
-    #links-close:hover {
-      background: #292930;
-    }
-
-    .link-section {
-      width: min(720px, 100%);
-      margin: 0 auto 1.25rem;
-      padding: 1rem;
-      border: 1px solid #2a2a30;
-      border-radius: 6px;
-      background: #111114;
-    }
-
-    .link-section h2 {
-      margin-bottom: 0.8rem;
-      color: #eef0f4;
-      font-size: 0.9rem;
-      font-weight: 600;
-      letter-spacing: 0.05em;
-      text-transform: uppercase;
-    }
-
-    .link-grid {
-      display: grid;
-      grid-template-columns: repeat(
-        auto-fit,
-        minmax(120px, 1fr)
-      );
-      gap: 8px;
-    }
-
-    .link-grid a {
-      display: block;
-      padding: 0.7rem 0.8rem;
-      color: #0a0a0b;
-      background: #c8cdd8;
-      border-radius: 4px;
-      font-size: 0.8rem;
-      font-weight: 700;
-      text-align: center;
-      text-decoration: none;
-      transition: 0.15s ease;
-    }
-
-    .link-grid a:hover {
-      background: #eef0f4;
-      transform: translateY(-1px);
-    }
-
+    /* status */
     #status {
-      color: #7a8194;
-      font-size: 0.78rem;
-      font-family: monospace;
+      color: var(--win11-text-tertiary);
+      font-size: 12px;
+      font-family: 'Cascadia Code', 'Consolas', monospace;
       min-height: 1.2em;
       text-align: center;
       max-width: 90vw;
       word-break: break-word;
     }
 
-    #status.error {
-      color: #f87171;
-    }
+    #status.error { color: #fc6060; }
 
+    /* player count */
     #player-count {
       display: flex;
       align-items: center;
-      gap: 0.45rem;
-      color: #7a8194;
-      font-size: 0.78rem;
-      font-family: monospace;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--win11-text-tertiary);
     }
 
     #player-count .dot {
@@ -208,15 +286,11 @@
     }
 
     @keyframes pulse {
-      0%, 100% {
-        opacity: 1;
-      }
-
-      50% {
-        opacity: 0.4;
-      }
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
     }
 
+    /* ── AUTH ── */
     #auth-wrap {
       position: fixed;
       inset: 0;
@@ -225,15 +299,13 @@
       align-items: center;
       justify-content: center;
       padding: 1rem;
-      background: rgba(0, 0, 0, 0.78);
+      background: rgba(0,0,0,0.7);
+      backdrop-filter: blur(8px);
       opacity: 1;
-      transition:
-        opacity 0.35s ease,
-        visibility 0.35s ease;
+      transition: opacity 0.3s, visibility 0.3s;
     }
 
     #auth-wrap.hidden {
-      display: flex;
       opacity: 0;
       visibility: hidden;
       pointer-events: none;
@@ -241,177 +313,104 @@
 
     #auth-card {
       position: relative;
-      width: min(390px, 100%);
+      width: min(380px, 100%);
       display: flex;
       flex-direction: column;
-      gap: 0.8rem;
-      padding: 1.5rem;
-      overflow: hidden;
-      border: 1px solid #2a2a30;
-      border-radius: 8px;
-      background: #16161a;
-      animation: auth-card-in 0.55s
-        cubic-bezier(0.16, 1, 0.3, 1)
-        both;
+      gap: 10px;
+      padding: 32px 28px;
+      background: rgba(28,28,28,0.92);
+      backdrop-filter: var(--win11-blur);
+      border: 1px solid var(--win11-border);
+      border-radius: var(--win11-radius-lg);
+      box-shadow: var(--win11-shadow), 0 0 0 1px rgba(255,255,255,0.04) inset;
+      animation: win11-pop 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
     }
 
-    #auth-card::before {
-      content: "";
-      position: absolute;
-      top: -90px;
-      left: 50%;
-      width: 220px;
-      height: 220px;
-      border-radius: 50%;
-      background: radial-gradient(
-        circle,
-        rgba(200, 205, 216, 0.14),
-        transparent 68%
-      );
-      transform: translateX(-50%);
-      pointer-events: none;
-      animation: auth-glow 4s ease-in-out infinite;
-    }
-
-    #auth-card > * {
-      position: relative;
-      z-index: 1;
+    @keyframes win11-pop {
+      from { opacity: 0; transform: scale(0.95) translateY(10px); }
+      to { opacity: 1; transform: scale(1) translateY(0); }
     }
 
     #auth-card h2 {
-      color: #eef0f4;
-      font-size: 1.15rem;
-      animation: auth-fade-up 0.45s 0.08s ease both;
+      color: var(--win11-text);
+      font-size: 22px;
+      font-weight: 600;
+      margin-bottom: 4px;
     }
 
     #auth-description {
-      color: #aab2c5;
-      font-size: 0.82rem;
-      line-height: 1.4;
-      animation: auth-fade-up 0.45s 0.14s ease both;
+      color: var(--win11-text-secondary);
+      font-size: 13px;
+      line-height: 1.5;
+      margin-bottom: 6px;
     }
 
     #auth-card input {
       width: 100%;
-      padding: 0.8rem;
-      border: 1px solid #33343b;
-      border-radius: 4px;
-      color: #eef0f4;
-      background: #0a0a0b;
+      padding: 9px 12px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid var(--win11-border);
+      border-radius: var(--win11-radius-sm);
+      color: var(--win11-text);
+      font-family: inherit;
+      font-size: 14px;
       outline: none;
-      transition:
-        border-color 0.2s ease,
-        box-shadow 0.2s ease,
-        transform 0.2s ease,
-        background 0.2s ease;
-      animation: auth-fade-up 0.45s ease both;
-    }
-
-    #auth-username {
-      animation-delay: 0.2s;
-    }
-
-    #auth-password {
-      animation-delay: 0.26s;
-    }
-
-    #auth-card input:hover {
-      border-color: #555864;
+      transition: border-color 0.2s, box-shadow 0.2s;
     }
 
     #auth-card input:focus {
-      border-color: #c8cdd8;
-      background: #0d0d10;
-      box-shadow:
-        0 0 0 3px rgba(200, 205, 216, 0.1);
+      border-color: var(--win11-accent);
+      box-shadow: 0 0 0 1px var(--win11-accent);
+    }
+
+    #auth-card input::placeholder { color: var(--win11-text-tertiary); }
+
+    #auth-card button {
+      font-family: inherit;
+      cursor: pointer;
+      border-radius: var(--win11-radius-sm);
+      font-size: 13px;
+      transition: background 0.15s, transform 0.1s;
+      border: none;
+    }
+
+    #auth-card button[type="submit"] {
+      padding: 10px;
+      background: var(--win11-accent);
+      color: #fff;
+      font-weight: 600;
+    }
+
+    #auth-card button[type="submit"]:hover {
+      background: var(--win11-accent-light);
       transform: translateY(-1px);
     }
 
-    #auth-card button {
-      transition:
-        transform 0.16s ease,
-        background 0.16s ease,
-        border-color 0.16s ease,
-        box-shadow 0.16s ease;
-      animation: auth-fade-up 0.45s ease both;
+    #guest-button, #login-button {
+      padding: 9px;
+      background: rgba(255,255,255,0.07);
+      color: var(--win11-text);
+      border: 1px solid var(--win11-border);
     }
 
-    #guest-button,
-    #login-button {
-      padding: 0.7rem;
-      color: #c8cdd8;
-      background: transparent;
-      border: 1px solid #33343b;
-      border-radius: 4px;
-      cursor: pointer;
-    }
-
-    #guest-button {
-      animation-delay: 0.38s;
-    }
-
-    #login-button {
-      animation-delay: 0.44s;
-    }
-
-    #auth-card button:hover {
-      transform: translateY(-2px);
-    }
-
-    #auth-card button:active {
-      transform: translateY(0) scale(0.98);
-    }
-
-    #guest-button:hover,
-    #login-button:hover {
-      color: #eef0f4;
-      background: #1b1b20;
-      border-color: #555864;
+    #guest-button:hover, #login-button:hover {
+      background: rgba(255,255,255,0.12);
+      transform: translateY(-1px);
     }
 
     #auth-error {
       min-height: 1.2em;
-      color: #f87171;
+      color: #fc6060;
+      font-size: 12px;
       font-family: monospace;
-      font-size: 0.75rem;
-    }
-
-    @keyframes auth-card-in {
-      from {
-        opacity: 0;
-        transform: translateY(18px) scale(0.97);
-      }
-
-      to {
-        opacity: 1;
-        transform: translateY(0) scale(1);
-      }
     }
 
     @keyframes auth-fade-up {
-      from {
-        opacity: 0;
-        transform: translateY(10px);
-      }
-
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
+      from { opacity: 0; transform: translateY(8px); }
+      to   { opacity: 1; transform: translateY(0); }
     }
 
-    @keyframes auth-glow {
-      0%, 100% {
-        opacity: 0.45;
-        transform: translateX(-50%) scale(0.9);
-      }
-
-      50% {
-        opacity: 1;
-        transform: translateX(-50%) scale(1.12);
-      }
-    }
-
+    /* ── VM FRAME ── */
     #vm-frame-wrap {
       display: none;
       position: fixed;
@@ -424,14 +423,24 @@
     }
 
     #vm-toolbar {
-      height: 50px;
-      min-height: 50px;
-      background: #111114;
-      color: #eef0f4;
+      height: 40px;
+      min-height: 40px;
+      background: var(--win11-titlebar);
+      color: var(--win11-text);
       display: flex;
       align-items: center;
       justify-content: space-between;
       padding: 0 12px;
+      border-bottom: 1px solid var(--win11-border);
+      flex-shrink: 0;
+    }
+
+    #vm-toolbar .vm-toolbar-label {
+      font-size: 13px;
+      color: var(--win11-text-secondary);
+      display: flex;
+      align-items: center;
+      gap: 8px;
     }
 
     .vm-toolbar-right {
@@ -441,57 +450,57 @@
     }
 
     #vm-timer {
-      color: #aab2c5;
-      font-family: monospace;
-      font-size: 0.82rem;
-      font-variant-numeric: tabular-nums;
-      padding: 7px 8px;
-      margin-right: 2px;
+      color: var(--win11-text-tertiary);
+      font-family: 'Cascadia Code', 'Consolas', monospace;
+      font-size: 13px;
+      padding: 4px 8px;
     }
 
     #vm-toolbar button {
-      background: #1b1b20;
-      color: #eef0f4;
-      border: 1px solid #33343b;
-      border-radius: 6px;
-      padding: 7px 12px;
+      background: rgba(255,255,255,0.07);
+      color: var(--win11-text);
+      border: 1px solid var(--win11-border);
+      border-radius: var(--win11-radius-sm);
+      padding: 5px 12px;
+      font-size: 12px;
+      font-family: inherit;
       cursor: pointer;
+      transition: background 0.15s;
     }
 
-    #vm-toolbar button:hover {
-      background: #292930;
-    }
+    #vm-toolbar button:hover { background: rgba(255,255,255,0.14); }
 
     #vm-frame {
       width: 100%;
-      height: calc(100vh - 50px);
+      height: calc(100vh - 40px);
       flex: 1;
       border: 0;
       background: #000;
     }
 
+    /* ── BROWSER ── */
     #browser-wrap {
       display: none;
       position: fixed;
       inset: 0;
       width: 100vw;
       height: 100vh;
-      background: #000;
+      background: #1a1a1a;
       z-index: 10000;
       flex-direction: column;
     }
 
-    /* TAB BAR */
+    /* tab bar */
     #tab-bar {
       display: flex;
-      align-items: center;
-      background: #0d0d10;
-      border-bottom: 1px solid #2a2a30;
+      align-items: stretch;
+      background: #111;
+      border-bottom: 1px solid var(--win11-border);
       overflow-x: auto;
       overflow-y: hidden;
       scrollbar-width: none;
       flex-shrink: 0;
-      min-height: 36px;
+      min-height: 34px;
     }
 
     #tab-bar::-webkit-scrollbar { display: none; }
@@ -507,26 +516,24 @@
       display: flex;
       align-items: center;
       gap: 6px;
-      padding: 0 10px;
-      min-width: 100px;
-      max-width: 180px;
-      height: 36px;
-      background: #111114;
-      border-right: 1px solid #2a2a30;
+      padding: 0 12px;
+      min-width: 110px;
+      max-width: 200px;
+      height: 34px;
+      background: transparent;
+      border-right: 1px solid rgba(255,255,255,0.06);
       cursor: pointer;
       flex-shrink: 0;
-      position: relative;
       transition: background 0.1s;
     }
 
     .tab.active {
-      background: #1b1b20;
-      border-top: 2px solid #c8cdd8;
+      background: #1e1e1e;
+      border-top: 2px solid var(--win11-accent);
+      border-bottom: none;
     }
 
-    .tab:hover:not(.active) {
-      background: #161618;
-    }
+    .tab:hover:not(.active) { background: rgba(255,255,255,0.05); }
 
     .tab-title {
       flex: 1;
@@ -534,14 +541,11 @@
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
-      color: #aab2c5;
-      font-size: 0.75rem;
-      font-family: sans-serif;
+      color: var(--win11-text-secondary);
+      font-size: 12px;
     }
 
-    .tab.active .tab-title {
-      color: #eef0f4;
-    }
+    .tab.active .tab-title { color: var(--win11-text); }
 
     .tab-close {
       width: 16px;
@@ -550,79 +554,83 @@
       align-items: center;
       justify-content: center;
       border-radius: 3px;
-      color: #7a8194;
-      font-size: 0.7rem;
+      color: var(--win11-text-tertiary);
+      font-size: 10px;
       flex-shrink: 0;
       transition: background 0.1s, color 0.1s;
     }
 
     .tab-close:hover {
-      background: #33343b;
-      color: #eef0f4;
+      background: rgba(255,255,255,0.12);
+      color: var(--win11-text);
     }
 
     #tab-new {
-      width: 36px;
-      height: 36px;
+      width: 34px;
+      height: 34px;
       display: flex;
       align-items: center;
       justify-content: center;
-      color: #7a8194;
-      font-size: 1.1rem;
+      color: var(--win11-text-tertiary);
+      font-size: 16px;
       cursor: pointer;
       flex-shrink: 0;
-      transition: color 0.1s, background 0.1s;
+      transition: background 0.1s;
     }
 
     #tab-new:hover {
-      color: #eef0f4;
-      background: #1b1b20;
+      background: rgba(255,255,255,0.07);
+      color: var(--win11-text);
     }
 
-    /* TOOLBAR */
+    /* browser toolbar */
     #browser-toolbar {
-      min-height: 46px;
-      background: #111114;
-      color: #eef0f4;
+      min-height: 42px;
+      background: #1a1a1a;
       display: flex;
       align-items: center;
-      gap: 8px;
-      padding: 6px 10px;
-      border-bottom: 1px solid #2a2a30;
+      gap: 6px;
+      padding: 5px 10px;
+      border-bottom: 1px solid var(--win11-border);
       flex-shrink: 0;
     }
 
     #browser-toolbar button {
-      background: #1b1b20;
-      color: #eef0f4;
-      border: 1px solid #33343b;
-      border-radius: 6px;
-      padding: 6px 10px;
+      background: rgba(255,255,255,0.06);
+      color: var(--win11-text);
+      border: 1px solid var(--win11-border);
+      border-radius: var(--win11-radius-sm);
+      padding: 5px 10px;
+      font-family: inherit;
+      font-size: 13px;
       cursor: pointer;
       white-space: nowrap;
+      transition: background 0.1s;
     }
 
-    #browser-toolbar button:hover {
-      background: #292930;
-    }
+    #browser-toolbar button:hover { background: rgba(255,255,255,0.12); }
 
     #browser-address {
       flex: 1;
       min-width: 0;
-      background: #0a0a0b;
-      color: #eef0f4;
-      border: 1px solid #33343b;
-      border-radius: 6px;
-      padding: 7px 11px;
+      background: rgba(255,255,255,0.06);
+      color: var(--win11-text);
+      border: 1px solid var(--win11-border);
+      border-radius: 20px;
+      padding: 6px 14px;
       outline: none;
-      font: 14px monospace;
+      font-family: inherit;
+      font-size: 13px;
+      transition: border-color 0.2s, box-shadow 0.2s;
     }
 
     #browser-address:focus {
-      border-color: #626a7e;
+      border-color: var(--win11-accent);
+      box-shadow: 0 0 0 1px var(--win11-accent);
+      background: rgba(255,255,255,0.08);
     }
 
-    /* FRAMES CONTAINER */
+    /* frames */
     #browser-frames {
       flex: 1;
       position: relative;
@@ -639,9 +647,7 @@
       display: none;
     }
 
-    .browser-frame.active {
-      display: block;
-    }
+    .browser-frame.active { display: block; }
 
     #browser-status {
       position: absolute;
@@ -650,129 +656,205 @@
       transform: translate(-50%, -50%);
       display: none;
       max-width: 80vw;
-      padding: 12px 16px;
-      border: 1px solid #33343b;
-      border-radius: 7px;
-      background: #111114;
-      color: #c8cdd8;
-      font: 13px monospace;
+      padding: 14px 20px;
+      border: 1px solid var(--win11-border);
+      border-radius: var(--win11-radius);
+      background: rgba(28,28,28,0.95);
+      color: var(--win11-text-secondary);
+      font-size: 13px;
+      font-family: monospace;
       text-align: center;
       z-index: 2;
+      backdrop-filter: blur(20px);
     }
 
+    /* ── LINKS PANEL ── */
+    #links-panel {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 5000;
+      overflow-y: auto;
+      padding: 4rem 1rem 2rem;
+      background: rgba(12,12,12,0.96);
+      backdrop-filter: blur(20px);
+    }
+
+    #links-panel.show { display: block; }
+
+    #links-close {
+      position: fixed;
+      top: 1rem;
+      right: 1rem;
+      z-index: 5001;
+      padding: 7px 14px;
+      color: var(--win11-text);
+      background: rgba(255,255,255,0.08);
+      border: 1px solid var(--win11-border);
+      border-radius: var(--win11-radius-sm);
+      font-family: inherit;
+      font-size: 13px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    #links-close:hover { background: rgba(255,255,255,0.14); }
+
+    .link-section {
+      width: min(720px, 100%);
+      margin: 0 auto 12px;
+      padding: 16px;
+      border: 1px solid var(--win11-border);
+      border-radius: var(--win11-radius);
+      background: rgba(28,28,28,0.7);
+      backdrop-filter: blur(20px);
+    }
+
+    .link-section h2 {
+      margin-bottom: 10px;
+      color: var(--win11-text-secondary);
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .link-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 8px;
+    }
+
+    .link-grid a {
+      display: block;
+      padding: 8px 10px;
+      color: var(--win11-text);
+      background: rgba(255,255,255,0.06);
+      border: 1px solid var(--win11-border);
+      border-radius: var(--win11-radius-sm);
+      font-size: 12px;
+      font-weight: 600;
+      text-align: center;
+      text-decoration: none;
+      transition: background 0.15s, transform 0.1s;
+    }
+
+    .link-grid a:hover {
+      background: var(--win11-accent);
+      border-color: transparent;
+      transform: translateY(-1px);
+    }
+
+    /* ── TOAST ── */
     #toast {
       position: fixed;
-      bottom: 1.5rem;
-      right: 1.5rem;
-      max-width: min(500px, calc(100vw - 3rem));
-      background: #16161a;
-      border: 1px solid #2a2a30;
-      border-radius: 6px;
-      padding: 0.75rem 1rem;
-      font-size: 0.75rem;
-      font-family: monospace;
-      color: #c8cdd8;
+      bottom: calc(var(--taskbar-h) + 12px);
+      right: 1rem;
+      max-width: min(400px, calc(100vw - 2rem));
+      background: rgba(28,28,28,0.95);
+      border: 1px solid var(--win11-border);
+      border-radius: var(--win11-radius);
+      padding: 12px 16px;
+      font-size: 13px;
+      font-family: inherit;
+      color: var(--win11-text-secondary);
       z-index: 10002;
-      transform: translateY(120%);
-      transition: transform 0.25s ease;
-      word-break: break-word;
+      transform: translateX(120%);
+      transition: transform 0.3s cubic-bezier(0.16,1,0.3,1);
+      backdrop-filter: blur(20px);
+      box-shadow: var(--win11-shadow);
     }
 
-    #toast.show {
-      transform: translateY(0);
-    }
+    #toast.show { transform: translateX(0); }
+    #toast.error { border-color: #fc6060; color: #fc6060; }
 
-    #toast.error {
-      border-color: #f87171;
-      color: #f87171;
-    }
-
-    /* GAMES PANEL */
+    /* ── GAMES PANEL ── */
     #games-panel {
       display: none;
       position: fixed;
       inset: 0;
       z-index: 5000;
-      background: rgba(10, 10, 11, 0.97);
+      background: rgba(12,12,12,0.96);
+      backdrop-filter: blur(20px);
       flex-direction: column;
     }
 
-    #games-panel.show {
-      display: flex;
-    }
+    #games-panel.show { display: flex; }
 
     #games-header {
-      min-height: 54px;
-      background: #111114;
-      border-bottom: 1px solid #2a2a30;
+      min-height: 52px;
+      background: var(--win11-titlebar);
+      border-bottom: 1px solid var(--win11-border);
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 0 16px;
+      padding: 0 20px;
       gap: 12px;
       flex-shrink: 0;
     }
 
     #games-header h2 {
-      color: #eef0f4;
-      font-size: 0.95rem;
-      font-weight: 700;
-      letter-spacing: 0.05em;
+      color: var(--win11-text);
+      font-size: 14px;
+      font-weight: 600;
     }
 
     #games-search {
       flex: 1;
-      max-width: 320px;
-      background: #0a0a0b;
-      color: #eef0f4;
-      border: 1px solid #33343b;
-      border-radius: 6px;
-      padding: 8px 11px;
+      max-width: 300px;
+      background: rgba(255,255,255,0.06);
+      color: var(--win11-text);
+      border: 1px solid var(--win11-border);
+      border-radius: 20px;
+      padding: 7px 14px;
       outline: none;
-      font-size: 0.85rem;
+      font-size: 13px;
+      font-family: inherit;
+      transition: border-color 0.2s;
     }
 
-    #games-search:focus {
-      border-color: #626a7e;
-    }
+    #games-search:focus { border-color: var(--win11-accent); }
+    #games-search::placeholder { color: var(--win11-text-tertiary); }
 
     #games-close {
-      padding: 0.65rem 0.9rem;
-      color: #eef0f4;
-      background: #1b1b20;
-      border: 1px solid #33343b;
-      border-radius: 6px;
+      padding: 7px 14px;
+      color: var(--win11-text);
+      background: rgba(255,255,255,0.07);
+      border: 1px solid var(--win11-border);
+      border-radius: var(--win11-radius-sm);
       cursor: pointer;
-      font-size: 0.85rem;
+      font-size: 13px;
+      font-family: inherit;
+      transition: background 0.15s;
     }
 
-    #games-close:hover {
-      background: #292930;
-    }
+    #games-close:hover { background: rgba(255,255,255,0.14); }
 
     #games-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
-      gap: 12px;
-      padding: 20px;
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: 14px;
+      padding: 24px;
       overflow-y: auto;
       flex: 1;
     }
 
     .game-card {
-      background: #111114;
-      border: 1px solid #2a2a30;
-      border-radius: 8px;
+      background: rgba(28,28,28,0.85);
+      border: 1px solid var(--win11-border);
+      border-radius: var(--win11-radius);
       overflow: hidden;
       cursor: pointer;
-      transition: transform 0.15s ease, border-color 0.15s ease;
+      transition: transform 0.15s, border-color 0.15s, box-shadow 0.15s;
       display: flex;
       flex-direction: column;
+      backdrop-filter: blur(10px);
     }
 
     .game-card:hover {
-      transform: translateY(-3px);
-      border-color: #555864;
+      transform: translateY(-4px) scale(1.02);
+      border-color: var(--win11-accent);
+      box-shadow: 0 8px 24px rgba(0,120,212,0.3);
     }
 
     .game-card img {
@@ -780,39 +862,169 @@
       aspect-ratio: 1;
       object-fit: cover;
       display: block;
-      background: #1b1b20;
+      background: #1a1a1a;
     }
 
     .game-card-name {
-      padding: 7px 8px;
-      color: #c8cdd8;
-      font-size: 0.75rem;
-      font-weight: 700;
+      padding: 8px 10px;
+      color: var(--win11-text);
+      font-size: 12px;
+      font-weight: 600;
       text-align: center;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
 
+    /* ── TASKBAR ── */
+    #taskbar {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: var(--taskbar-h);
+      background: var(--win11-taskbar);
+      backdrop-filter: blur(60px) saturate(180%);
+      -webkit-backdrop-filter: blur(60px) saturate(180%);
+      border-top: 1px solid rgba(255,255,255,0.08);
+      z-index: 9998;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+    }
+
+    .taskbar-center {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .taskbar-btn {
+      width: 40px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: var(--win11-radius-sm);
+      cursor: pointer;
+      transition: background 0.15s;
+      font-size: 18px;
+      position: relative;
+      border: none;
+      background: transparent;
+    }
+
+    .taskbar-btn:hover {
+      background: rgba(255,255,255,0.1);
+    }
+
+    .taskbar-btn.active::after {
+      content: '';
+      position: absolute;
+      bottom: 2px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 14px;
+      height: 3px;
+      background: var(--win11-accent);
+      border-radius: 2px;
+    }
+
+    /* taskbar right side */
+    #taskbar-right {
+      position: absolute;
+      right: 12px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    #taskbar-clock {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      font-size: 11px;
+      color: var(--win11-text);
+      line-height: 1.4;
+      padding: 0 8px;
+      cursor: default;
+    }
+
+    /* start menu area */
+    #taskbar-left {
+      position: absolute;
+      left: 12px;
+      display: flex;
+      align-items: center;
+    }
+
+    /* ── DESKTOP ICONS ── */
+    .desktop-icons {
+      position: fixed;
+      top: 16px;
+      left: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      z-index: 2;
+    }
+
+    .desktop-icon {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      width: 70px;
+      padding: 6px;
+      border-radius: var(--win11-radius-sm);
+      cursor: pointer;
+      transition: background 0.15s;
+      text-align: center;
+    }
+
+    .desktop-icon:hover { background: rgba(255,255,255,0.1); }
+    .desktop-icon:active { background: rgba(255,255,255,0.15); }
+
+    .desktop-icon-img {
+      font-size: 28px;
+      line-height: 1;
+    }
+
+    .desktop-icon-label {
+      font-size: 11px;
+      color: #fff;
+      text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 64px;
+    }
+
     @media (prefers-reduced-motion: reduce) {
-      *,
-      *::before,
-      *::after {
+      *, *::before, *::after {
         animation: none !important;
         transition: none !important;
       }
+    }
+
+    @media (max-width: 520px) {
+      .win11-window { width: 95vw; }
+      #vm-buttons { grid-template-columns: 1fr; }
     }
   </style>
 </head>
 
 <body>
 
-  <!-- AUTH -->
+  <!-- ANIME DESKTOP BG -->
+  <div id="desktop-bg"></div>
 
+  <!-- AUTH DIALOG -->
   <div id="auth-wrap">
     <form id="auth-card">
 
-      <h2>welcome</h2>
+      <h2>Sign in</h2>
 
       <p id="auth-description">
         Create an account for 1 hour of VM time, or continue as a guest for 30 minutes.
@@ -821,7 +1033,7 @@
       <input
         id="auth-username"
         type="text"
-        placeholder="username"
+        placeholder="Username"
         autocomplete="username"
         maxlength="24"
         required
@@ -830,120 +1042,103 @@
       <input
         id="auth-password"
         type="password"
-        placeholder="password"
+        placeholder="Password"
         autocomplete="new-password"
         minlength="8"
         required
       >
 
-      <button
-        class="vm-button"
-        type="submit"
-      >
+      <button class="vm-button" type="submit" style="margin-top:4px">
         Create account — 1 hour
       </button>
 
-      <button
-        id="guest-button"
-        type="button"
-      >
+      <button id="guest-button" type="button">
         Continue as guest — 30 minutes
       </button>
 
-      <button
-        id="login-button"
-        type="button"
-      >
+      <button id="login-button" type="button">
         Already have an account? Log in
       </button>
 
       <div id="auth-error"></div>
-
     </form>
   </div>
 
-  <!-- BACKGROUND -->
+  <!-- DESKTOP LAYER -->
+  <div id="desktop">
 
-  <canvas id="snow"></canvas>
+    <!-- Main Hub Window -->
+    <div class="win11-window">
 
-  <!-- HOME -->
+      <!-- Title bar -->
+      <div class="win11-titlebar">
+        <div class="win11-titlebar-icon">🖥️</div>
+        <div class="win11-titlebar-title">william's virtual machine</div>
+        <div class="win11-titlebar-controls">
+          <button class="win11-ctrl-btn" title="Minimize">─</button>
+          <button class="win11-ctrl-btn" title="Maximize">☐</button>
+          <button class="win11-ctrl-btn close" title="Close">✕</button>
+        </div>
+      </div>
 
-  <div class="center">
+      <!-- Body -->
+      <div class="win11-window-body">
 
-    <h1>william's virtual machine</h1>
+        <div>
+          <div class="win11-app-title">william's virtual machine</div>
+        </div>
 
-    <div id="vm-buttons">
+        <div id="vm-buttons">
+          <button class="vm-button" id="e2b-btn" type="button" onclick="launchE2BVM()">
+            🖥️ VM #1
+          </button>
+          <button class="vm-button" id="gpu-btn" type="button" onclick="launchGPUVM()">
+            ⚡ VM #2
+          </button>
+          <button class="vm-button" id="browser-btn" type="button" onclick="openScramjetBrowser()">
+            🌐 Browser
+          </button>
+          <button class="vm-button" id="games-btn" type="button" onclick="openGamesPanel()">
+            🎮 Games
+          </button>
+        </div>
 
-      <button
-        class="vm-button"
-        id="e2b-btn"
-        type="button"
-        onclick="launchE2BVM()"
-      >
-        vm #1 (blocked but works at home)
-      </button>
+        <button id="links-toggle" type="button">🔗 Links</button>
 
-      <button
-        class="vm-button"
-        id="gpu-btn"
-        type="button"
-        onclick="launchGPUVM()"
-      >
-        vm #2 (currently working)
-      </button>
+        <div id="status"></div>
 
-      <button
-        class="vm-button"
-        id="browser-btn"
-        type="button"
-        onclick="openScramjetBrowser()"
-      >
-        browser (beta v2)
-      </button>
+        <div id="player-count">
+          <span class="dot"></span>
+          <span id="player-count-text">1 vms are working</span>
+        </div>
 
-      <button
-        class="vm-button"
-        id="games-btn"
-        type="button"
-        onclick="openGamesPanel()"
-      >
-        games
-      </button>
-
-    </div>
-
-    <button
-      id="links-toggle"
-      type="button"
-    >
-      links
-    </button>
-
-    <div id="status"></div>
-
-    <div id="player-count">
-      <span class="dot"></span>
-      <span id="player-count-text">
-        1 vms are working
-      </span>
+      </div>
     </div>
 
   </div>
 
-  <!-- LINKS -->
+  <!-- DESKTOP ICONS -->
+  <div class="desktop-icons">
+    <div class="desktop-icon" onclick="openScramjetBrowser()">
+      <div class="desktop-icon-img">🌐</div>
+      <div class="desktop-icon-label">Browser</div>
+    </div>
+    <div class="desktop-icon" onclick="openGamesPanel()">
+      <div class="desktop-icon-img">🎮</div>
+      <div class="desktop-icon-label">Games</div>
+    </div>
+    <div class="desktop-icon" onclick="document.getElementById('links-panel').classList.add('show')">
+      <div class="desktop-icon-img">🔗</div>
+      <div class="desktop-icon-label">Links</div>
+    </div>
+  </div>
 
+  <!-- LINKS PANEL -->
   <div id="links-panel">
-
-    <button
-      id="links-close"
-      type="button"
-    >
-      ✕ Close
-    </button>
+    <button id="links-close" type="button">✕ Close</button>
 
     <section class="link-section">
       <h2>SolaraOS (Updated 12pm 9/04/26)</h2>
-
       <div class="link-grid">
         <a href="https://solaraos.colegioitalocomposto.cl" target="_blank" rel="noopener noreferrer">link 1</a>
         <a href="https://solaraos.kkmsilvia.com" target="_blank" rel="noopener noreferrer">link 2</a>
@@ -955,7 +1150,6 @@
 
     <section class="link-section">
       <h2>Voya (updated today)</h2>
-
       <div class="link-grid">
         <a href="https://voya.opan.biz" target="_blank" rel="noopener noreferrer">link 6</a>
         <a href="https://voya.noordware.com" target="_blank" rel="noopener noreferrer">link 7</a>
@@ -967,7 +1161,6 @@
 
     <section class="link-section">
       <h2>Aurora</h2>
-
       <div class="link-grid">
         <a href="https://quietbirchstudy.s3.amazonaws.com/index.html" target="_blank" rel="noopener noreferrer">link 11</a>
         <a href="https://quietbirchstudy.s3.us-east-1.amazonaws.com/index.html" target="_blank" rel="noopener noreferrer">link 12</a>
@@ -979,7 +1172,6 @@
 
     <section class="link-section">
       <h2>DogeUb</h2>
-
       <div class="link-grid">
         <a href="https://memorising.s3.amazonaws.com/index.html" target="_blank" rel="noopener noreferrer">link 16</a>
         <a href="https://memorising.s3.us-east-1.amazonaws.com/index.html" target="_blank" rel="noopener noreferrer">link 17</a>
@@ -990,7 +1182,6 @@
 
     <section class="link-section">
       <h2>Space</h2>
-
       <div class="link-grid">
         <a href="https://space.colegioitalocomposto.cl" target="_blank" rel="noopener noreferrer">link 20</a>
         <a href="https://space.asirargentina.com.ar" target="_blank" rel="noopener noreferrer">link 21</a>
@@ -1000,7 +1191,6 @@
 
     <section class="link-section">
       <h2>gn-math & Opium</h2>
-
       <div class="link-grid">
         <a href="https://storage.googleapis.com/mathlearning/ilovessp/500k/gn-math_4" target="_blank" rel="noopener noreferrer">link 23</a>
         <a href="https://storage.googleapis.com/mathlearning/ilovessp/500k/gn-math_25" target="_blank" rel="noopener noreferrer">link 24</a>
@@ -1011,7 +1201,6 @@
 
     <section class="link-section">
       <h2>Nocturne & Quasar</h2>
-
       <div class="link-grid">
         <a href="https://responsibleuse.org/" target="_blank" rel="noopener noreferrer">link 27</a>
         <a href="https://cdn.jsdelivr.net/gh/lolration/svg/index.svg" target="_blank" rel="noopener noreferrer">link 28</a>
@@ -1021,45 +1210,30 @@
         <a href="https://noc.exploits-bg.com/" target="_blank" rel="noopener noreferrer">link 32</a>
       </div>
     </section>
-
   </div>
 
   <!-- GAMES PANEL -->
-
   <div id="games-panel">
-
     <div id="games-header">
-      <h2>🎮 games</h2>
-      <input
-        id="games-search"
-        type="text"
-        placeholder="search games..."
-        oninput="filterGames(this.value)"
-        autocomplete="off"
-      >
+      <h2>🎮 Games</h2>
+      <input id="games-search" type="text" placeholder="Search games..." oninput="filterGames(this.value)" autocomplete="off">
       <button id="games-close" type="button" onclick="closeGamesPanel()">✕ Close</button>
     </div>
-
     <div id="games-grid"></div>
-
   </div>
 
   <!-- SCRAMJET BROWSER -->
-
   <div id="browser-wrap">
-
     <!-- TAB BAR -->
     <div id="tab-bar">
       <div id="tab-list"></div>
       <div id="tab-new" title="New tab" onclick="newTab()">+</div>
     </div>
-
     <!-- ADDRESS BAR -->
     <div id="browser-toolbar">
       <button type="button" onclick="scramjetBack()" aria-label="Back">←</button>
       <button type="button" onclick="scramjetForward()" aria-label="Forward">→</button>
       <button type="button" onclick="scramjetReload()" aria-label="Reload">↻</button>
-
       <input
         id="browser-address"
         type="text"
@@ -1069,69 +1243,61 @@
         spellcheck="false"
         onkeydown="if(event.key === 'Enter') navigateScramjet()"
       >
-
       <button type="button" onclick="navigateScramjet()">Go</button>
       <button type="button" onclick="closeScramjetBrowser()">✕ Close</button>
     </div>
-
     <!-- FRAMES -->
     <div id="browser-frames">
       <div id="browser-status" style="display:none"></div>
     </div>
-
   </div>
 
   <!-- VM -->
-
   <div id="vm-frame-wrap">
-
     <div id="vm-toolbar">
-
-      <span>private vm</span>
-
+      <span class="vm-toolbar-label">🖥️ Private VM</span>
       <div class="vm-toolbar-right">
-
-        <span
-          id="vm-timer"
-          aria-live="polite"
-        >
-          00:00
-        </span>
-
-        <button
-          type="button"
-          onclick="toggleFullscreen()"
-        >
-          ⛶ Fullscreen
-        </button>
-
-        <button
-          type="button"
-          onclick="closeVM()"
-        >
-          ✕ Close
-        </button>
-
+        <span id="vm-timer" aria-live="polite">00:00</span>
+        <button type="button" onclick="toggleFullscreen()">⛶ Fullscreen</button>
+        <button type="button" onclick="closeVM()">✕ Close</button>
       </div>
-
     </div>
-
     <iframe
       id="vm-frame"
       title="Virtual Machine"
       allow="fullscreen; autoplay; clipboard-read; clipboard-write"
       referrerpolicy="no-referrer"
     ></iframe>
+  </div>
 
+  <!-- TASKBAR -->
+  <div id="taskbar">
+    <div id="taskbar-left">
+      <!-- empty or could add start icon -->
+    </div>
+
+    <div class="taskbar-center">
+      <button class="taskbar-btn" title="Start" onclick="void(0)">⊞</button>
+      <button class="taskbar-btn" title="Search" onclick="void(0)">🔍</button>
+      <button class="taskbar-btn" title="Task View" onclick="void(0)">⧉</button>
+      <button class="taskbar-btn" title="Browser" onclick="openScramjetBrowser()" id="tb-browser">🌐</button>
+      <button class="taskbar-btn" title="Games" onclick="openGamesPanel()" id="tb-games">🎮</button>
+      <button class="taskbar-btn" title="VM" onclick="launchGPUVM()" id="tb-vm">🖥️</button>
+      <button class="taskbar-btn" title="Links" onclick="document.getElementById('links-panel').classList.add('show')" id="tb-links">🔗</button>
+    </div>
+
+    <div id="taskbar-right">
+      <div id="taskbar-clock">
+        <span id="taskbar-time">00:00</span>
+        <span id="taskbar-date">Mon 1/1</span>
+      </div>
+    </div>
   </div>
 
   <div id="toast"></div>
 
-  <!-- IMPORTANT:
-       register-sw.js remains responsible for the Scramjet service worker. -->
-
+  <!-- SCRIPTS (same as original) -->
   <script src="/baremux/bare.cjs"></script>
-  <!-- Scramjet 2.x + controller 0.0.14: load core, controller API, then utils -->
   <script src="/scramjet/scramjet.js"></script>
   <script src="/controller/controller.api.js"></script>
   <script src="/utils/scramjet-utils.js"></script>
@@ -1140,1013 +1306,346 @@
 
   <script>
     /* =========================================================
-       SNOW
+       TASKBAR CLOCK
        ========================================================= */
-
-    const canvas = document.getElementById("snow");
-    const ctx = canvas.getContext("2d");
-
-    let flakes = [];
-
-    function resize() {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
+    function updateClock() {
+      const now = new Date();
+      const h = String(now.getHours()).padStart(2,'0');
+      const m = String(now.getMinutes()).padStart(2,'0');
+      const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+      const months = ['1','2','3','4','5','6','7','8','9','10','11','12'];
+      document.getElementById('taskbar-time').textContent = `${h}:${m}`;
+      document.getElementById('taskbar-date').textContent =
+        `${days[now.getDay()]} ${months[now.getMonth()]}/${now.getDate()}`;
     }
-
-    function makeFlake() {
-      return {
-        x: Math.random() * canvas.width,
-        y: Math.random() * -canvas.height,
-        r: Math.random() * 2.5 + 0.5,
-        speed: Math.random() * 0.8 + 0.3,
-        drift: Math.random() * 0.4 - 0.2,
-        op: Math.random() * 0.5 + 0.2
-      };
-    }
-
-    function initFlakes() {
-      flakes = [];
-
-      for (let i = 0; i < 120; i++) {
-        const f = makeFlake();
-        f.y = Math.random() * canvas.height;
-        flakes.push(f);
-      }
-    }
-
-    function drawSnow() {
-      ctx.clearRect(
-        0,
-        0,
-        canvas.width,
-        canvas.height
-      );
-
-      ctx.fillStyle = "#fff";
-
-      for (const f of flakes) {
-        ctx.globalAlpha = f.op;
-
-        ctx.beginPath();
-
-        ctx.arc(
-          f.x,
-          f.y,
-          f.r,
-          0,
-          Math.PI * 2
-        );
-
-        ctx.fill();
-
-        f.y += f.speed;
-        f.x += f.drift;
-
-        if (f.y > canvas.height + 5) {
-          Object.assign(
-            f,
-            makeFlake()
-          );
-        }
-      }
-
-      ctx.globalAlpha = 1;
-
-      requestAnimationFrame(drawSnow);
-    }
-
-    resize();
-    initFlakes();
-    drawSnow();
-
-    window.addEventListener(
-      "resize",
-      () => {
-        resize();
-        initFlakes();
-      }
-    );
-
+    updateClock();
+    setInterval(updateClock, 1000);
 
     /* =========================================================
        GLOBAL STATE
        ========================================================= */
-
     let currentContainerId = null;
     let currentVMType = null;
     let currentUrl = null;
-
     let pollInterval = null;
     let vmTimerInterval = null;
-
     let vmStartedAt = null;
-
     let vmTimeLimitSeconds = 30 * 60;
-
     let authMode = "register";
-
 
     /* =========================================================
        TOAST / STATUS
        ========================================================= */
-
     function toast(msg, isError = false) {
-      const element =
-        document.getElementById("toast");
-
+      const element = document.getElementById("toast");
       element.textContent = msg;
-
-      element.className =
-        "show" +
-        (isError ? " error" : "");
-
-      setTimeout(() => {
-        element.className = "";
-      }, 5000);
+      element.className = "show" + (isError ? " error" : "");
+      setTimeout(() => { element.className = ""; }, 5000);
     }
 
     function setStatus(msg) {
-      const element =
-        document.getElementById("status");
-
+      const element = document.getElementById("status");
       element.textContent = msg;
-
-      element.className =
-        msg.startsWith("Error") ||
-        msg.startsWith("Failed")
-          ? "error"
-          : "";
+      element.className = msg.startsWith("Error") || msg.startsWith("Failed") ? "error" : "";
     }
 
     function setLaunching(on) {
-      document
-        .querySelectorAll(".vm-button")
-        .forEach(button => {
-          button.disabled = on;
-        });
+      document.querySelectorAll(".vm-button").forEach(button => { button.disabled = on; });
     }
-
 
     /* =========================================================
        VM TIMER
        ========================================================= */
-
     function formatVMTime(totalSeconds) {
-      const hours =
-        Math.floor(totalSeconds / 3600);
-
-      const minutes =
-        Math.floor(
-          (totalSeconds % 3600) / 60
-        );
-
-      const seconds =
-        totalSeconds % 60;
-
-      const twoDigits =
-        value =>
-          String(value).padStart(2, "0");
-
+      const hours = Math.floor(totalSeconds / 3600);
+      const minutes = Math.floor((totalSeconds % 3600) / 60);
+      const seconds = totalSeconds % 60;
+      const twoDigits = value => String(value).padStart(2, "0");
       return hours > 0
         ? `${twoDigits(hours)}:${twoDigits(minutes)}:${twoDigits(seconds)}`
         : `${twoDigits(minutes)}:${twoDigits(seconds)}`;
     }
 
     function updateVMTimer() {
-      if (!vmStartedAt) {
-        return;
-      }
-
-      const elapsedSeconds =
-        Math.floor(
-          (Date.now() - vmStartedAt) / 1000
-        );
-
-      if (
-        elapsedSeconds >=
-        vmTimeLimitSeconds
-      ) {
-        toast(
-          "Your VM time has ended.",
-          true
-        );
-
+      if (!vmStartedAt) return;
+      const elapsedSeconds = Math.floor((Date.now() - vmStartedAt) / 1000);
+      if (elapsedSeconds >= vmTimeLimitSeconds) {
+        toast("Your VM time has ended.", true);
         closeVM();
-
         return;
       }
-
-      document.getElementById(
-        "vm-timer"
-      ).textContent =
-        formatVMTime(elapsedSeconds);
+      document.getElementById("vm-timer").textContent = formatVMTime(elapsedSeconds);
     }
 
     function startVMTimer() {
       clearInterval(vmTimerInterval);
-
       vmStartedAt = Date.now();
-
       updateVMTimer();
-
-      vmTimerInterval =
-        setInterval(
-          updateVMTimer,
-          1000
-        );
+      vmTimerInterval = setInterval(updateVMTimer, 1000);
     }
 
     function stopVMTimer() {
       clearInterval(vmTimerInterval);
-
       vmTimerInterval = null;
       vmStartedAt = null;
-
-      document.getElementById(
-        "vm-timer"
-      ).textContent = "00:00";
+      document.getElementById("vm-timer").textContent = "00:00";
     }
-
 
     /* =========================================================
        AUTH
        ========================================================= */
-
     function setAuthError(message = "") {
-      document.getElementById(
-        "auth-error"
-      ).textContent = message;
+      document.getElementById("auth-error").textContent = message;
     }
 
     function setAuthMode(mode) {
       authMode = mode;
-
-      const submit =
-        document.querySelector(
-          "#auth-card button[type='submit']"
-        );
-
-      const loginButton =
-        document.getElementById(
-          "login-button"
-        );
-
-      const password =
-        document.getElementById(
-          "auth-password"
-        );
-
+      const submit = document.querySelector("#auth-card button[type='submit']");
+      const loginButton = document.getElementById("login-button");
+      const password = document.getElementById("auth-password");
       if (mode === "login") {
-        submit.textContent =
-          "Log in — 1 hour";
-
-        loginButton.textContent =
-          "Need an account? Create one";
-
-        password.autocomplete =
-          "current-password";
+        submit.textContent = "Log in — 1 hour";
+        loginButton.textContent = "Need an account? Create one";
+        password.autocomplete = "current-password";
       } else {
-        submit.textContent =
-          "Create account — 1 hour";
-
-        loginButton.textContent =
-          "Already have an account? Log in";
-
-        password.autocomplete =
-          "new-password";
+        submit.textContent = "Create account — 1 hour";
+        loginButton.textContent = "Already have an account? Log in";
+        password.autocomplete = "new-password";
       }
-
       setAuthError();
     }
 
     function acceptAuth(data) {
-      vmTimeLimitSeconds =
-        data.vmMinutes * 60;
-
-      document
-        .getElementById("auth-wrap")
-        .classList.add("hidden");
-
-      toast(
-        `${data.username}: ${data.vmMinutes} minutes of VM time available.`
-      );
+      vmTimeLimitSeconds = data.vmMinutes * 60;
+      document.getElementById("auth-wrap").classList.add("hidden");
+      toast(`${data.username}: ${data.vmMinutes} minutes of VM time available.`);
     }
 
     async function checkAuth() {
       try {
-        const res =
-          await fetch("/api/auth/me");
-
-        const data =
-          await res.json();
-
-        if (data.loggedIn) {
-          acceptAuth(data);
-        }
-      } catch (_) {
-        // Auth check can fail without blocking the page.
-      }
+        const res = await fetch("/api/auth/me");
+        const data = await res.json();
+        if (data.loggedIn) { acceptAuth(data); }
+      } catch (_) {}
     }
 
-    document
-      .getElementById("auth-card")
-      .addEventListener(
-        "submit",
-        async event => {
-          event.preventDefault();
+    document.getElementById("auth-card").addEventListener("submit", async event => {
+      event.preventDefault();
+      const username = document.getElementById("auth-username").value.trim();
+      const password = document.getElementById("auth-password").value;
+      try {
+        const res = await fetch(
+          authMode === "login" ? "/api/auth/login" : "/api/auth/register",
+          { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username, password }) }
+        );
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Authentication failed.");
+        acceptAuth(data);
+      } catch (err) {
+        setAuthError(err.message || "Authentication failed.");
+      }
+    });
 
-          const username =
-            document.getElementById(
-              "auth-username"
-            ).value.trim();
+    document.getElementById("guest-button").addEventListener("click", async () => {
+      try {
+        const res = await fetch("/api/auth/guest", { method: "POST" });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Guest sign-in failed.");
+        acceptAuth(data);
+      } catch (err) {
+        setAuthError(err.message || "Guest sign-in failed.");
+      }
+    });
 
-          const password =
-            document.getElementById(
-              "auth-password"
-            ).value;
-
-          try {
-            const res =
-              await fetch(
-                authMode === "login"
-                  ? "/api/auth/login"
-                  : "/api/auth/register",
-                {
-                  method: "POST",
-                  headers: {
-                    "Content-Type":
-                      "application/json"
-                  },
-                  body: JSON.stringify({
-                    username,
-                    password
-                  })
-                }
-              );
-
-            const data =
-              await res.json();
-
-            if (!res.ok) {
-              throw new Error(
-                data.error ||
-                "Authentication failed."
-              );
-            }
-
-            acceptAuth(data);
-
-          } catch (err) {
-            setAuthError(
-              err.message ||
-              "Authentication failed."
-            );
-          }
-        }
-      );
-
-    document
-      .getElementById("guest-button")
-      .addEventListener(
-        "click",
-        async () => {
-          try {
-            const res =
-              await fetch(
-                "/api/auth/guest",
-                {
-                  method: "POST"
-                }
-              );
-
-            const data =
-              await res.json();
-
-            if (!res.ok) {
-              throw new Error(
-                data.error ||
-                "Guest sign-in failed."
-              );
-            }
-
-            acceptAuth(data);
-
-          } catch (err) {
-            setAuthError(
-              err.message ||
-              "Guest sign-in failed."
-            );
-          }
-        }
-      );
-
-    document
-      .getElementById("login-button")
-      .addEventListener(
-        "click",
-        () => {
-          setAuthMode(
-            authMode === "login"
-              ? "register"
-              : "login"
-          );
-        }
-      );
-
+    document.getElementById("login-button").addEventListener("click", () => {
+      setAuthMode(authMode === "login" ? "register" : "login");
+    });
 
     /* =========================================================
        LINKS
        ========================================================= */
+    document.getElementById("links-toggle").addEventListener("click", () => {
+      document.getElementById("links-panel").classList.add("show");
+    });
 
-    document
-      .getElementById("links-toggle")
-      .addEventListener(
-        "click",
-        () => {
-          document
-            .getElementById("links-panel")
-            .classList.add("show");
-        }
-      );
-
-    document
-      .getElementById("links-close")
-      .addEventListener(
-        "click",
-        () => {
-          document
-            .getElementById("links-panel")
-            .classList.remove("show");
-        }
-      );
-
+    document.getElementById("links-close").addEventListener("click", () => {
+      document.getElementById("links-panel").classList.remove("show");
+    });
 
     /* =========================================================
        /api/stats
-       KEEPING THIS FOR YOUR VM STATS
        ========================================================= */
-
     async function fetchPlayerCount() {
       try {
-        const controller =
-          new AbortController();
-
-        const timeout =
-          setTimeout(
-            () => controller.abort(),
-            5000
-          );
-
-        const res =
-          await fetch(
-            "/api/stats",
-            {
-              signal: controller.signal,
-              cache: "no-store"
-            }
-          );
-
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 5000);
+        const res = await fetch("/api/stats", { signal: controller.signal, cache: "no-store" });
         clearTimeout(timeout);
-
-        if (!res.ok) {
-          throw new Error(
-            `HTTP ${res.status}`
-          );
-        }
-
-        const data =
-          await res.json();
-
-        const count =
-          data.online ??
-          data.count ??
-          data.players ??
-          null;
-
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        const count = data.online ?? data.count ?? data.players ?? null;
         if (count !== null) {
-          document.getElementById(
-            "player-count-text"
-          ).textContent =
-            `${count} online`;
+          document.getElementById("player-count-text").textContent = `${count} online`;
         }
-
       } catch (err) {
-        /*
-         * IMPORTANT:
-         * Do NOT remove /api/stats.
-         *
-         * A 404 here means the current server deployment
-         * does not expose the endpoint. It does not break
-         * the VM buttons or Scramjet.
-         */
-
-        console.warn(
-          "Player count request failed:",
-          err
-        );
+        console.warn("Player count request failed:", err);
       }
     }
-
 
     /* =========================================================
        INITIAL PAGE LOAD
        ========================================================= */
-
-    document.addEventListener(
-      "DOMContentLoaded",
-      () => {
-        checkAuth();
-
-        fetchPlayerCount();
-
-        setInterval(
-          fetchPlayerCount,
-          15000
-        );
-      }
-    );
-
+    document.addEventListener("DOMContentLoaded", () => {
+      checkAuth();
+      fetchPlayerCount();
+      setInterval(fetchPlayerCount, 15000);
+    });
 
     /* =========================================================
        VM
        ========================================================= */
-
     function openVM(url) {
-      if (!url) {
-        throw new Error(
-          "No VM URL was provided."
-        );
-      }
-
+      if (!url) throw new Error("No VM URL was provided.");
       currentUrl = url;
-
-      const frame =
-        document.getElementById(
-          "vm-frame"
-        );
-
-      const wrapper =
-        document.getElementById(
-          "vm-frame-wrap"
-        );
-
+      const frame = document.getElementById("vm-frame");
+      const wrapper = document.getElementById("vm-frame-wrap");
       frame.src = "about:blank";
-
       wrapper.style.display = "flex";
-
       startVMTimer();
-
-      setTimeout(() => {
-        frame.src = url;
-      }, 50);
-
+      setTimeout(() => { frame.src = url; }, 50);
       setStatus("VM connected.");
-
       setLaunching(false);
-
       toast("VM launched!");
     }
 
-    document
-      .getElementById("vm-frame")
-      .addEventListener(
-        "load",
-        () => {
-          if (currentUrl) {
-            setStatus(
-              "VM stream loaded."
-            );
-          }
-        }
-      );
+    document.getElementById("vm-frame").addEventListener("load", () => {
+      if (currentUrl) setStatus("VM stream loaded.");
+    });
 
     async function closeVM() {
       clearInterval(pollInterval);
-
       stopVMTimer();
-
-      const frame =
-        document.getElementById(
-          "vm-frame"
-        );
-
-      const wrapper =
-        document.getElementById(
-          "vm-frame-wrap"
-        );
-
+      const frame = document.getElementById("vm-frame");
+      const wrapper = document.getElementById("vm-frame-wrap");
       frame.src = "about:blank";
-
       wrapper.style.display = "none";
-
-      if (
-        currentContainerId &&
-        currentVMType === "gpu"
-      ) {
-        try {
-          await fetch(
-            `/api/vm/${encodeURIComponent(
-              currentContainerId
-            )}`,
-            {
-              method: "DELETE"
-            }
-          );
-        } catch (err) {
-          console.warn(
-            "GPU cleanup failed:",
-            err
-          );
-        }
+      if (currentContainerId && currentVMType === "gpu") {
+        try { await fetch(`/api/vm/${encodeURIComponent(currentContainerId)}`, { method: "DELETE" }); }
+        catch (err) { console.warn("GPU cleanup failed:", err); }
       }
-
-      if (
-        currentContainerId &&
-        currentVMType === "e2b"
-      ) {
-        try {
-          await fetch(
-            `/api/e2b/${encodeURIComponent(
-              currentContainerId
-            )}`,
-            {
-              method: "DELETE"
-            }
-          );
-        } catch (err) {
-          console.warn(
-            "E2B cleanup failed:",
-            err
-          );
-        }
+      if (currentContainerId && currentVMType === "e2b") {
+        try { await fetch(`/api/e2b/${encodeURIComponent(currentContainerId)}`, { method: "DELETE" }); }
+        catch (err) { console.warn("E2B cleanup failed:", err); }
       }
-
       currentContainerId = null;
       currentVMType = null;
       currentUrl = null;
-
       setStatus("VM closed.");
-
       toast("VM closed.");
     }
 
     async function toggleFullscreen() {
-      const vm =
-        document.getElementById(
-          "vm-frame-wrap"
-        );
-
+      const vm = document.getElementById("vm-frame-wrap");
       try {
-        if (!document.fullscreenElement) {
-          await vm.requestFullscreen();
-        } else {
-          await document.exitFullscreen();
-        }
-      } catch (err) {
-        toast(
-          "Fullscreen failed: " +
-          err.message,
-          true
-        );
-      }
+        if (!document.fullscreenElement) { await vm.requestFullscreen(); }
+        else { await document.exitFullscreen(); }
+      } catch (err) { toast("Fullscreen failed: " + err.message, true); }
     }
-
 
     /* =========================================================
        SCRAMJET
        ========================================================= */
-
     let scramjetController = null;
     let scramjetFrame = null;
     let scramjetBrowserReady = false;
     let scramjetStarting = null;
 
-
-    function setBrowserStatus(
-      message,
-      show = true
-    ) {
-      const el =
-        document.getElementById(
-          "browser-status"
-        );
-
+    function setBrowserStatus(message, show = true) {
+      const el = document.getElementById("browser-status");
       el.textContent = message;
-
-      el.style.display =
-        show ? "block" : "none";
+      el.style.display = show ? "block" : "none";
     }
 
-
-    /*
-     * Wait until the service worker actually controls
-     * this page.
-     *
-     * register-sw.js performs the registration.
-     */
-
-    async function waitForScramjetControl(
-      registration
-    ) {
-      if (
-        navigator.serviceWorker.controller
-      ) {
-        return navigator.serviceWorker.controller;
-      }
-
-      const existing =
-        registration.active ||
-        registration.waiting ||
-        registration.installing;
-
-      if (
-        existing &&
-        existing.state !== "activated"
-      ) {
+    async function waitForScramjetControl(registration) {
+      if (navigator.serviceWorker.controller) return navigator.serviceWorker.controller;
+      const existing = registration.active || registration.waiting || registration.installing;
+      if (existing && existing.state !== "activated") {
         await new Promise((resolve, reject) => {
           const worker = existing;
-
-          const timeout =
-            setTimeout(
-              () => reject(new Error(
-                "Scramjet service worker did not activate within 10 seconds. Try refreshing."
-              )),
-              10000
-            );
-
-          worker.addEventListener(
-            "statechange",
-            () => {
-              if (
-                worker.state ===
-                "activated"
-              ) {
-                clearTimeout(timeout);
-                resolve();
-              } else if (
-                worker.state ===
-                "redundant"
-              ) {
-                clearTimeout(timeout);
-                reject(new Error(
-                  "Scramjet service worker became redundant. Try refreshing."
-                ));
-              }
-            },
-            { once: false }
-          );
+          const timeout = setTimeout(() => reject(new Error("Scramjet service worker did not activate within 10 seconds. Try refreshing.")), 10000);
+          worker.addEventListener("statechange", () => {
+            if (worker.state === "activated") { clearTimeout(timeout); resolve(); }
+            else if (worker.state === "redundant") { clearTimeout(timeout); reject(new Error("Scramjet service worker became redundant. Try refreshing.")); }
+          }, { once: false });
         });
       }
-
-      if (
-        navigator.serviceWorker.controller
-      ) {
-        return navigator.serviceWorker.controller;
+      if (navigator.serviceWorker.controller) return navigator.serviceWorker.controller;
+      if (sessionStorage.getItem("scramjet_sw_reload") !== "1") {
+        sessionStorage.setItem("scramjet_sw_reload", "1");
+        throw new Error("Scramjet service worker activated. Refreshing once so it can control this page.");
       }
-
-      /*
-       * Ask the page to reload itself once.
-       *
-       * This fixes the common case where the SW has just
-       * activated but the first page was loaded before it
-       * became the controller.
-       */
-
-      if (
-        sessionStorage.getItem(
-          "scramjet_sw_reload"
-        ) !== "1"
-      ) {
-        sessionStorage.setItem(
-          "scramjet_sw_reload",
-          "1"
-        );
-
-        throw new Error(
-          "Scramjet service worker activated. Refreshing once so it can control this page."
-        );
-      }
-
-      throw new Error(
-        "Scramjet service worker is active but is not controlling this page. Please refresh the page."
-      );
+      throw new Error("Scramjet service worker is active but is not controlling this page. Please refresh the page.");
     }
 
-
-    /*
-     * Load Controller.
-     *
-     * IMPORTANT:
-     * We intentionally do NOT destructure BareResponse
-     * from globalThis.$scramjet here.
-     *
-     * BareMuxConnection (bare-mux 2.x) handles the transport.
-     */
-
     function loadScramjetControllerApi() {
-      // controller 0.0.14: $scramjetController is exposed by
-      // /controller/controller.api.js loaded in the page.
-      if (
-        typeof $scramjetController === "undefined" ||
-        typeof $scramjetController.Controller !== "function"
-      ) {
-        throw new Error(
-          "controller.api.js did not expose $scramjetController.Controller. " +
-          "Check that /controller/controller.api.js is being served correctly."
-        );
+      if (typeof $scramjetController === "undefined" || typeof $scramjetController.Controller !== "function") {
+        throw new Error("controller.api.js did not expose $scramjetController.Controller. Check that /controller/controller.api.js is being served correctly.");
       }
       return $scramjetController;
     }
 
-
     async function initScramjetBrowser(frameEl, tab) {
-      // If controller already ready, just attach a new frame for this tab
       if (scramjetBrowserReady && scramjetController && frameEl && tab && !tab.sjFrame) {
         tab.sjFrame = scramjetController.createFrame(frameEl);
         return;
       }
-
-      if (scramjetBrowserReady && scramjetController && !frameEl) {
-        return;
-      }
-
-      /*
-       * Prevent two clicks from initializing
-       * Scramjet twice simultaneously.
-       */
-
-      if (scramjetStarting) {
-        return scramjetStarting;
-      }
-
-      scramjetStarting =
-        (async () => {
-
-          setBrowserStatus(
-            "Starting Scramjet…",
-            true
-          );
-
-          if (
-            !("serviceWorker" in navigator)
-          ) {
-            throw new Error(
-              "This browser does not support service workers."
-            );
+      if (scramjetBrowserReady && scramjetController && !frameEl) return;
+      if (scramjetStarting) return scramjetStarting;
+      scramjetStarting = (async () => {
+        setBrowserStatus("Starting Scramjet…", true);
+        if (!("serviceWorker" in navigator)) throw new Error("This browser does not support service workers.");
+        if (typeof window.registerScramjetServiceWorker !== "function") throw new Error("register-sw.js did not expose registerScramjetServiceWorker().");
+        const registration = await window.registerScramjetServiceWorker();
+        const serviceWorker = await waitForScramjetControl(registration);
+        setBrowserStatus("Loading Scramjet controller…", true);
+        const api = loadScramjetControllerApi();
+        const wispUrl = `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/wisp/`;
+        const { default: LibcurlClient } = await import("/libcurl/index.mjs");
+        const transport = new LibcurlClient({ wisp: wispUrl });
+        scramjetController = new api.Controller({
+          serviceworker: serviceWorker,
+          transport,
+          config: {
+            prefix: "/~/sj/",
+            scramjetPath: "/scramjet/scramjet.js",
+            wasmPath: "/scramjet/scramjet.wasm",
+            injectPath: "/controller/controller.inject.js"
+          },
+          scramjetConfig: {
+            flags: { captureErrors: true, allowInvalidJs: true }
           }
-
-
-          /*
-           * register-sw.js should expose this.
-           */
-
-          if (
-            typeof window
-              .registerScramjetServiceWorker !==
-            "function"
-          ) {
-            throw new Error(
-              "register-sw.js did not expose registerScramjetServiceWorker()."
-            );
-          }
-
-          const registration =
-            await window.registerScramjetServiceWorker();
-
-
-          /*
-           * Make sure the SW controls the page.
-           */
-
-          const serviceWorker =
-            await waitForScramjetControl(
-              registration
-            );
-
-
-          setBrowserStatus(
-            "Loading Scramjet controller…",
-            true
-          );
-
-
-          /*
-           * Load the controller only after the SW
-           * is controlling the page.
-           */
-
-          const api =
-            loadScramjetControllerApi();
-
-
-          /*
-           * libcurl transport for bare-mux 2.x.
-           * The transport instance is passed directly to the controller
-           * (controller 0.0.14 API) rather than set globally on BareMuxConnection.
-           */
-
-          const wispUrl =
-            `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/wisp/`;
-
-          const { default: LibcurlClient } =
-            await import("/libcurl/index.mjs");
-
-          const transport =
-            new LibcurlClient({ wisp: wispUrl });
-
-
-          /*
-           * controller 0.0.14: pass serviceworker + transport into the
-           * constructor alongside config and scramjetConfig.
-           * Note: strictRewrites was removed in 2.x and does nothing;
-           *       it has been dropped here.
-           */
-
-          scramjetController =
-            new api.Controller({
-              serviceworker: serviceWorker,
-              transport,
-
-              config: {
-                prefix:      "/~/sj/",
-                scramjetPath: "/scramjet/scramjet.js",
-                wasmPath:    "/scramjet/scramjet.wasm",
-                injectPath:  "/controller/controller.inject.js"
-              },
-
-              scramjetConfig: {
-                flags: {
-                  captureErrors: true,
-                  allowInvalidJs: true
-                }
-              }
-            });
-
-
-          setBrowserStatus(
-            "Initializing browser engine…",
-            true
-          );
-
-
-          // controller.wait() replaces init() in controller 0.0.14.
-          // It waits for the SW handshake and wasm compilation to complete.
-          await scramjetController.wait();
-
-
-          // Keepalive: post a ping every 15 s to prevent the browser from
-          // terminating the idle service worker (upstream bug — routing state
-          // is lost on SW restart, causing 404s until page reload).
-          setInterval(() => {
-            navigator.serviceWorker.controller?.postMessage("keepalive");
-          }, 15000);
-
-
-          const frameElement = frameEl || document.querySelector(".browser-frame");
-
-          scramjetFrame =
-            scramjetController.createFrame(
-              frameElement
-            );
-
-          if (tab) {
-            tab.sjFrame = scramjetFrame;
-          }
-
-          scramjetBrowserReady = true;
-
-
-          sessionStorage.removeItem(
-            "scramjet_sw_reload"
-          );
-
-
-          setBrowserStatus(
-            "",
-            false
-          );
-
-        })();
-
-      try {
-        await scramjetStarting;
-      } finally {
-        scramjetStarting = null;
-      }
+        });
+        setBrowserStatus("Initializing browser engine…", true);
+        await scramjetController.wait();
+        setInterval(() => { navigator.serviceWorker.controller?.postMessage("keepalive"); }, 15000);
+        const frameElement = frameEl || document.querySelector(".browser-frame");
+        scramjetFrame = scramjetController.createFrame(frameElement);
+        if (tab) tab.sjFrame = scramjetFrame;
+        scramjetBrowserReady = true;
+        sessionStorage.removeItem("scramjet_sw_reload");
+        setBrowserStatus("", false);
+      })();
+      try { await scramjetStarting; } finally { scramjetStarting = null; }
     }
-
 
     /* =========================================================
        TABS STATE
        ========================================================= */
-
-    let tabs = [];        // { id, title, url, frame, sjFrame }
+    let tabs = [];
     let activeTabId = null;
     let tabCounter = 0;
 
-    function getActiveTab() {
-      return tabs.find(t => t.id === activeTabId) || null;
-    }
+    function getActiveTab() { return tabs.find(t => t.id === activeTabId) || null; }
 
     function renderTabBar() {
       const list = document.getElementById("tab-list");
@@ -2155,26 +1654,17 @@
         const el = document.createElement("div");
         el.className = "tab" + (tab.id === activeTabId ? " active" : "");
         el.dataset.id = tab.id;
-        el.innerHTML = `
-          <span class="tab-title">${tab.title}</span>
-          <span class="tab-close" data-id="${tab.id}">✕</span>
-        `;
+        el.innerHTML = `<span class="tab-title">${tab.title}</span><span class="tab-close" data-id="${tab.id}">✕</span>`;
         el.addEventListener("click", e => {
-          if (e.target.classList.contains("tab-close")) {
-            closeTab(tab.id);
-          } else {
-            switchTab(tab.id);
-          }
+          if (e.target.classList.contains("tab-close")) closeTab(tab.id);
+          else switchTab(tab.id);
         });
         list.appendChild(el);
       });
     }
 
     function switchTab(id) {
-      // hide all frames
-      tabs.forEach(t => {
-        if (t.frame) t.frame.classList.remove("active");
-      });
+      tabs.forEach(t => { if (t.frame) t.frame.classList.remove("active"); });
       activeTabId = id;
       const tab = getActiveTab();
       if (tab && tab.frame) {
@@ -2188,16 +1678,9 @@
       const idx = tabs.findIndex(t => t.id === id);
       if (idx === -1) return;
       const tab = tabs[idx];
-      if (tab.frame) {
-        try { tab.frame.src = "about:blank"; } catch (_) {}
-        tab.frame.remove();
-      }
+      if (tab.frame) { try { tab.frame.src = "about:blank"; } catch (_) {} tab.frame.remove(); }
       tabs.splice(idx, 1);
-      if (tabs.length === 0) {
-        closeScramjetBrowser();
-        return;
-      }
-      // switch to adjacent tab
+      if (tabs.length === 0) { closeScramjetBrowser(); return; }
       const next = tabs[Math.min(idx, tabs.length - 1)];
       switchTab(next.id);
     }
@@ -2210,12 +1693,9 @@
       frameEl.allow = "fullscreen; autoplay; clipboard-read; clipboard-write; encrypted-media; picture-in-picture";
       frameEl.referrerPolicy = "no-referrer";
       document.getElementById("browser-frames").appendChild(frameEl);
-
       const tab = { id, title: "New Tab", url: url || "https://www.google.com/", frame: frameEl, sjFrame: null };
       tabs.push(tab);
       switchTab(id);
-
-      // init scramjet into this frame
       try {
         await initScramjetBrowser(frameEl, tab);
         await navigateScramjet(url || "https://www.google.com/", tab);
@@ -2232,112 +1712,45 @@
       const browser = document.getElementById("browser-wrap");
       browser.style.display = "flex";
       document.getElementById("vm-frame-wrap").style.display = "none";
-
-      if (tabs.length === 0) {
-        await newTab(initialUrl || "https://www.google.com/");
-      } else if (initialUrl) {
-        await navigateScramjet(initialUrl);
-      }
+      if (tabs.length === 0) { await newTab(initialUrl || "https://www.google.com/"); }
+      else if (initialUrl) { await navigateScramjet(initialUrl); }
     }
 
     async function navigateScramjet(value, tab) {
       const t = tab || getActiveTab();
       if (!t) return;
-
       try {
-        if (!t.sjFrame) {
-          await initScramjetBrowser(t.frame, t);
-        }
-
+        if (!t.sjFrame) await initScramjetBrowser(t.frame, t);
         const raw = typeof value === "string" ? value.trim() : document.getElementById("browser-address").value.trim();
         if (!raw) return;
-
         const url = normalizeBrowserUrl(raw);
         t.url = url;
         document.getElementById("browser-address").value = url;
-
-        // update tab title while loading
         t.title = new URL(url).hostname || "Loading…";
         renderTabBar();
-
         setBrowserStatus("Loading…", true);
         t.sjFrame.go(url);
         setTimeout(() => setBrowserStatus("", false), 1500);
-
       } catch (err) {
         console.error("Scramjet navigation failed:", err);
-
-
-        setBrowserStatus(
-          "Navigation error: " +
-          (
-            err?.message ||
-            err
-          ),
-          true
-        );
+        setBrowserStatus("Navigation error: " + (err?.message || err), true);
       }
     }
 
-
-    function normalizeBrowserUrl(
-      value
-    ) {
-
-      if (
-        /^[a-z][a-z0-9+.-]*:\/\//i.test(
-          value
-        )
-      ) {
-        return value;
-      }
-
-
-      if (
-        /^[a-z][a-z0-9+.-]*:/i.test(
-          value
-        )
-      ) {
-        return value;
-      }
-
-
-      if (
-        /^[^\s.]+\.[^\s]+$/.test(
-          value
-        )
-      ) {
-        return (
-          "https://" +
-          value
-        );
-      }
-
-
+    function normalizeBrowserUrl(value) {
+      if (/^[a-z][a-z0-9+.-]*:\/\//i.test(value)) return value;
+      if (/^[a-z][a-z0-9+.-]*:/i.test(value)) return value;
+      if (/^[^\s.]+\.[^\s]+$/.test(value)) return "https://" + value;
       return browserSearchUrl(value);
     }
 
-
-    function scramjetBack() {
-      const t = getActiveTab();
-      if (t?.sjFrame) t.sjFrame.back();
-    }
-
-    function scramjetForward() {
-      const t = getActiveTab();
-      if (t?.sjFrame) t.sjFrame.forward();
-    }
-
-    function scramjetReload() {
-      const t = getActiveTab();
-      if (t?.sjFrame) t.sjFrame.reload();
-    }
+    function scramjetBack()    { const t = getActiveTab(); if (t?.sjFrame) t.sjFrame.back(); }
+    function scramjetForward() { const t = getActiveTab(); if (t?.sjFrame) t.sjFrame.forward(); }
+    function scramjetReload()  { const t = getActiveTab(); if (t?.sjFrame) t.sjFrame.reload(); }
 
     function closeScramjetBrowser() {
       document.getElementById("browser-wrap").style.display = "none";
-      tabs.forEach(t => {
-        try { if (t.frame) t.frame.src = "about:blank"; } catch (_) {}
-      });
+      tabs.forEach(t => { try { if (t.frame) t.frame.src = "about:blank"; } catch (_) {} });
       tabs = [];
       activeTabId = null;
       tabCounter = 0;
@@ -2346,357 +1759,110 @@
       document.getElementById("tab-list").innerHTML = "";
     }
 
-
     /* =========================================================
        E2B VM
        ========================================================= */
-
     async function launchE2BVM() {
       clearInterval(pollInterval);
-
       setLaunching(true);
-
-      setStatus(
-        "Starting E2B Desktop VM..."
-      );
-
+      setStatus("Starting E2B Desktop VM...");
       try {
-
-        const res =
-          await fetch(
-            "/api/e2b/start",
-            {
-              method: "POST",
-              headers: {
-                "Content-Type":
-                  "application/json"
-              }
-            }
-          );
-
-
-        const data =
-          await res.json();
-
-
-        if (!res.ok) {
-          throw new Error(
-            data.error ||
-            data.message ||
-            `E2B server returned HTTP ${res.status}.`
-          );
-        }
-
-
-        if (
-          data.status &&
-          data.status !==
-          "success"
-        ) {
-          throw new Error(
-            data.error ||
-            data.message ||
-            "E2B sandbox did not start successfully."
-          );
-        }
-
-
-        if (!data.sandboxId) {
-          throw new Error(
-            "E2B did not return a sandbox ID."
-          );
-        }
-
-
-        if (!data.url) {
-          throw new Error(
-            "E2B did not return a desktop stream URL."
-          );
-        }
-
-
-        currentContainerId =
-          data.sandboxId;
-
-        currentVMType =
-          "e2b";
-
-
+        const res = await fetch("/api/e2b/start", { method: "POST", headers: { "Content-Type": "application/json" } });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || data.message || `E2B server returned HTTP ${res.status}.`);
+        if (data.status && data.status !== "success") throw new Error(data.error || data.message || "E2B sandbox did not start successfully.");
+        if (!data.sandboxId) throw new Error("E2B did not return a sandbox ID.");
+        if (!data.url) throw new Error("E2B did not return a desktop stream URL.");
+        currentContainerId = data.sandboxId;
+        currentVMType = "e2b";
         openVM(data.url);
-
       } catch (err) {
-
-        setStatus(
-          "Error: " +
-          err.message
-        );
-
-
-        toast(
-          "E2B launch failed: " +
-          err.message,
-          true
-        );
-
-
-        currentContainerId =
-          null;
-
-        currentVMType =
-          null;
-
-        currentUrl =
-          null;
-
-
+        setStatus("Error: " + err.message);
+        toast("E2B launch failed: " + err.message, true);
+        currentContainerId = null;
+        currentVMType = null;
+        currentUrl = null;
         setLaunching(false);
       }
     }
-
 
     /* =========================================================
        GPU VM
        ========================================================= */
-
     async function launchGPUVM() {
       clearInterval(pollInterval);
-
       setLaunching(true);
-
-      setStatus(
-        "Requesting GPU instance..."
-      );
-
+      setStatus("Requesting GPU instance...");
       try {
-
-        const res =
-          await fetch(
-            "/api/launch?gpu=true"
-          );
-
-
-        const data =
-          await res.json();
-
-
-        if (!res.ok) {
-          throw new Error(
-            data.error ||
-            data.message ||
-            `GPU server returned HTTP ${res.status}.`
-          );
-        }
-
-
-        if (
-          data.status ===
-          "success"
-        ) {
-
-          currentContainerId =
-            data.container_id;
-
-          currentVMType =
-            "gpu";
-
+        const res = await fetch("/api/launch?gpu=true");
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || data.message || `GPU server returned HTTP ${res.status}.`);
+        if (data.status === "success") {
+          currentContainerId = data.container_id;
+          currentVMType = "gpu";
           openVM(data.url);
-
           return;
         }
-
-
-        if (
-          data.status ===
-          "queued"
-        ) {
-
-          setStatus(
-            `Queued — position ${data.position ?? "?"}. Waiting…`
-          );
-
+        if (data.status === "queued") {
+          setStatus(`Queued — position ${data.position ?? "?"}. Waiting…`);
           pollQueue(data.token);
-
           return;
         }
-
-
-        throw new Error(
-          data.error ||
-          data.message ||
-          JSON.stringify(data)
-        );
-
+        throw new Error(data.error || data.message || JSON.stringify(data));
       } catch (err) {
-
-        setStatus(
-          "Error: " +
-          err.message
-        );
-
-
-        toast(
-          "GPU launch failed: " +
-          err.message,
-          true
-        );
-
-
+        setStatus("Error: " + err.message);
+        toast("GPU launch failed: " + err.message, true);
         setLaunching(false);
       }
     }
-
 
     /* =========================================================
        GPU QUEUE
        ========================================================= */
-
     async function pollQueue(token) {
       clearInterval(pollInterval);
-
-      if (!token) {
-
-        setLaunching(false);
-
-        throw new Error(
-          "GPU queue did not return a token."
-        );
-      }
-
-
-      pollInterval =
-        setInterval(
-          async () => {
-
-            try {
-
-              const res =
-                await fetch(
-                  `/api/queue?token=${encodeURIComponent(
-                    token
-                  )}`
-                );
-
-
-              const data =
-                await res.json();
-
-
-              if (!res.ok) {
-                throw new Error(
-                  data.error ||
-                  data.message ||
-                  `Queue request failed with HTTP ${res.status}.`
-                );
-              }
-
-
-              if (
-                data.status ===
-                "allocated"
-              ) {
-
-                clearInterval(
-                  pollInterval
-                );
-
-
-                currentContainerId =
-                  data.container_id;
-
-                currentVMType =
-                  "gpu";
-
-
-                openVM(
-                  data.url
-                );
-
-                return;
-              }
-
-
-              if (
-                data.status ===
-                "failed"
-              ) {
-
-                clearInterval(
-                  pollInterval
-                );
-
-
-                setStatus(
-                  "Failed: " +
-                  (
-                    data.reason ||
-                    "unknown"
-                  )
-                );
-
-
-                toast(
-                  "Queue failed: " +
-                  (
-                    data.reason ||
-                    "unknown"
-                  ),
-                  true
-                );
-
-
-                setLaunching(false);
-
-                return;
-              }
-
-
-              if (
-                data.position !==
-                undefined
-              ) {
-
-                setStatus(
-                  `Queued — position ${data.position}. Waiting…`
-                );
-
-              } else {
-
-                setStatus(
-                  "Waiting for GPU instance..."
-                );
-              }
-
-            } catch (err) {
-
-              console.warn(
-                "Queue polling error:",
-                err
-              );
-            }
-
-          },
-          4000
-        );
+      if (!token) { setLaunching(false); throw new Error("GPU queue did not return a token."); }
+      pollInterval = setInterval(async () => {
+        try {
+          const res = await fetch(`/api/queue?token=${encodeURIComponent(token)}`);
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || data.message || `Queue request failed with HTTP ${res.status}.`);
+          if (data.status === "allocated") {
+            clearInterval(pollInterval);
+            currentContainerId = data.container_id;
+            currentVMType = "gpu";
+            openVM(data.url);
+            return;
+          }
+          if (data.status === "failed") {
+            clearInterval(pollInterval);
+            setStatus("Failed: " + (data.reason || "unknown"));
+            toast("Queue failed: " + (data.reason || "unknown"), true);
+            setLaunching(false);
+            return;
+          }
+          if (data.position !== undefined) setStatus(`Queued — position ${data.position}. Waiting…`);
+          else setStatus("Waiting for GPU instance...");
+        } catch (err) { console.warn("Queue polling error:", err); }
+      }, 4000);
     }
-
 
     /* =========================================================
        GAMES PANEL
        ========================================================= */
-
     const GAMES = [
-  { name: "Roblox", img: "/img/roblox.png", url: "https://nowgg.fun/apps/a/19900/b.html" },
-  { name: "Stumble Guys", img: "/img/stumbleguys.jpg", url: "https://nowgg.fun/apps/a/10011/b.html" },
-  { name: "Fortnite", img: "/img/fortnite.png", url: "https://nowgg.fun/apps/aptoide/5874/aptoide.html?deep_link=aptoidesearch://com.epicgames.fortnite" },
-  { name: "Call of Duty", img: "/img/cod.jpg", url: "https://nowgg.fun/apps/a/10008/b.html?" },
-  { name: "Melon Sandbox", img: "/img/melon-sandbox.png", url: "https://nowgg.fun/apps/playducky/7199/melon-sandbox.html?" },
-  { name: "Aptoide", img: "/img/aptoide.png", url: "https://nowgg.fun/apps/playducky/7199/melon-sandbox.html?" },
-  { name: "Android", img: "/img/android.jpg", url: "https://nowgg.fun/apps/uncube/7074/now.html?" },
-  { name: "Cookie Run", img: "/img/cookierun.png", url: "https://nowgg.fun/apps/a/10019/b.html?" },
-  { name: "Geometry Dash", img: "/img/geodash.jpeg", url: "https://nowgg.fun/apps/robtop-games/1400/geometry-dash.html" },
-  { name: "Rocket League", img: "/img/rocketleague.jpeg", url: "https://nowgg.fun/apps/psyonix-studios/4656/rocket-league.html?" },
-  { name: "Minecraft", img: "/img/minecraft.png", url: "https://nowgg.fun/apps/aptoide/5874/aptoide.html?deep_link=aptoidesearch://com.mojang.minecrafttrialpe" }
-];
+      { name: "Roblox",        img: "/img/roblox.png",       url: "https://nowgg.fun/apps/a/19900/b.html" },
+      { name: "Stumble Guys",  img: "/img/stumbleguys.jpg",  url: "https://nowgg.fun/apps/a/10011/b.html" },
+      { name: "Fortnite",      img: "/img/fortnite.png",     url: "https://nowgg.fun/apps/aptoide/5874/aptoide.html?deep_link=aptoidesearch://com.epicgames.fortnite" },
+      { name: "Call of Duty",  img: "/img/cod.jpg",          url: "https://nowgg.fun/apps/a/10008/b.html?" },
+      { name: "Melon Sandbox", img: "/img/melon-sandbox.png",url: "https://nowgg.fun/apps/playducky/7199/melon-sandbox.html?" },
+      { name: "Aptoide",       img: "/img/aptoide.png",      url: "https://nowgg.fun/apps/playducky/7199/melon-sandbox.html?" },
+      { name: "Android",       img: "/img/android.jpg",      url: "https://nowgg.fun/apps/uncube/7074/now.html?" },
+      { name: "Cookie Run",    img: "/img/cookierun.png",    url: "https://nowgg.fun/apps/a/10019/b.html?" },
+      { name: "Geometry Dash", img: "/img/geodash.jpeg",     url: "https://nowgg.fun/apps/robtop-games/1400/geometry-dash.html" },
+      { name: "Rocket League", img: "/img/rocketleague.jpeg",url: "https://nowgg.fun/apps/psyonix-studios/4656/rocket-league.html?" },
+      { name: "Minecraft",     img: "/img/minecraft.png",    url: "https://nowgg.fun/apps/aptoide/5874/aptoide.html?deep_link=aptoidesearch://com.mojang.minecrafttrialpe" }
+    ];
 
     let filteredGames = [...GAMES];
 
@@ -2708,7 +1874,7 @@
         card.className = "game-card";
         card.onclick = () => launchGame(game.url);
         card.innerHTML = `
-          <img src="${game.img}" alt="${game.name}" loading="lazy" onerror="this.style.background='#1b1b20';this.style.height='130px'">
+          <img src="${game.img}" alt="${game.name}" loading="lazy" onerror="this.style.background='#1a1a1a';this.style.height='130px'">
           <div class="game-card-name">${game.name}</div>
         `;
         grid.appendChild(card);
@@ -2717,9 +1883,7 @@
 
     function filterGames(query) {
       const q = query.toLowerCase().trim();
-      filteredGames = q
-        ? GAMES.filter(g => g.name.toLowerCase().includes(q))
-        : [...GAMES];
+      filteredGames = q ? GAMES.filter(g => g.name.toLowerCase().includes(q)) : [...GAMES];
       renderGames(filteredGames);
     }
 
@@ -2744,18 +1908,10 @@
     /* =========================================================
        BEFORE UNLOAD
        ========================================================= */
-
-    window.addEventListener(
-      "beforeunload",
-      event => {
-
-        event.preventDefault();
-
-        event.returnValue = "";
-
-      }
-    );
-
+    window.addEventListener("beforeunload", event => {
+      event.preventDefault();
+      event.returnValue = "";
+    });
   </script>
 
 </body>
