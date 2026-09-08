@@ -958,6 +958,7 @@
         <select id="ai-provider" onchange="onProviderChange()">
           <option value="google">🔵 Google AI Studio</option>
           <option value="nvidia">🟢 NVIDIA Build</option>
+          <option value="groq">🟠 Groq</option>
         </select>
         <select id="ai-model">
           <option value="gemini-2.5-flash">gemini-2.5-flash</option>
@@ -1067,15 +1068,18 @@
     // Multi-provider key storage
     const aiProviderKeys = {
       google: localStorage.getItem('googleAIKey') || '',
-      nvidia: localStorage.getItem('nvidiaAIKey') || ''
+      nvidia: localStorage.getItem('nvidiaAIKey') || '',
+      groq: localStorage.getItem('groqAIKey') || ''
     };
     const AI_MODELS = {
       google: ['gemini-2.5-flash','gemini-2.5-pro','gemini-2.5-flash-lite','gemini-3.6-flash','gemini-3.6-flash-lite'],
-      nvidia: ['minimax/minimax-m2.7','moonshotai/kimi-k2','deepseek-ai/deepseek-r2','meta/llama-4-maverick','meta/llama-4-scout','nvidia/llama-3.3-nemotron-super-49b-v1','nvidia/llama-3.1-nemotron-ultra-253b-v1','mistralai/mistral-large-2-instruct','microsoft/phi-4','qwen/qwen3-235b-a22b','zhipuai/glm-5-1']
+      nvidia: ['minimax/minimax-m2.7','moonshotai/kimi-k2','deepseek-ai/deepseek-r2','meta/llama-4-maverick','meta/llama-4-scout','nvidia/llama-3.3-nemotron-super-49b-v1','nvidia/llama-3.1-nemotron-ultra-253b-v1','mistralai/mistral-large-2-instruct','microsoft/phi-4','qwen/qwen3-235b-a22b','zhipuai/glm-5-1'],
+      groq: ['gpt-oss-120b']
     };
     const AI_PROVIDER_LABELS = {
       google: 'Google AI Studio',
-      nvidia: 'NVIDIA Build'
+      nvidia: 'NVIDIA Build',
+      groq: 'Groq'
     };
     let currentAIProvider = (localStorage.getItem('aiProvider') === 'deepseek') ? 'google' : (localStorage.getItem('aiProvider') || 'google');
 
@@ -1127,7 +1131,8 @@
       keyInput.value=aiProviderKeys[provider]||'';
       const placeholders={
         google:'Enter Google AI Studio API Key...',
-        nvidia:'Enter NVIDIA Build API Key...'
+        nvidia:'Enter NVIDIA Build API Key...',
+        groq:'Enter Groq API Key...'
       };
       keyInput.placeholder=placeholders[provider];
       // Update title
@@ -1161,7 +1166,7 @@
       if(!apiKey){toast('Please enter your '+AI_PROVIDER_LABELS[provider]+' API key',true);return}
       // Save key per provider
       aiProviderKeys[provider]=apiKey;
-      const lsKeyMap={google:'googleAIKey',nvidia:'nvidiaAIKey'};
+      const lsKeyMap={google:'googleAIKey',nvidia:'nvidiaAIKey',groq:'groqAIKey'};
       localStorage.setItem(lsKeyMap[provider],apiKey);
       localStorage.setItem('aiModel_'+provider,model);
       input.value='';
@@ -1198,6 +1203,16 @@
           });
           const data=await res.json();
           if(data.error)throw new Error(data.error.message||'NVIDIA API error');
+          reply=data?.choices?.[0]?.message?.content||'No response';
+        } else if(provider==='groq'){
+          // Groq — OpenAI-compatible endpoint
+          const res=await fetch('https://api.groq.com/openai/v1/chat/completions',{
+            method:'POST',
+            headers:{'Content-Type':'application/json','Authorization':'Bearer '+apiKey},
+            body:JSON.stringify({model,messages:[{role:'user',content:text}],max_tokens:1024})
+          });
+          const data=await res.json();
+          if(data.error)throw new Error(data.error.message||'Groq API error');
           reply=data?.choices?.[0]?.message?.content||'No response';
         }
         loadingDiv.remove();
