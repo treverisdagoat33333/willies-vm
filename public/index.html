@@ -58,7 +58,7 @@
       from { text-shadow: 0 4px 24px rgba(0,0,0,0.6), 0 0 40px rgba(255,255,255,0.1); }
       to { text-shadow: 0 4px 32px rgba(0,0,0,0.8), 0 0 80px rgba(255,255,255,0.3); }
     }
-    #desktop{position:fixed;inset:0;bottom:var(--taskbar-h);z-index:1;display:flex;align-items:center;justify-content:center}
+    #desktop{position:fixed;inset:0;bottom:0;z-index:1;display:flex;align-items:center;justify-content:center}
 
     .win-window{position:absolute;background:var(--surface);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow);overflow:hidden;width:min(460px,94vw);will-change:transform;animation:windowOpen .45s var(--spring) both}
     @keyframes windowOpen{from{opacity:0;transform:scale(.88) translateY(18px)}to{opacity:1;transform:scale(1) translateY(0)}}
@@ -123,7 +123,7 @@
     #vm-toolbar button{background:rgba(255,255,255,.07);color:var(--text);border:1px solid var(--border);border-radius:var(--radius-sm);padding:5px 12px;font-size:12px;font-family:inherit;cursor:pointer;transition:background .15s,transform .1s;display:flex;align-items:center;gap:5px}
     #vm-toolbar button:hover{background:rgba(255,255,255,.13);transform:translateY(-1px)}
     #vm-toolbar button.close-btn:hover{background:#c42b1c;border-color:#c42b1c}
-    #vm-frame{width:100%;height:calc(100vh - 42px);flex:1;border:0;background:#000}
+    #vm-frame{width:100%;height:100%;flex:1;border:0;background:#000}
 
     #browser-wrap{display:none;position:fixed;inset:0;width:100vw;height:100vh;background:#131316;z-index:10000;flex-direction:column;animation:panelIn .35s var(--spring) both}
     #browser-wrap.closing{animation:panelOut .25s var(--snappy) forwards!important}
@@ -172,7 +172,7 @@
     .link-grid a{display:block;padding:8px 10px;color:var(--text);background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:var(--radius-sm);font-size:12px;font-weight:500;text-align:center;text-decoration:none;transition:background .15s,transform .12s var(--spring),border-color .15s}
     .link-grid a:hover{background:var(--accent);border-color:transparent;transform:translateY(-2px)}
 
-    #toast{position:fixed;bottom:calc(var(--taskbar-h) + 14px);right:1rem;max-width:min(360px,calc(100vw - 2rem));background:rgba(22,22,26,.97);border:1px solid var(--border-bright);border-radius:var(--radius);padding:12px 16px;font-size:13px;font-family:inherit;color:var(--text-secondary);z-index:10002;transform:translateX(calc(100% + 20px));transition:transform .4s var(--spring);backdrop-filter:blur(20px);box-shadow:0 8px 32px rgba(0,0,0,.5)}
+    #toast{position:fixed;bottom:14px;right:1rem;max-width:min(360px,calc(100vw - 2rem));background:rgba(22,22,26,.97);border:1px solid var(--border-bright);border-radius:var(--radius);padding:12px 16px;font-size:13px;font-family:inherit;color:var(--text-secondary);z-index:10002;transform:translateX(calc(100% + 20px));transition:transform .4s var(--spring);backdrop-filter:blur(20px);box-shadow:0 8px 32px rgba(0,0,0,.5)}
     #toast.show{transform:translateX(0)}
     #toast.error{border-color:#fc6060;color:#fc6060}
     #toast.success{border-color:#4ade80;color:#4ade80}
@@ -198,7 +198,9 @@
     .recent-game-item img{width:50px;height:50px;border-radius:8px;object-fit:cover}
     .recent-game-item span{font-size:10px;color:var(--text-secondary);max-width:70px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
-    #taskbar{position:fixed;bottom:0;left:0;right:0;height:var(--taskbar-h);background:var(--taskbar-bg);backdrop-filter:blur(64px) saturate(180%);-webkit-backdrop-filter:blur(64px) saturate(180%);border-top:1px solid rgba(255,255,255,.07);z-index:9998;display:flex;align-items:center;justify-content:center;gap:4px}
+    #taskbar{position:fixed;bottom:0;left:0;right:0;height:var(--taskbar-h);background:var(--taskbar-bg);backdrop-filter:blur(64px) saturate(180%);-webkit-backdrop-filter:blur(64px) saturate(180%);border-top:1px solid rgba(255,255,255,.07);z-index:9998;display:flex;align-items:center;justify-content:center;gap:4px;transform:translateY(100%);transition:transform .35s var(--spring),opacity .3s;opacity:0;pointer-events:none}
+    #taskbar.visible{transform:translateY(0);opacity:1;pointer-events:all}
+    #taskbar-hover-zone{position:fixed;bottom:0;left:0;right:0;height:12px;z-index:9997;background:transparent}
     .taskbar-center{display:flex;align-items:center;gap:2px}
     .taskbar-btn{width:42px;height:42px;display:flex;align-items:center;justify-content:center;border-radius:var(--radius-sm);cursor:pointer;transition:background .18s var(--snappy),transform .22s var(--spring),color .18s;font-size:20px;position:relative;border:none;background:transparent;color:var(--text-secondary)}
     .taskbar-btn img{width:22px;height:22px;border-radius:4px;object-fit:contain}
@@ -219,7 +221,7 @@
     .desktop-icon-img img{width:30px;height:30px;border-radius:6px;object-fit:contain}
     .desktop-icon-label{font-size:11px;color:#fff;font-weight:500;text-shadow:0 1px 4px rgba(0,0,0,.9);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:66px}
 
-    #minimized-bar{position:fixed;bottom:calc(var(--taskbar-h) + 6px);left:50%;transform:translateX(-50%);display:flex;gap:6px;align-items:center;z-index:9997}
+    #minimized-bar{position:fixed;bottom:8px;left:50%;transform:translateX(-50%);display:flex;gap:6px;align-items:center;z-index:9996}
     .minimized-chip{padding:4px 12px;background:rgba(22,22,26,.92);border:1px solid var(--border);border-radius:20px;font-size:12px;cursor:pointer;font-family:inherit;color:var(--text-secondary);backdrop-filter:blur(20px);transition:background .15s,transform .12s var(--spring);animation:chipIn .3s var(--spring) both}
     .minimized-chip:hover{background:rgba(255,255,255,.12);transform:translateY(-2px);color:var(--text)}
     @keyframes chipIn{from{opacity:0;transform:scale(.8) translateY(8px)}to{opacity:1;transform:scale(1) translateY(0)}}
@@ -261,7 +263,7 @@
       border: 1px solid var(--border-bright);
       border-radius: var(--radius-lg);
       box-shadow: var(--shadow);
-      z-index: 9996;
+      z-index: 9995;
       display: flex;
       flex-direction: column;
       overflow: hidden;
@@ -769,6 +771,8 @@
     <iframe id="vm-frame" title="Virtual Machine" allow="fullscreen; autoplay; clipboard-read; clipboard-write" referrerpolicy="no-referrer"></iframe>
   </div>
 
+  <div id="taskbar-hover-zone"></div>
+
   <div id="taskbar">
     <div id="taskbar-left"></div>
     <div class="taskbar-center">
@@ -813,6 +817,7 @@
     let recentGames = JSON.parse(localStorage.getItem('recentGames') || '[]');
     let chatMessages = JSON.parse(localStorage.getItem('chatMessages') || '[]');
     let currentUsername = 'Guest';
+    let taskbarTimer = null;
 
     function updateClock(){const now=new Date(),h=String(now.getHours()).padStart(2,'0'),m=String(now.getMinutes()).padStart(2,'0'),days=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'],months=['1','2','3','4','5','6','7','8','9','10','11','12'];document.getElementById('taskbar-time').textContent=`${h}:${m}`;document.getElementById('taskbar-date').textContent=`${days[now.getDay()]} ${months[now.getMonth()]}/${now.getDate()}`}
     updateClock();setInterval(updateClock,1000);
@@ -826,6 +831,20 @@
 
     function getFavicon(url,sz=16){try{const d=new URL(url).hostname;return d?`https://www.google.com/s2/favicons?domain=${d}&sz=${sz}`:''}catch(_){return''}}
     function updateBrowserFavicon(url){const el=document.getElementById('browser-favicon');if(!url){el.style.display='none';return}const src=getFavicon(url,32);if(src){el.src=src;el.style.display='block';el.onerror=()=>{el.style.display='none'}}else el.style.display='none'}
+
+    function showTaskbar(){
+      clearTimeout(taskbarTimer);
+      document.getElementById('taskbar').classList.add('visible');
+    }
+    function hideTaskbar(){
+      taskbarTimer=setTimeout(()=>{
+        document.getElementById('taskbar').classList.remove('visible');
+      },300);
+    }
+    document.getElementById('taskbar-hover-zone').addEventListener('mouseenter',showTaskbar);
+    document.getElementById('taskbar-hover-zone').addEventListener('mouseleave',hideTaskbar);
+    document.getElementById('taskbar').addEventListener('mouseenter',showTaskbar);
+    document.getElementById('taskbar').addEventListener('mouseleave',hideTaskbar);
 
     (function(){
       const win=document.getElementById('main-window'),handle=document.getElementById('win-drag-handle');
