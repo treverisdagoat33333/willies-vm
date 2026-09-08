@@ -32,7 +32,6 @@
     *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
     body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:#000;display:flex;align-items:center;justify-content:center;height:100vh;overflow:hidden;color:var(--text);user-select:none}
 
-    /* ICONS (monochrome, replaces emoji) */
     .icon{width:1em;height:1em;display:inline-block;vertical-align:-0.15em;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;transition:transform .18s var(--spring),opacity .15s}
     .icon-lg{width:18px;height:18px}
     .icon-sm{width:13px;height:13px}
@@ -40,7 +39,6 @@
     button:active .icon{transform:scale(.92)}
     #desktop-bg{position:fixed;inset:0;z-index:0;background-image:url('https://images.alphacoders.com/133/thumb-1920-1330185.jpeg');background-size:cover;background-position:center}
     #desktop-bg::after{content:'';position:absolute;inset:0;background:linear-gradient(to bottom,rgba(0,0,0,.05) 0%,rgba(0,0,0,.12) 75%,rgba(0,0,0,.55) 100%)}
-    /* ADDED BACKGROUND TEXT */
     #desktop-bg-text {
       position: absolute;
       inset: 0;
@@ -62,7 +60,6 @@
     }
     #desktop{position:fixed;inset:0;bottom:var(--taskbar-h);z-index:1;display:flex;align-items:center;justify-content:center}
 
-    /* WINDOW */
     .win-window{position:absolute;background:var(--surface);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow);overflow:hidden;width:min(460px,94vw);will-change:transform;animation:windowOpen .45s var(--spring) both}
     @keyframes windowOpen{from{opacity:0;transform:scale(.88) translateY(18px)}to{opacity:1;transform:scale(1) translateY(0)}}
     .win-window.closing{animation:windowClose .28s var(--snappy) forwards!important}
@@ -73,7 +70,6 @@
     @keyframes windowRestore{from{opacity:0;transform:scale(.82) translateY(44px)}to{opacity:1;transform:scale(1) translateY(0)}}
     .win-window.dragging{transition:none!important;box-shadow:0 32px 80px rgba(0,0,0,.8),0 0 0 1px rgba(255,255,255,.1) inset;scale:1.012}
 
-    /* TITLEBAR */
     .win-titlebar{background:var(--titlebar-bg);height:34px;display:flex;align-items:center;padding:0 10px;gap:8px;border-bottom:1px solid var(--border);flex-shrink:0;cursor:grab}
     .win-titlebar:active{cursor:grabbing}
     .win-titlebar-icon{width:16px;height:16px;display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0}
@@ -83,11 +79,9 @@
     .win-ctrl-btn:hover{background:var(--surface-hover);color:var(--text)}
     .win-ctrl-btn.close:hover{background:#c42b1c;color:#fff}
 
-    /* BODY */
     .win-body{padding:22px 22px 20px;display:flex;flex-direction:column;align-items:center;gap:18px}
     .win-app-title{font-size:19px;font-weight:600;color:var(--text);letter-spacing:-.4px;text-align:center}
 
-    /* VM BUTTONS */
     #vm-buttons{display:grid;grid-template-columns:1fr 1fr;gap:8px;width:100%}
     .vm-btn{padding:11px 14px;background:var(--accent);color:#fff;border:none;border-radius:var(--radius-sm);font-size:13px;font-weight:600;font-family:inherit;cursor:pointer;transition:background .15s,transform .12s var(--spring),box-shadow .15s;display:flex;align-items:center;justify-content:center;gap:7px;box-shadow:0 1px 4px rgba(0,120,212,.25)}
     .vm-btn img.btn-fav{width:15px;height:15px;border-radius:3px;object-fit:contain}
@@ -97,14 +91,12 @@
     .btn-secondary{padding:8px 18px;background:rgba(255,255,255,.07);color:var(--text);border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;font-weight:500;font-family:inherit;cursor:pointer;transition:background .15s,transform .12s var(--spring);display:flex;align-items:center;gap:6px}
     .btn-secondary:hover{background:rgba(255,255,255,.12);transform:translateY(-1px)}
 
-    /* STATUS */
     #status{color:var(--text-tertiary);font-size:12px;font-family:'Cascadia Code','Consolas',monospace;min-height:1.2em;text-align:center;max-width:90vw;word-break:break-word;transition:color .2s}
     #status.error{color:#fc6060}
     #player-count{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--text-tertiary)}
     #player-count .dot{width:6px;height:6px;border-radius:50%;background:#4ade80;box-shadow:0 0 8px #4ade80;animation:blink 2.4s ease-in-out infinite}
     @keyframes blink{0%,100%{opacity:1}50%{opacity:.25}}
 
-    /* AUTH */
     #auth-wrap{position:fixed;inset:0;z-index:10001;display:flex;align-items:center;justify-content:center;padding:1rem;background:rgba(0,0,0,.65);backdrop-filter:blur(10px);transition:opacity .3s,visibility .3s}
     #auth-wrap.hidden{opacity:0;visibility:hidden;pointer-events:none}
     #auth-card{width:min(380px,100%);display:flex;flex-direction:column;gap:10px;padding:30px 26px;background:rgba(22,22,26,.94);backdrop-filter:var(--blur);border:1px solid var(--border-bright);border-radius:var(--radius-lg);box-shadow:var(--shadow);animation:windowOpen .4s var(--spring) both}
@@ -120,7 +112,6 @@
     #guest-button:hover,#login-button:hover{background:rgba(255,255,255,.11);transform:translateY(-1px)}
     #auth-error{min-height:1.2em;color:#fc6060;font-size:12px;font-family:monospace}
 
-    /* VM FRAME */
     #vm-frame-wrap{display:none;position:fixed;inset:0;width:100vw;height:100vh;background:#000;z-index:9999;flex-direction:column;animation:panelIn .35s var(--spring) both}
     #vm-frame-wrap.closing{animation:panelOut .25s var(--snappy) forwards!important}
     @keyframes panelIn{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:scale(1)}}
@@ -134,11 +125,9 @@
     #vm-toolbar button.close-btn:hover{background:#c42b1c;border-color:#c42b1c}
     #vm-frame{width:100%;height:calc(100vh - 42px);flex:1;border:0;background:#000}
 
-    /* BROWSER */
     #browser-wrap{display:none;position:fixed;inset:0;width:100vw;height:100vh;background:#131316;z-index:10000;flex-direction:column;animation:panelIn .35s var(--spring) both}
     #browser-wrap.closing{animation:panelOut .25s var(--snappy) forwards!important}
 
-    /* TAB BAR */
     #tab-bar{display:flex;align-items:stretch;background:#0d0d10;border-bottom:1px solid var(--border);overflow-x:auto;overflow-y:hidden;scrollbar-width:none;flex-shrink:0;min-height:36px}
     #tab-bar::-webkit-scrollbar{display:none}
     #tab-list{display:flex;align-items:stretch;flex:1;min-width:0}
@@ -157,7 +146,6 @@
     #tab-new{width:36px;height:36px;display:flex;align-items:center;justify-content:center;color:var(--text-tertiary);font-size:20px;cursor:pointer;flex-shrink:0;transition:background .1s,color .1s}
     #tab-new:hover{background:rgba(255,255,255,.06);color:var(--text)}
 
-    /* BROWSER TOOLBAR */
     #browser-toolbar{min-height:44px;background:#17171a;display:flex;align-items:center;gap:6px;padding:5px 10px;border-bottom:1px solid var(--border);flex-shrink:0}
     #browser-toolbar button{background:rgba(255,255,255,.06);color:var(--text);border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px 10px;font-family:inherit;font-size:13px;cursor:pointer;white-space:nowrap;transition:background .12s,transform .1s;display:flex;align-items:center;gap:4px}
     #browser-toolbar button:hover{background:rgba(255,255,255,.12);transform:translateY(-1px)}
@@ -174,7 +162,6 @@
     .browser-frame.active{display:block}
     #browser-status{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);display:none;max-width:80vw;padding:14px 20px;border:1px solid var(--border);border-radius:var(--radius);background:rgba(20,20,24,.96);color:var(--text-secondary);font-size:13px;font-family:monospace;text-align:center;z-index:2;backdrop-filter:blur(20px)}
 
-    /* LINKS PANEL */
     #links-panel{position:fixed;inset:0;z-index:5000;overflow-y:auto;padding:4rem 1rem 2rem;background:rgba(10,10,13,.97);backdrop-filter:blur(24px);display:flex;flex-direction:column;align-items:center;opacity:0;pointer-events:none;transform:translateY(16px);transition:opacity .28s var(--spring),transform .28s var(--spring),pointer-events 0s .28s}
     #links-panel.show{opacity:1;pointer-events:all;transform:translateY(0);transition:opacity .28s var(--spring),transform .28s var(--spring)}
     #links-close{position:fixed;top:1rem;right:1rem;z-index:5001;padding:7px 14px;color:var(--text);background:rgba(255,255,255,.07);border:1px solid var(--border);border-radius:var(--radius-sm);font-family:inherit;font-size:13px;cursor:pointer;transition:background .15s,transform .1s;display:flex;align-items:center;gap:5px}
@@ -185,13 +172,11 @@
     .link-grid a{display:block;padding:8px 10px;color:var(--text);background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:var(--radius-sm);font-size:12px;font-weight:500;text-align:center;text-decoration:none;transition:background .15s,transform .12s var(--spring),border-color .15s}
     .link-grid a:hover{background:var(--accent);border-color:transparent;transform:translateY(-2px)}
 
-    /* TOAST */
     #toast{position:fixed;bottom:calc(var(--taskbar-h) + 14px);right:1rem;max-width:min(360px,calc(100vw - 2rem));background:rgba(22,22,26,.97);border:1px solid var(--border-bright);border-radius:var(--radius);padding:12px 16px;font-size:13px;font-family:inherit;color:var(--text-secondary);z-index:10002;transform:translateX(calc(100% + 20px));transition:transform .4s var(--spring);backdrop-filter:blur(20px);box-shadow:0 8px 32px rgba(0,0,0,.5)}
     #toast.show{transform:translateX(0)}
     #toast.error{border-color:#fc6060;color:#fc6060}
     #toast.success{border-color:#4ade80;color:#4ade80}
 
-    /* GAMES PANEL */
     #games-panel{position:fixed;inset:0;z-index:5000;background:rgba(10,10,13,.97);backdrop-filter:blur(24px);flex-direction:column;opacity:0;pointer-events:none;transform:scale(.97) translateY(12px);transition:opacity .3s var(--spring),transform .3s var(--spring),pointer-events 0s .3s;display:flex}
     #games-panel.show{opacity:1;pointer-events:all;transform:scale(1) translateY(0);transition:opacity .3s var(--spring),transform .3s var(--spring)}
     #games-header{min-height:54px;background:var(--titlebar-bg);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 20px;gap:12px;flex-shrink:0}
@@ -209,7 +194,6 @@
     .game-card img{width:100%;aspect-ratio:1;object-fit:cover;display:block;background:#18181c}
     .game-card-name{padding:9px 10px;color:var(--text);font-size:12px;font-weight:600;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:rgba(0,0,0,.3)}
 
-    /* TASKBAR */
     #taskbar{position:fixed;bottom:0;left:0;right:0;height:var(--taskbar-h);background:var(--taskbar-bg);backdrop-filter:blur(64px) saturate(180%);-webkit-backdrop-filter:blur(64px) saturate(180%);border-top:1px solid rgba(255,255,255,.07);z-index:9998;display:flex;align-items:center;justify-content:center;gap:4px}
     .taskbar-center{display:flex;align-items:center;gap:2px}
     .taskbar-btn{width:42px;height:42px;display:flex;align-items:center;justify-content:center;border-radius:var(--radius-sm);cursor:pointer;transition:background .18s var(--snappy),transform .22s var(--spring),color .18s;font-size:20px;position:relative;border:none;background:transparent;color:var(--text-secondary)}
@@ -223,7 +207,6 @@
     #taskbar-clock{display:flex;flex-direction:column;align-items:flex-end;font-size:11px;color:var(--text);line-height:1.4;padding:0 8px;cursor:default;letter-spacing:.01em}
     #taskbar-left{position:absolute;left:12px;display:flex;align-items:center}
 
-    /* DESKTOP ICONS */
     .desktop-icons{position:fixed;top:16px;left:16px;display:flex;flex-direction:column;gap:6px;z-index:2}
     .desktop-icon{display:flex;flex-direction:column;align-items:center;gap:5px;width:72px;padding:7px;border-radius:var(--radius-sm);cursor:pointer;transition:background .18s var(--snappy),transform .22s var(--spring),box-shadow .18s;text-align:center}
     .desktop-icon:hover{background:rgba(255,255,255,.1);transform:translateY(-3px);box-shadow:0 8px 20px rgba(0,0,0,.35)}
@@ -232,19 +215,42 @@
     .desktop-icon-img img{width:30px;height:30px;border-radius:6px;object-fit:contain}
     .desktop-icon-label{font-size:11px;color:#fff;font-weight:500;text-shadow:0 1px 4px rgba(0,0,0,.9);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:66px}
 
-    /* MINIMIZED BAR */
     #minimized-bar{position:fixed;bottom:calc(var(--taskbar-h) + 6px);left:50%;transform:translateX(-50%);display:flex;gap:6px;align-items:center;z-index:9997}
     .minimized-chip{padding:4px 12px;background:rgba(22,22,26,.92);border:1px solid var(--border);border-radius:20px;font-size:12px;cursor:pointer;font-family:inherit;color:var(--text-secondary);backdrop-filter:blur(20px);transition:background .15s,transform .12s var(--spring);animation:chipIn .3s var(--spring) both}
     .minimized-chip:hover{background:rgba(255,255,255,.12);transform:translateY(-2px);color:var(--text)}
     @keyframes chipIn{from{opacity:0;transform:scale(.8) translateY(8px)}to{opacity:1;transform:scale(1) translateY(0)}}
 
+    .settings-panel{position:fixed;inset:0;z-index:5000;background:rgba(10,10,13,.97);backdrop-filter:blur(24px);flex-direction:column;opacity:0;pointer-events:none;transform:scale(.97) translateY(12px);transition:opacity .3s var(--spring),transform .3s var(--spring),pointer-events 0s .3s;display:flex}
+    .settings-panel.show{opacity:1;pointer-events:all;transform:scale(1) translateY(0);transition:opacity .3s var(--spring),transform .3s var(--spring)}
+    .settings-header{min-height:54px;background:var(--titlebar-bg);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 20px;gap:12px;flex-shrink:0}
+    .settings-header h2{color:var(--text);font-size:15px;font-weight:600;display:flex;align-items:center;gap:8px}
+    .settings-close{padding:7px 14px;color:var(--text);background:rgba(255,255,255,.07);border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;font-size:13px;font-family:inherit;transition:background .15s,border-color .15s;display:flex;align-items:center;gap:5px}
+    .settings-close:hover{background:#c42b1c;border-color:#c42b1c}
+    .settings-content{flex:1;overflow-y:auto;padding:24px;display:flex;flex-direction:column;gap:18px;max-width:600px;margin:0 auto;width:100%}
+    .settings-section{background:rgba(24,24,28,.7);border:1px solid var(--border);border-radius:var(--radius);padding:16px;backdrop-filter:blur(20px)}
+    .settings-section h3{color:var(--text-secondary);font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-bottom:12px}
+    .settings-row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}
+    .settings-row:last-child{margin-bottom:0}
+    .settings-label{color:var(--text);font-size:13px;font-weight:500}
+    .settings-description{color:var(--text-tertiary);font-size:11px;margin-top:2px}
+    .settings-input{background:rgba(255,255,255,.06);color:var(--text);border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px 12px;font-family:inherit;font-size:13px;outline:none;transition:border-color .2s,box-shadow .2s;min-width:180px}
+    .settings-input:focus{border-color:var(--accent);box-shadow:0 0 0 2px rgba(0,120,212,.2)}
+    .settings-select{background:rgba(255,255,255,.06);color:var(--text);border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px 12px;font-family:inherit;font-size:13px;outline:none;cursor:pointer;transition:border-color .2s;min-width:180px}
+    .settings-select:focus{border-color:var(--accent)}
+    .settings-select option{background:#1c1c20;color:var(--text)}
+    .settings-btn{padding:7px 14px;background:rgba(255,255,255,.07);color:var(--text);border:1px solid var(--border);border-radius:var(--radius-sm);font-size:12px;font-family:inherit;cursor:pointer;transition:background .15s,transform .1s;white-space:nowrap}
+    .settings-btn:hover{background:rgba(255,255,255,.13);transform:translateY(-1px)}
+    .settings-btn.danger:hover{background:#c42b1c;border-color:#c42b1c}
+    .color-option{width:30px;height:30px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:transform .15s, border-color .15s}
+    .color-option:hover{transform:scale(1.15)}
+    .color-option.active{border-color:#fff}
+
     @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
-    @media(max-width:520px){.win-window{width:96vw}#vm-buttons{grid-template-columns:1fr}}
+    @media(max-width:520px){.win-window{width:96vw}#vm-buttons{grid-template-columns:1fr}.settings-row{flex-direction:column;align-items:flex-start}.settings-input{min-width:100%}}
   </style>
 </head>
 <body>
   <div id="desktop-bg">
-    <!-- TEXT ADDED TO BACKGROUND -->
     <div id="desktop-bg-text">WILLIE GAMES V3</div>
   </div>
 
@@ -295,6 +301,7 @@
           </button>
         </div>
         <button class="btn-secondary" id="links-toggle" type="button"><svg class="icon" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.07 0l2.83-2.83a5 5 0 0 0-7.07-7.07l-1.5 1.5"/><path d="M14 11a5 5 0 0 0-7.07 0L4.1 13.83a5 5 0 0 0 7.07 7.07l1.5-1.5"/></svg> Links</button>
+        <button class="btn-secondary" id="settings-toggle" type="button"><svg class="icon" viewBox="0 0 24 24"><path d="M4 21v-7"/><path d="M4 10V3"/><path d="M12 21v-9"/><path d="M12 8V3"/><path d="M20 21v-5"/><path d="M20 12V3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg> Settings</button>
         <div id="status"></div>
         <div id="player-count"><span class="dot"></span><span id="player-count-text">1 vms are working</span></div>
       </div>
@@ -313,6 +320,10 @@
     <div class="desktop-icon" onclick="showLinksPanel()">
       <div class="desktop-icon-img"><svg class="icon" viewBox="0 0 24 24" style="width:30px;height:30px"><path d="M10 13a5 5 0 0 0 7.07 0l2.83-2.83a5 5 0 0 0-7.07-7.07l-1.5 1.5"/><path d="M14 11a5 5 0 0 0-7.07 0L4.1 13.83a5 5 0 0 0 7.07 7.07l1.5-1.5"/></svg></div>
       <div class="desktop-icon-label">Links</div>
+    </div>
+    <div class="desktop-icon" onclick="openSettings()">
+      <div class="desktop-icon-img"><svg class="icon" viewBox="0 0 24 24" style="width:30px;height:30px;color:#000;stroke:#fff"><path d="M4 21v-7"/><path d="M4 10V3"/><path d="M12 21v-9"/><path d="M12 8V3"/><path d="M20 21v-5"/><path d="M20 12V3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg></div>
+      <div class="desktop-icon-label">Settings</div>
     </div>
   </div>
 
@@ -398,6 +409,119 @@
     <div id="games-grid"></div>
   </div>
 
+  <div id="settings-panel" class="settings-panel">
+    <div class="settings-header">
+      <h2><svg class="icon" viewBox="0 0 24 24" style="width:19px;height:19px"><path d="M4 21v-7"/><path d="M4 10V3"/><path d="M12 21v-9"/><path d="M12 8V3"/><path d="M20 21v-5"/><path d="M20 12V3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg> Settings</h2>
+      <button class="settings-close" onclick="closeSettings()"><svg class="icon" viewBox="0 0 24 24"><line x1="5" y1="5" x2="19" y2="19"/><line x1="19" y1="5" x2="5" y2="19"/></svg> Close</button>
+    </div>
+    <div class="settings-content">
+      <div class="settings-section">
+        <h3>Theme / Accent Color</h3>
+        <div class="settings-row">
+          <div>
+            <div class="settings-label">Accent Color</div>
+            <div class="settings-description">Change the UI accent color</div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center" id="color-options">
+            <div class="color-option active" style="background:#0078d4" data-color="#0078d4" onclick="setAccentColor('#0078d4',this)"></div>
+            <div class="color-option" style="background:#10b981" data-color="#10b981" onclick="setAccentColor('#10b981',this)"></div>
+            <div class="color-option" style="background:#f59e0b" data-color="#f59e0b" onclick="setAccentColor('#f59e0b',this)"></div>
+            <div class="color-option" style="background:#ef4444" data-color="#ef4444" onclick="setAccentColor('#ef4444',this)"></div>
+            <div class="color-option" style="background:#8b5cf6" data-color="#8b5cf6" onclick="setAccentColor('#8b5cf6',this)"></div>
+            <div class="color-option" style="background:#ec4899" data-color="#ec4899" onclick="setAccentColor('#ec4899',this)"></div>
+          </div>
+        </div>
+      </div>
+      <div class="settings-section">
+        <h3>Background Wallpaper</h3>
+        <div class="settings-row">
+          <div>
+            <div class="settings-label">Wallpaper URL</div>
+            <div class="settings-description">Enter a custom image URL</div>
+          </div>
+          <input class="settings-input" id="wallpaper-input" type="text" placeholder="https://example.com/image.jpg">
+        </div>
+        <div class="settings-row">
+          <button class="settings-btn" onclick="applyWallpaper()">Apply Wallpaper</button>
+          <button class="settings-btn" onclick="resetWallpaper()">Reset Default</button>
+        </div>
+      </div>
+      <div class="settings-section">
+        <h3>Account Management</h3>
+        <div class="settings-row">
+          <div>
+            <div class="settings-label">Current User</div>
+            <div class="settings-description" id="settings-username">Not logged in</div>
+          </div>
+          <button class="settings-btn" onclick="logoutUser()">Logout</button>
+        </div>
+      </div>
+      <div class="settings-section">
+        <h3>Browser Homepage</h3>
+        <div class="settings-row">
+          <div>
+            <div class="settings-label">Default Homepage</div>
+            <div class="settings-description">Set the browser's starting page</div>
+          </div>
+          <input class="settings-input" id="homepage-input" type="text" value="https://www.google.com/">
+        </div>
+        <div class="settings-row">
+          <button class="settings-btn" onclick="saveHomepage()">Save Homepage</button>
+        </div>
+      </div>
+      <div class="settings-section">
+        <h3>Sound Effects</h3>
+        <div class="settings-row">
+          <div>
+            <div class="settings-label">UI Sounds</div>
+            <div class="settings-description">Play sounds on button clicks</div>
+          </div>
+          <button class="settings-btn" id="sound-toggle" onclick="toggleSound()">Enable</button>
+        </div>
+      </div>
+      <div class="settings-section">
+        <h3>Default VM Type</h3>
+        <div class="settings-row">
+          <div>
+            <div class="settings-label">Preferred VM</div>
+            <div class="settings-description">Choose which VM launches by default</div>
+          </div>
+          <select class="settings-select" id="default-vm-select">
+            <option value="e2b">VM #1 (E2B)</option>
+            <option value="gpu">VM #2 (GPU)</option>
+          </select>
+        </div>
+      </div>
+      <div class="settings-section">
+        <h3>Privacy</h3>
+        <div class="settings-row">
+          <div>
+            <div class="settings-label">Clear Browsing Data</div>
+            <div class="settings-description">Clear cookies and cache</div>
+          </div>
+          <button class="settings-btn danger" onclick="clearBrowsingData()">Clear Data</button>
+        </div>
+      </div>
+      <div class="settings-section">
+        <h3>Display Settings</h3>
+        <div class="settings-row">
+          <div>
+            <div class="settings-label">Window Transparency</div>
+            <div class="settings-description">Adjust window opacity</div>
+          </div>
+          <input class="settings-input" id="transparency-input" type="range" min="0.5" max="1" step="0.05" value="0.78" oninput="updateTransparency(this.value)">
+        </div>
+        <div class="settings-row">
+          <div>
+            <div class="settings-label">Blur Effects</div>
+            <div class="settings-description">Enable backdrop blur</div>
+          </div>
+          <button class="settings-btn" id="blur-toggle" onclick="toggleBlur()">Disable</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div id="browser-wrap">
     <div id="tab-bar">
       <div id="tab-list"></div>
@@ -441,6 +565,7 @@
       <button class="taskbar-btn" title="Games" onclick="openGamesPanel()" id="tb-games"><svg class="icon icon-lg" viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="10" rx="5"/><line x1="7" y1="12" x2="9" y2="12"/><line x1="8" y1="11" x2="8" y2="13"/><circle cx="15" cy="10.5" r="0.9" fill="currentColor" stroke="none"/><circle cx="17" cy="13.5" r="0.9" fill="currentColor" stroke="none"/></svg></button>
       <button class="taskbar-btn" title="VM" onclick="launchGPUVM()" id="tb-vm"><svg class="icon icon-lg" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="13" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg></button>
       <button class="taskbar-btn" title="Links" onclick="showLinksPanel()" id="tb-links"><svg class="icon icon-lg" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.07 0l2.83-2.83a5 5 0 0 0-7.07-7.07l-1.5 1.5"/><path d="M14 11a5 5 0 0 0-7.07 0L4.1 13.83a5 5 0 0 0 7.07 7.07l1.5-1.5"/></svg></button>
+      <button class="taskbar-btn" title="Settings" onclick="openSettings()" id="tb-settings"><svg class="icon icon-lg" viewBox="0 0 24 24" style="color:#000;stroke:#fff"><path d="M4 21v-7"/><path d="M4 10V3"/><path d="M12 21v-9"/><path d="M12 8V3"/><path d="M20 21v-5"/><path d="M20 12V3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg></button>
     </div>
     <div id="taskbar-right">
       <div id="taskbar-clock">
@@ -460,24 +585,25 @@
   <script src="/search.js"></script>
 
   <script>
-    /* CLOCK */
+    let soundEnabled = localStorage.getItem('soundEnabled') === 'true';
+    let defaultHomepage = localStorage.getItem('defaultHomepage') || 'https://www.google.com/';
+    let defaultVM = localStorage.getItem('defaultVM') || 'e2b';
+    let currentAccent = localStorage.getItem('accentColor') || '#0078d4';
+    let blurEnabled = localStorage.getItem('blurEnabled') !== 'false';
+    
     function updateClock(){const now=new Date(),h=String(now.getHours()).padStart(2,'0'),m=String(now.getMinutes()).padStart(2,'0'),days=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'],months=['1','2','3','4','5','6','7','8','9','10','11','12'];document.getElementById('taskbar-time').textContent=`${h}:${m}`;document.getElementById('taskbar-date').textContent=`${days[now.getDay()]} ${months[now.getMonth()]}/${now.getDate()}`}
     updateClock();setInterval(updateClock,1000);
 
-    /* STATE */
     let currentContainerId=null,currentVMType=null,currentUrl=null,pollInterval=null,vmTimerInterval=null,vmStartedAt=null,vmTimeLimitSeconds=30*60,authMode="register",windowMinimized=false,windowMaximized=false;
 
-    /* TOAST */
     let toastTimer=null;
     function toast(msg,isError=false,isSuccess=false){clearTimeout(toastTimer);const el=document.getElementById("toast");el.textContent=msg;el.className="show"+(isError?" error":"")+(isSuccess?" success":"");toastTimer=setTimeout(()=>{el.className="";},4500)}
     function setStatus(msg){const el=document.getElementById("status");el.textContent=msg;el.className=(msg.startsWith("Error")||msg.startsWith("Failed"))?"error":""}
     function setLaunching(on){document.querySelectorAll(".vm-btn").forEach(b=>{b.disabled=on})}
 
-    /* FAVICON */
     function getFavicon(url,sz=16){try{const d=new URL(url).hostname;return d?`https://www.google.com/s2/favicons?domain=${d}&sz=${sz}`:''}catch(_){return''}}
     function updateBrowserFavicon(url){const el=document.getElementById('browser-favicon');if(!url){el.style.display='none';return}const src=getFavicon(url,32);if(src){el.src=src;el.style.display='block';el.onerror=()=>{el.style.display='none'}}else el.style.display='none'}
 
-    /* DRAG */
     (function(){
       const win=document.getElementById('main-window'),handle=document.getElementById('win-drag-handle');
       let dragging=false,startX,startY,origLeft,origTop;
@@ -517,7 +643,6 @@
       document.addEventListener('touchend',onEnd);
     })();
 
-    /* WINDOW CONTROLS */
     const mainWin=document.getElementById('main-window'),minimizedBar=document.getElementById('minimized-bar');
 
     document.getElementById('btn-close').addEventListener('click',()=>{
@@ -560,13 +685,11 @@
       }
     });
 
-    /* VM TIMER */
     function formatVMTime(s){const h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sec=s%60,p=v=>String(v).padStart(2,'0');return h>0?`${p(h)}:${p(m)}:${p(sec)}`:`${p(m)}:${p(sec)}`}
     function updateVMTimer(){if(!vmStartedAt)return;const e=Math.floor((Date.now()-vmStartedAt)/1000);if(e>=vmTimeLimitSeconds){toast("Your VM time has ended.",true);closeVM();return}document.getElementById("vm-timer").textContent=formatVMTime(e)}
     function startVMTimer(){clearInterval(vmTimerInterval);vmStartedAt=Date.now();updateVMTimer();vmTimerInterval=setInterval(updateVMTimer,1000)}
     function stopVMTimer(){clearInterval(vmTimerInterval);vmTimerInterval=null;vmStartedAt=null;document.getElementById("vm-timer").textContent="00:00"}
 
-    /* AUTH */
     function setAuthError(m=""){document.getElementById("auth-error").textContent=m}
     function setAuthMode(mode){
       authMode=mode;
@@ -575,7 +698,7 @@
       else{s.textContent="Create account — 1 hour";l.textContent="Already have an account? Log in";p.autocomplete="new-password"}
       setAuthError();
     }
-    function acceptAuth(data){vmTimeLimitSeconds=data.vmMinutes*60;document.getElementById("auth-wrap").classList.add("hidden");toast(`Welcome ${data.username}! ${data.vmMinutes}min VM time.`,false,true)}
+    function acceptAuth(data){vmTimeLimitSeconds=data.vmMinutes*60;document.getElementById("auth-wrap").classList.add("hidden");toast(`Welcome ${data.username}! ${data.vmMinutes}min VM time.`,false,true);document.getElementById('settings-username').textContent=data.username}
     async function checkAuth(){try{const r=await fetch("/api/auth/me"),d=await r.json();if(d.loggedIn)acceptAuth(d)}catch(_){}}
     document.getElementById("auth-card").addEventListener("submit",async e=>{
       e.preventDefault();const u=document.getElementById("auth-username").value.trim(),p=document.getElementById("auth-password").value;
@@ -586,17 +709,14 @@
     });
     document.getElementById("login-button").addEventListener("click",()=>setAuthMode(authMode==="login"?"register":"login"));
 
-    /* LINKS */
     function showLinksPanel(){document.getElementById("links-panel").classList.add("show")}
     function hideLinksPanel(){document.getElementById("links-panel").classList.remove("show")}
     document.getElementById("links-toggle").addEventListener("click",showLinksPanel);
     document.getElementById("links-close").addEventListener("click",hideLinksPanel);
-    document.addEventListener('keydown',e=>{if(e.key==='Escape'){hideLinksPanel();closeGamesPanel()}});
+    document.addEventListener('keydown',e=>{if(e.key==='Escape'){hideLinksPanel();closeGamesPanel();closeSettings()}});
 
-    /* STATS */
     async function fetchPlayerCount(){try{const c=new AbortController(),t=setTimeout(()=>c.abort(),5000),r=await fetch("/api/stats",{signal:c.signal,cache:"no-store"});clearTimeout(t);if(!r.ok)throw 0;const d=await r.json(),count=d.online??d.count??d.players??null;if(count!==null)document.getElementById("player-count-text").textContent=`${count} online`}catch(_){}}
 
-    /* VM */
     function openVM(url){
       if(!url)throw new Error("No VM URL.");
       currentUrl=url;
@@ -622,16 +742,12 @@
     }
     async function toggleFullscreen(){const v=document.getElementById("vm-frame-wrap");try{if(!document.fullscreenElement)await v.requestFullscreen();else await document.exitFullscreen()}catch(err){toast("Fullscreen failed: "+err.message,true)}}
 
-    /* E2B */
     async function launchE2BVM(){clearInterval(pollInterval);setLaunching(true);setStatus("Starting E2B Desktop VM...");try{const r=await fetch("/api/e2b/start",{method:"POST",headers:{"Content-Type":"application/json"}}),d=await r.json();if(!r.ok)throw new Error(d.error||d.message||`E2B HTTP ${r.status}.`);if(d.status&&d.status!=="success")throw new Error(d.error||d.message||"E2B sandbox did not start.");if(!d.sandboxId)throw new Error("E2B no sandbox ID.");if(!d.url)throw new Error("E2B no stream URL.");currentContainerId=d.sandboxId;currentVMType="e2b";openVM(d.url)}catch(err){setStatus("Error: "+err.message);toast("E2B failed: "+err.message,true);currentContainerId=null;currentVMType=null;currentUrl=null;setLaunching(false)}}
 
-    /* GPU */
     async function launchGPUVM(){clearInterval(pollInterval);setLaunching(true);setStatus("Requesting GPU instance...");try{const r=await fetch("/api/launch?gpu=true"),d=await r.json();if(!r.ok)throw new Error(d.error||d.message||`GPU HTTP ${r.status}.`);if(d.status==="success"){currentContainerId=d.container_id;currentVMType="gpu";openVM(d.url);return}if(d.status==="queued"){setStatus(`Queued — position ${d.position??"?"}. Waiting…`);pollQueue(d.token);return}throw new Error(d.error||d.message||JSON.stringify(d))}catch(err){setStatus("Error: "+err.message);toast("GPU failed: "+err.message,true);setLaunching(false)}}
 
-    /* QUEUE */
     async function pollQueue(token){clearInterval(pollInterval);if(!token){setLaunching(false);return}pollInterval=setInterval(async()=>{try{const r=await fetch(`/api/queue?token=${encodeURIComponent(token)}`),d=await r.json();if(!r.ok)throw 0;if(d.status==="allocated"){clearInterval(pollInterval);currentContainerId=d.container_id;currentVMType="gpu";openVM(d.url);return}if(d.status==="failed"){clearInterval(pollInterval);setStatus("Failed: "+(d.reason||"unknown"));toast("Queue failed: "+(d.reason||"unknown"),true);setLaunching(false);return}if(d.position!==undefined)setStatus(`Queued — position ${d.position}. Waiting…`);else setStatus("Waiting for GPU...")}catch(_){}},4000)}
 
-    /* SCRAMJET */
     let scramjetController=null,scramjetFrame=null,scramjetBrowserReady=false,scramjetStarting=null;
     function setBrowserStatus(msg,show=true){const el=document.getElementById("browser-status");el.textContent=msg;el.style.display=show?"block":"none"}
     async function waitForScramjetControl(reg){
@@ -669,7 +785,6 @@
       try{await scramjetStarting}finally{scramjetStarting=null}
     }
 
-    /* TABS */
     const GLOBE_SVG='<svg class="icon icon-sm" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15 15 0 0 1 0 20a15 15 0 0 1 0-20z"/></svg>';
     let tabs=[],activeTabId=null,tabCounter=0;
     function getActiveTab(){return tabs.find(t=>t.id===activeTabId)||null}
@@ -681,7 +796,6 @@
         const el=document.createElement("div");
         el.className="tab"+(tab.id===activeTabId?" active":"");
         el.dataset.id=tab.id;
-        // favicon
         if(tab.url&&tab.url!=="about:blank"){
           try{
             const domain=new URL(tab.url).hostname;
@@ -725,9 +839,9 @@
       frameEl.allow="fullscreen; autoplay; clipboard-read; clipboard-write; encrypted-media; picture-in-picture";
       frameEl.referrerPolicy="no-referrer";
       document.getElementById("browser-frames").appendChild(frameEl);
-      const tab={id,title:"New Tab",url:url||"https://www.google.com/",frame:frameEl,sjFrame:null};
+      const tab={id,title:"New Tab",url:url||defaultHomepage,frame:frameEl,sjFrame:null};
       tabs.push(tab);switchTab(id);
-      try{await initScramjetBrowser(frameEl,tab);await navigateScramjet(url||"https://www.google.com/",tab)}
+      try{await initScramjetBrowser(frameEl,tab);await navigateScramjet(url||defaultHomepage,tab)}
       catch(err){console.error("Tab init failed:",err);if(err?.message?.includes("Refreshing once")){toast("Scramjet installing. Refreshing…");setTimeout(()=>location.reload(),700)}}
     }
 
@@ -736,7 +850,7 @@
       browser.style.display="flex";browser.classList.remove('closing');
       document.getElementById("vm-frame-wrap").style.display="none";
       document.getElementById('tb-browser').classList.add('active');
-      if(tabs.length===0)await newTab(initialUrl||"https://www.google.com/");
+      if(tabs.length===0)await newTab(initialUrl||defaultHomepage);
       else if(initialUrl)await navigateScramjet(initialUrl);
     }
 
@@ -770,7 +884,6 @@
       document.getElementById('tb-browser').classList.remove('active');
     }
 
-    /* GAMES */
     const GAMES=[
       {name:"Roblox",img:"/img/roblox.png",url:"https://nowgg.fun/apps/a/19900/b.html"},
       {name:"Stumble Guys",img:"/img/stumbleguys.jpg",url:"https://nowgg.fun/apps/a/10011/b.html"},
@@ -799,8 +912,109 @@
     function closeGamesPanel(){document.getElementById("games-panel").classList.remove("show")}
     function launchGame(url){closeGamesPanel();const b=document.getElementById("browser-wrap");b.style.display="flex";b.classList.remove('closing');document.getElementById("vm-frame-wrap").style.display="none";newTab(url)}
 
-    /* INIT */
-    document.addEventListener("DOMContentLoaded",()=>{checkAuth();fetchPlayerCount();setInterval(fetchPlayerCount,15000)});
+    function openSettings(){document.getElementById('settings-panel').classList.add('show');loadSettings()}
+    function closeSettings(){document.getElementById('settings-panel').classList.remove('show')}
+    document.getElementById('settings-toggle').addEventListener('click',openSettings);
+
+    function setAccentColor(color,el){
+      currentAccent=color;
+      localStorage.setItem('accentColor',color);
+      document.documentElement.style.setProperty('--accent',color);
+      document.documentElement.style.setProperty('--accent-light',color+'cc');
+      document.documentElement.style.setProperty('--accent-hover',color+'aa');
+      document.querySelectorAll('.color-option').forEach(c=>c.classList.remove('active'));
+      if(el)el.classList.add('active');
+    }
+
+    function applyWallpaper(){
+      const url=document.getElementById('wallpaper-input').value.trim();
+      if(url){
+        document.getElementById('desktop-bg').style.backgroundImage=`url('${url}')`;
+        localStorage.setItem('wallpaper',url);
+        toast('Wallpaper updated!',false,true);
+      }
+    }
+    function resetWallpaper(){
+      const defaultUrl='https://images.alphacoders.com/133/thumb-1920-1330185.jpeg';
+      document.getElementById('desktop-bg').style.backgroundImage=`url('${defaultUrl}')`;
+      localStorage.removeItem('wallpaper');
+      document.getElementById('wallpaper-input').value='';
+      toast('Wallpaper reset to default!',false,true);
+    }
+
+    function logoutUser(){
+      fetch('/api/auth/logout',{method:'POST'}).catch(()=>{});
+      localStorage.removeItem('soundEnabled');
+      localStorage.removeItem('accentColor');
+      location.reload();
+    }
+
+    function saveHomepage(){
+      const val=document.getElementById('homepage-input').value.trim();
+      if(val){
+        defaultHomepage=val;
+        localStorage.setItem('defaultHomepage',val);
+        toast('Homepage saved!',false,true);
+      }
+    }
+
+    function toggleSound(){
+      soundEnabled=!soundEnabled;
+      localStorage.setItem('soundEnabled',soundEnabled);
+      document.getElementById('sound-toggle').textContent=soundEnabled?'Disable':'Enable';
+      toast(soundEnabled?'Sound enabled':'Sound disabled',false,true);
+    }
+
+    function clearBrowsingData(){
+      if(confirm('Clear all browsing data (cookies, cache, localStorage)?')){
+        localStorage.clear();
+        sessionStorage.clear();
+        if(window.caches){caches.keys().then(keys=>keys.forEach(k=>caches.delete(k)))}
+        toast('Browsing data cleared!',false,true);
+        setTimeout(()=>location.reload(),500);
+      }
+    }
+
+    function updateTransparency(val){
+      document.documentElement.style.setProperty('--surface',`rgba(24,24,28,${val})`);
+      document.documentElement.style.setProperty('--titlebar-bg',`rgba(20,20,24,${Math.min(0.96,val)})`);
+      document.documentElement.style.setProperty('--taskbar-bg',`rgba(14,14,16,${Math.min(0.88,val)})`);
+    }
+
+    function toggleBlur(){
+      blurEnabled=!blurEnabled;
+      localStorage.setItem('blurEnabled',blurEnabled);
+      document.documentElement.style.setProperty('--blur',blurEnabled?'blur(48px) saturate(160%)':'blur(0px)');
+      document.getElementById('blur-toggle').textContent=blurEnabled?'Disable':'Enable';
+    }
+
+    function loadSettings(){
+      if(currentAccent){
+        document.documentElement.style.setProperty('--accent',currentAccent);
+        document.documentElement.style.setProperty('--accent-light',currentAccent+'cc');
+        document.documentElement.style.setProperty('--accent-hover',currentAccent+'aa');
+        document.querySelectorAll('.color-option').forEach(c=>{
+          if(c.dataset.color===currentAccent)c.classList.add('active');
+          else c.classList.remove('active');
+        });
+      }
+      document.getElementById('homepage-input').value=defaultHomepage;
+      document.getElementById('default-vm-select').value=defaultVM;
+      document.getElementById('sound-toggle').textContent=soundEnabled?'Disable':'Enable';
+      document.getElementById('blur-toggle').textContent=blurEnabled?'Disable':'Enable';
+      const savedWall=localStorage.getItem('wallpaper');
+      if(savedWall)document.getElementById('desktop-bg').style.backgroundImage=`url('${savedWall}')`;
+    }
+
+    document.addEventListener("DOMContentLoaded",()=>{
+      checkAuth();
+      fetchPlayerCount();
+      setInterval(fetchPlayerCount,15000);
+      loadSettings();
+      document.getElementById('sound-toggle').textContent=soundEnabled?'Disable':'Enable';
+      document.getElementById('blur-toggle').textContent=blurEnabled?'Disable':'Enable';
+      if(!blurEnabled)document.documentElement.style.setProperty('--blur','blur(0px)');
+    });
     window.addEventListener("beforeunload",e=>{e.preventDefault();e.returnValue=""});
   </script>
 </body>
