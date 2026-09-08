@@ -960,7 +960,7 @@
           <option value="nvidia">🟢 NVIDIA Build</option>
         </select>
         <select id="ai-model">
-          <option value="gemini-2.0-flash">gemini-2.0-flash</option>
+          <option value="gemini-2.5-flash">gemini-2.5-flash</option>
         </select>
       </div>
       <input id="ai-api-key" type="password" placeholder="Enter Google AI Studio API Key..." autocomplete="off">
@@ -1070,7 +1070,7 @@
       nvidia: localStorage.getItem('nvidiaAIKey') || ''
     };
     const AI_MODELS = {
-      google: ['gemini-2.0-flash','gemini-2.0-flash-lite','gemini-1.5-pro','gemini-1.5-flash'],
+      google: ['gemini-2.5-flash','gemini-2.5-pro','gemini-2.5-flash-lite','gemini-3.6-flash','gemini-3.6-flash-lite'],
       nvidia: ['meta/llama-3.3-70b-instruct','nvidia/llama-3.1-nemotron-ultra-253b-v1','mistralai/mistral-large-2-instruct','microsoft/phi-4','deepseek-ai/deepseek-r1','nvidia/llama-3.3-nemotron-super-49b-v1','qwen/qwen3-235b-a22b']
     };
     const AI_PROVIDER_LABELS = {
