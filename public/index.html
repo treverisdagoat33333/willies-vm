@@ -251,10 +251,10 @@
 
     .chat-window {
       position: fixed;
-      width: 380px;
-      height: 480px;
-      min-width: 280px;
-      min-height: 300px;
+      width: 340px;
+      height: 420px;
+      min-width: 260px;
+      min-height: 280px;
       background: rgba(22,22,26,0.95);
       backdrop-filter: var(--blur);
       -webkit-backdrop-filter: var(--blur);
@@ -278,12 +278,12 @@
     }
     .chat-window .chat-header {
       background: var(--titlebar-bg);
-      height: 36px;
-      min-height: 36px;
+      height: 32px;
+      min-height: 32px;
       display: flex;
       align-items: center;
-      padding: 0 8px 0 12px;
-      gap: 8px;
+      padding: 0 4px 0 10px;
+      gap: 4px;
       border-bottom: 1px solid var(--border);
       cursor: grab;
       user-select: none;
@@ -294,16 +294,17 @@
     }
     .chat-window .chat-header .chat-title {
       flex: 1;
-      font-size: 12px;
+      font-size: 11px;
       font-weight: 500;
       color: var(--text-secondary);
       display: flex;
       align-items: center;
-      gap: 6px;
+      gap: 5px;
+      min-width: 0;
     }
     .chat-window .chat-header .chat-ctrl-btn {
-      width: 36px;
-      height: 30px;
+      width: 30px;
+      height: 26px;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -313,7 +314,7 @@
       transition: background .12s, color .12s;
       border: none;
       background: transparent;
-      font-size: 12px;
+      font-size: 10px;
     }
     .chat-window .chat-header .chat-ctrl-btn:hover {
       background: rgba(255,255,255,.1);
@@ -326,46 +327,46 @@
     .chat-window .chat-messages {
       flex: 1;
       overflow-y: auto;
-      padding: 14px;
+      padding: 10px;
       display: flex;
       flex-direction: column;
-      gap: 6px;
+      gap: 5px;
       min-height: 0;
     }
     .chat-window .chat-message {
-      max-width: 80%;
-      padding: 8px 12px;
-      border-radius: 12px;
-      font-size: 12px;
-      line-height: 1.4;
+      max-width: 85%;
+      padding: 6px 10px;
+      border-radius: 10px;
+      font-size: 11px;
+      line-height: 1.3;
       word-wrap: break-word;
       align-self: flex-start;
       background: rgba(255,255,255,.08);
       color: var(--text);
-      border-bottom-left-radius: 4px;
+      border-bottom-left-radius: 3px;
     }
     .chat-window .chat-message.sent {
       align-self: flex-end;
       background: var(--accent);
       color: #fff;
-      border-bottom-left-radius: 12px;
-      border-bottom-right-radius: 4px;
+      border-bottom-left-radius: 10px;
+      border-bottom-right-radius: 3px;
     }
     .chat-window .chat-message .msg-user {
-      font-size: 10px;
+      font-size: 9px;
       font-weight: 600;
-      margin-bottom: 2px;
+      margin-bottom: 1px;
       opacity: .8;
     }
     .chat-window .chat-message .msg-time {
-      font-size: 9px;
+      font-size: 8px;
       opacity: .6;
-      margin-top: 2px;
+      margin-top: 1px;
     }
     .chat-window .chat-input-area {
       display: flex;
-      gap: 6px;
-      padding: 10px;
+      gap: 5px;
+      padding: 8px;
       border-top: 1px solid var(--border);
       background: rgba(0,0,0,.3);
       flex-shrink: 0;
@@ -375,11 +376,11 @@
       background: rgba(255,255,255,.06);
       color: var(--text);
       border: 1px solid var(--border);
-      border-radius: 18px;
-      padding: 8px 14px;
+      border-radius: 15px;
+      padding: 6px 12px;
       outline: none;
       font-family: inherit;
-      font-size: 12px;
+      font-size: 11px;
       transition: border-color .2s;
       min-width: 0;
     }
@@ -387,13 +388,13 @@
       border-color: var(--accent);
     }
     .chat-window .chat-send-btn {
-      padding: 8px 16px;
+      padding: 6px 14px;
       background: var(--accent);
       color: #fff;
       border: none;
-      border-radius: 18px;
+      border-radius: 15px;
       font-family: inherit;
-      font-size: 12px;
+      font-size: 11px;
       font-weight: 600;
       cursor: pointer;
       transition: background .15s;
@@ -415,7 +416,7 @@
     .history-item .h-delete:hover{background:rgba(255,80,80,.25);color:#ff5050}
 
     @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
-    @media(max-width:520px){.win-window{width:96vw}#vm-buttons{grid-template-columns:1fr}.settings-row{flex-direction:column;align-items:flex-start}.settings-input{min-width:100%}.chat-window{width:90vw;height:70vh}}
+    @media(max-width:520px){.win-window{width:96vw}#vm-buttons{grid-template-columns:1fr}.settings-row{flex-direction:column;align-items:flex-start}.settings-input{min-width:100%}.chat-window{width:90vw;height:60vh}}
   </style>
 </head>
 <body>
@@ -631,7 +632,7 @@
         <div class="settings-row">
           <div>
             <div class="settings-label">Current User</div>
-            <div class="settings-description" id="settings-username">Not logged in</div>
+            <div class="settings-description" id="settings-username">Guest</div>
           </div>
           <button class="settings-btn" onclick="logoutUser()">Logout</button>
         </div>
@@ -711,12 +712,12 @@
 
   <div id="chat-window" class="chat-window minimized">
     <div class="chat-header" id="chat-drag-handle">
-      <span class="chat-title"><svg class="icon" viewBox="0 0 24 24" style="width:14px;height:14px;color:#000;stroke:#fff"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> Global Chat</span>
+      <span class="chat-title"><svg class="icon" viewBox="0 0 24 24" style="width:12px;height:12px;color:#000;stroke:#fff"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> Global Chat</span>
       <button class="chat-ctrl-btn" onclick="minimizeChat()" title="Minimize">
-        <svg width="10" height="1" viewBox="0 0 10 1"><rect width="10" height="1" fill="currentColor"/></svg>
+        <svg width="9" height="1" viewBox="0 0 10 1"><rect width="10" height="1" fill="currentColor"/></svg>
       </button>
       <button class="chat-ctrl-btn close" onclick="closeChat()" title="Close">
-        <svg width="10" height="10" viewBox="0 0 10 10"><line x1="0" y1="0" x2="10" y2="10" stroke="currentColor" stroke-width="1.4"/><line x1="10" y1="0" x2="0" y2="10" stroke="currentColor" stroke-width="1.4"/></svg>
+        <svg width="9" height="9" viewBox="0 0 10 10"><line x1="0" y1="0" x2="10" y2="10" stroke="currentColor" stroke-width="1.4"/><line x1="10" y1="0" x2="0" y2="10" stroke="currentColor" stroke-width="1.4"/></svg>
       </button>
     </div>
     <div class="chat-messages" id="chat-messages"></div>
@@ -811,6 +812,7 @@
     let historyData = JSON.parse(localStorage.getItem('history') || '[]');
     let recentGames = JSON.parse(localStorage.getItem('recentGames') || '[]');
     let chatMessages = JSON.parse(localStorage.getItem('chatMessages') || '[]');
+    let currentUsername = 'Guest';
 
     function updateClock(){const now=new Date(),h=String(now.getHours()).padStart(2,'0'),m=String(now.getMinutes()).padStart(2,'0'),days=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'],months=['1','2','3','4','5','6','7','8','9','10','11','12'];document.getElementById('taskbar-time').textContent=`${h}:${m}`;document.getElementById('taskbar-date').textContent=`${days[now.getDay()]} ${months[now.getMonth()]}/${now.getDate()}`}
     updateClock();setInterval(updateClock,1000);
@@ -951,14 +953,34 @@
       else{s.textContent="Create account — 1 hour";l.textContent="Already have an account? Log in";p.autocomplete="new-password"}
       setAuthError();
     }
-    function acceptAuth(data){vmTimeLimitSeconds=data.vmMinutes*60;document.getElementById("auth-wrap").classList.add("hidden");toast(`Welcome ${data.username}! ${data.vmMinutes}min VM time.`,false,true);document.getElementById('settings-username').textContent=data.username}
+    function acceptAuth(data){
+      vmTimeLimitSeconds=data.vmMinutes*60;
+      document.getElementById("auth-wrap").classList.add("hidden");
+      toast(`Welcome ${data.username}! ${data.vmMinutes}min VM time.`,false,true);
+      document.getElementById('settings-username').textContent=data.username;
+      currentUsername=data.username;
+    }
     async function checkAuth(){try{const r=await fetch("/api/auth/me"),d=await r.json();if(d.loggedIn)acceptAuth(d)}catch(_){}}
     document.getElementById("auth-card").addEventListener("submit",async e=>{
       e.preventDefault();const u=document.getElementById("auth-username").value.trim(),p=document.getElementById("auth-password").value;
       try{const r=await fetch(authMode==="login"?"/api/auth/login":"/api/auth/register",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({username:u,password:p})});const d=await r.json();if(!r.ok)throw new Error(d.error||"Auth failed.");acceptAuth(d)}catch(err){setAuthError(err.message||"Auth failed.")}
     });
     document.getElementById("guest-button").addEventListener("click",async()=>{
-      try{const r=await fetch("/api/auth/guest",{method:"POST"}),d=await r.json();if(!r.ok)throw new Error(d.error||"Guest sign-in failed.");acceptAuth(d)}catch(err){setAuthError(err.message||"Guest sign-in failed.")}
+      try{
+        const r=await fetch("/api/auth/guest",{method:"POST"}),d=await r.json();
+        if(!r.ok)throw new Error(d.error||"Guest sign-in failed.");
+        vmTimeLimitSeconds=d.vmMinutes*60;
+        document.getElementById("auth-wrap").classList.add("hidden");
+        toast(`Welcome ${d.username}! ${d.vmMinutes}min VM time.`,false,true);
+        document.getElementById('settings-username').textContent=d.username;
+        currentUsername=d.username;
+      }catch(err){
+        vmTimeLimitSeconds=30*60;
+        document.getElementById("auth-wrap").classList.add("hidden");
+        toast('Guest mode (30 min)',false,true);
+        document.getElementById('settings-username').textContent='Guest';
+        currentUsername='Guest';
+      }
     });
     document.getElementById("login-button").addEventListener("click",()=>setAuthMode(authMode==="login"?"register":"login"));
 
@@ -1118,9 +1140,7 @@
         t.url=url;document.getElementById("browser-address").value=url;
         t.title=(()=>{try{return new URL(url).hostname||"Loading…"}catch(_){return"Loading…"}})();
         renderTabBar();updateBrowserFavicon(url);
-        if(!incognitoMode){
-          addToHistory(url);
-        }
+        if(!incognitoMode){addToHistory(url)}
         setBrowserStatus("Loading…",true);t.sjFrame.go(url);
         setTimeout(()=>setBrowserStatus("",false),1500);
       }catch(err){console.error("Nav failed:",err);setBrowserStatus("Navigation error: "+(err?.message||err),true)}
@@ -1231,6 +1251,8 @@
       fetch('/api/auth/logout',{method:'POST'}).catch(()=>{});
       localStorage.removeItem('soundEnabled');
       localStorage.removeItem('accentColor');
+      currentUsername='Guest';
+      document.getElementById('settings-username').textContent='Guest';
       location.reload();
     }
 
@@ -1358,6 +1380,7 @@
       win.classList.remove('closing');
       win.style.display='flex';
       renderChatMessages();
+      setTimeout(()=>document.getElementById('chat-input').focus(),100);
     }
     function closeChat(){
       const win=document.getElementById('chat-window');
@@ -1365,20 +1388,22 @@
       win.addEventListener('animationend',()=>{
         win.classList.remove('closing');
         win.classList.add('minimized');
+        win.style.display='none';
       },{once:true});
     }
     function minimizeChat(){
       const win=document.getElementById('chat-window');
       win.classList.add('minimized');
+      win.style.display='none';
     }
     function renderChatMessages(){
       const container=document.getElementById('chat-messages');
       container.innerHTML='';
       if(chatMessages.length===0){
-        container.innerHTML='<div style="color:var(--text-tertiary);text-align:center;padding:20px;">No messages yet. Say hello!</div>';
+        container.innerHTML='<div style="color:var(--text-tertiary);text-align:center;padding:20px;font-size:11px;">No messages yet. Say hello!</div>';
         return;
       }
-      chatMessages.forEach(msg=>{
+      chatMessages.slice(-50).forEach(msg=>{
         const div=document.createElement('div');
         div.className='chat-message '+(msg.sent?'sent':'received');
         div.innerHTML=`${msg.user?`<div class="msg-user">${msg.user}</div>`:''}${msg.text}<div class="msg-time">${msg.time}</div>`;
@@ -1390,23 +1415,25 @@
       const input=document.getElementById('chat-input');
       const text=input.value.trim();
       if(!text)return;
-      const username=document.getElementById('settings-username').textContent;
       const msg={
-        user:username!=='Not logged in'?username:'Guest',
+        user:currentUsername,
         text:text,
         time:new Date().toLocaleTimeString(),
         sent:true
       };
       chatMessages.push(msg);
+      if(chatMessages.length>200)chatMessages=chatMessages.slice(-200);
       localStorage.setItem('chatMessages',JSON.stringify(chatMessages));
       input.value='';
       renderChatMessages();
+      input.focus();
       setTimeout(()=>{
         const reply={user:'System',text:'Message sent to global chat!',time:new Date().toLocaleTimeString(),sent:false};
         chatMessages.push(reply);
+        if(chatMessages.length>200)chatMessages=chatMessages.slice(-200);
         localStorage.setItem('chatMessages',JSON.stringify(chatMessages));
         renderChatMessages();
-      },500);
+      },300);
     }
 
     document.addEventListener("DOMContentLoaded",()=>{
@@ -1419,6 +1446,7 @@
       document.getElementById('incognito-toggle').textContent=incognitoMode?'Disable':'Enable';
       if(!blurEnabled)document.documentElement.style.setProperty('--blur','blur(0px)');
       if(bookmarks.length>0)renderBookmarks();
+      document.getElementById('settings-username').textContent=currentUsername;
     });
     window.addEventListener("beforeunload",e=>{e.preventDefault();e.returnValue=""});
   </script>
