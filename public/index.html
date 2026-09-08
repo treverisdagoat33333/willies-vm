@@ -193,6 +193,10 @@
     @keyframes cardIn{from{opacity:0;transform:translateY(12px) scale(.95)}to{opacity:1;transform:translateY(0) scale(1)}}
     .game-card img{width:100%;aspect-ratio:1;object-fit:cover;display:block;background:#18181c}
     .game-card-name{padding:9px 10px;color:var(--text);font-size:12px;font-weight:600;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:rgba(0,0,0,.3)}
+    .recent-games{display:flex;gap:8px;overflow-x:auto;padding:8px 4px}
+    .recent-game-item{display:flex;flex-direction:column;align-items:center;gap:4px;min-width:70px;cursor:pointer}
+    .recent-game-item img{width:50px;height:50px;border-radius:8px;object-fit:cover}
+    .recent-game-item span{font-size:10px;color:var(--text-secondary);max-width:70px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
     #taskbar{position:fixed;bottom:0;left:0;right:0;height:var(--taskbar-h);background:var(--taskbar-bg);backdrop-filter:blur(64px) saturate(180%);-webkit-backdrop-filter:blur(64px) saturate(180%);border-top:1px solid rgba(255,255,255,.07);z-index:9998;display:flex;align-items:center;justify-content:center;gap:4px}
     .taskbar-center{display:flex;align-items:center;gap:2px}
@@ -211,7 +215,7 @@
     .desktop-icon{display:flex;flex-direction:column;align-items:center;gap:5px;width:72px;padding:7px;border-radius:var(--radius-sm);cursor:pointer;transition:background .18s var(--snappy),transform .22s var(--spring),box-shadow .18s;text-align:center}
     .desktop-icon:hover{background:rgba(255,255,255,.1);transform:translateY(-3px);box-shadow:0 8px 20px rgba(0,0,0,.35)}
     .desktop-icon:active{transform:scale(.93);transition-duration:.08s}
-    .desktop-icon-img{font-size:30px;line-height:1}
+    .desktop-icon-img{font-size:30px;line-height:1;display:flex;align-items:center;justify-content:center;width:30px;height:30px}
     .desktop-icon-img img{width:30px;height:30px;border-radius:6px;object-fit:contain}
     .desktop-icon-label{font-size:11px;color:#fff;font-weight:500;text-shadow:0 1px 4px rgba(0,0,0,.9);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:66px}
 
@@ -220,12 +224,12 @@
     .minimized-chip:hover{background:rgba(255,255,255,.12);transform:translateY(-2px);color:var(--text)}
     @keyframes chipIn{from{opacity:0;transform:scale(.8) translateY(8px)}to{opacity:1;transform:scale(1) translateY(0)}}
 
-    .settings-panel{position:fixed;inset:0;z-index:5000;background:rgba(10,10,13,.97);backdrop-filter:blur(24px);flex-direction:column;opacity:0;pointer-events:none;transform:scale(.97) translateY(12px);transition:opacity .3s var(--spring),transform .3s var(--spring),pointer-events 0s .3s;display:flex}
-    .settings-panel.show{opacity:1;pointer-events:all;transform:scale(1) translateY(0);transition:opacity .3s var(--spring),transform .3s var(--spring)}
-    .settings-header{min-height:54px;background:var(--titlebar-bg);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 20px;gap:12px;flex-shrink:0}
-    .settings-header h2{color:var(--text);font-size:15px;font-weight:600;display:flex;align-items:center;gap:8px}
-    .settings-close{padding:7px 14px;color:var(--text);background:rgba(255,255,255,.07);border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;font-size:13px;font-family:inherit;transition:background .15s,border-color .15s;display:flex;align-items:center;gap:5px}
-    .settings-close:hover{background:#c42b1c;border-color:#c42b1c}
+    .settings-panel,.chat-panel{position:fixed;inset:0;z-index:5000;background:rgba(10,10,13,.97);backdrop-filter:blur(24px);flex-direction:column;opacity:0;pointer-events:none;transform:scale(.97) translateY(12px);transition:opacity .3s var(--spring),transform .3s var(--spring),pointer-events 0s .3s;display:flex}
+    .settings-panel.show,.chat-panel.show{opacity:1;pointer-events:all;transform:scale(1) translateY(0);transition:opacity .3s var(--spring),transform .3s var(--spring)}
+    .settings-header,.chat-header{min-height:54px;background:var(--titlebar-bg);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 20px;gap:12px;flex-shrink:0}
+    .settings-header h2,.chat-header h2{color:var(--text);font-size:15px;font-weight:600;display:flex;align-items:center;gap:8px}
+    .settings-close,.chat-close{padding:7px 14px;color:var(--text);background:rgba(255,255,255,.07);border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;font-size:13px;font-family:inherit;transition:background .15s,border-color .15s;display:flex;align-items:center;gap:5px}
+    .settings-close:hover,.chat-close:hover{background:#c42b1c;border-color:#c42b1c}
     .settings-content{flex:1;overflow-y:auto;padding:24px;display:flex;flex-direction:column;gap:18px;max-width:600px;margin:0 auto;width:100%}
     .settings-section{background:rgba(24,24,28,.7);border:1px solid var(--border);border-radius:var(--radius);padding:16px;backdrop-filter:blur(20px)}
     .settings-section h3{color:var(--text-secondary);font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-bottom:12px}
@@ -245,8 +249,38 @@
     .color-option:hover{transform:scale(1.15)}
     .color-option.active{border-color:#fff}
 
+    .chat-container{flex:1;display:flex;flex-direction:column;max-width:800px;margin:0 auto;width:100%;background:rgba(24,24,28,.7);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
+    .chat-messages{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:8px}
+    .chat-message{max-width:70%;padding:10px 14px;border-radius:12px;font-size:13px;line-height:1.4;word-wrap:break-word}
+    .chat-message.sent{background:var(--accent);color:#fff;align-self:flex-end;border-bottom-right-radius:4px}
+    .chat-message.received{background:rgba(255,255,255,.08);color:var(--text);align-self:flex-start;border-bottom-left-radius:4px}
+    .chat-message .msg-user{font-size:11px;font-weight:600;margin-bottom:2px;opacity:.8}
+    .chat-message .msg-time{font-size:10px;opacity:.6;margin-top:2px}
+    .chat-input-area{display:flex;gap:8px;padding:12px;border-top:1px solid var(--border);background:rgba(0,0,0,.2)}
+    .chat-input{flex:1;background:rgba(255,255,255,.06);color:var(--text);border:1px solid var(--border);border-radius:20px;padding:10px 16px;outline:none;font-family:inherit;font-size:13px;transition:border-color .2s}
+    .chat-input:focus{border-color:var(--accent)}
+    .chat-send-btn{padding:8px 20px;background:var(--accent);color:#fff;border:none;border-radius:20px;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;transition:background .15s}
+    .chat-send-btn:hover{background:var(--accent-light)}
+
+    .bookmarks-bar{display:flex;gap:6px;overflow-x:auto;padding:4px 10px;background:#0d0d10;border-bottom:1px solid var(--border);scrollbar-width:none}
+    .bookmarks-bar::-webkit-scrollbar{display:none}
+    .bookmark-item{display:flex;align-items:center;gap:5px;padding:4px 10px;background:rgba(255,255,255,.06);border:1px solid var(--border);border-radius:15px;font-size:12px;color:var(--text-secondary);cursor:pointer;white-space:nowrap;transition:background .15s}
+    .bookmark-item:hover{background:rgba(255,255,255,.12);color:var(--text)}
+    .bookmark-item img{width:12px;height:12px;border-radius:2px}
+
+    .history-panel{position:fixed;inset:0;z-index:5000;background:rgba(10,10,13,.97);backdrop-filter:blur(24px);flex-direction:column;opacity:0;pointer-events:none;transform:scale(.97) translateY(12px);transition:opacity .3s var(--spring),transform .3s var(--spring),pointer-events 0s .3s;display:flex}
+    .history-panel.show{opacity:1;pointer-events:all;transform:scale(1) translateY(0);transition:opacity .3s var(--spring),transform .3s var(--spring)}
+    .history-list{flex:1;overflow-y:auto;padding:20px;max-width:600px;margin:0 auto;width:100%}
+    .history-item{display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:var(--radius-sm);cursor:pointer;transition:background .15s}
+    .history-item:hover{background:rgba(255,255,255,.06)}
+    .history-item img{width:16px;height:16px;border-radius:3px}
+    .history-item .h-title{flex:1;color:var(--text);font-size:13px;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .history-item .h-time{color:var(--text-tertiary);font-size:11px;white-space:nowrap}
+    .history-item .h-delete{color:var(--text-tertiary);cursor:pointer;padding:4px;border-radius:4px;transition:background .15s}
+    .history-item .h-delete:hover{background:rgba(255,80,80,.25);color:#ff5050}
+
     @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
-    @media(max-width:520px){.win-window{width:96vw}#vm-buttons{grid-template-columns:1fr}.settings-row{flex-direction:column;align-items:flex-start}.settings-input{min-width:100%}}
+    @media(max-width:520px){.win-window{width:96vw}#vm-buttons{grid-template-columns:1fr}.settings-row{flex-direction:column;align-items:flex-start}.settings-input{min-width:100%}.chat-message{max-width:85%}}
   </style>
 </head>
 <body>
@@ -299,6 +333,9 @@
           <button class="vm-btn" id="games-btn" type="button" onclick="openGamesPanel()">
              Games
           </button>
+          <button class="vm-btn" id="chat-btn" type="button" onclick="openChat()">
+            <svg class="icon" viewBox="0 0 24 24" style="color:#000;stroke:#fff"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> Chat
+          </button>
         </div>
         <button class="btn-secondary" id="links-toggle" type="button"><svg class="icon" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.07 0l2.83-2.83a5 5 0 0 0-7.07-7.07l-1.5 1.5"/><path d="M14 11a5 5 0 0 0-7.07 0L4.1 13.83a5 5 0 0 0 7.07 7.07l1.5-1.5"/></svg> Links</button>
         <button class="btn-secondary" id="settings-toggle" type="button"><svg class="icon" viewBox="0 0 24 24"><path d="M4 21v-7"/><path d="M4 10V3"/><path d="M12 21v-9"/><path d="M12 8V3"/><path d="M20 21v-5"/><path d="M20 12V3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg> Settings</button>
@@ -324,6 +361,10 @@
     <div class="desktop-icon" onclick="openSettings()">
       <div class="desktop-icon-img"><svg class="icon" viewBox="0 0 24 24" style="width:30px;height:30px;color:#000;stroke:#fff"><path d="M4 21v-7"/><path d="M4 10V3"/><path d="M12 21v-9"/><path d="M12 8V3"/><path d="M20 21v-5"/><path d="M20 12V3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg></div>
       <div class="desktop-icon-label">Settings</div>
+    </div>
+    <div class="desktop-icon" onclick="openChat()">
+      <div class="desktop-icon-img"><svg class="icon" viewBox="0 0 24 24" style="width:30px;height:30px;color:#000;stroke:#fff"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
+      <div class="desktop-icon-label">Chat</div>
     </div>
   </div>
 
@@ -405,6 +446,10 @@
       <h2><svg class="icon" viewBox="0 0 24 24" style="width:19px;height:19px"><rect x="2" y="7" width="20" height="10" rx="5"/><line x1="7" y1="12" x2="9" y2="12"/><line x1="8" y1="11" x2="8" y2="13"/><circle cx="15" cy="10.5" r="0.9" fill="currentColor" stroke="none"/><circle cx="17" cy="13.5" r="0.9" fill="currentColor" stroke="none"/></svg> Games</h2>
       <input id="games-search" type="text" placeholder="Search games..." oninput="filterGames(this.value)" autocomplete="off">
       <button id="games-close" type="button" onclick="closeGamesPanel()"><svg class="icon" viewBox="0 0 24 24"><line x1="5" y1="5" x2="19" y2="19"/><line x1="19" y1="5" x2="5" y2="19"/></svg> Close</button>
+    </div>
+    <div id="recent-games-section" style="display:none;padding:0 24px;margin-top:12px;">
+      <h3 style="color:var(--text-secondary);font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px;">Recently Played</h3>
+      <div class="recent-games" id="recent-games-list"></div>
     </div>
     <div id="games-grid"></div>
   </div>
@@ -501,6 +546,13 @@
           </div>
           <button class="settings-btn danger" onclick="clearBrowsingData()">Clear Data</button>
         </div>
+        <div class="settings-row">
+          <div>
+            <div class="settings-label">Incognito Mode</div>
+            <div class="settings-description">Don't save history or cookies</div>
+          </div>
+          <button class="settings-btn" id="incognito-toggle" onclick="toggleIncognito()">Enable</button>
+        </div>
       </div>
       <div class="settings-section">
         <h3>Display Settings</h3>
@@ -522,15 +574,40 @@
     </div>
   </div>
 
+  <div id="chat-panel" class="chat-panel">
+    <div class="chat-header">
+      <h2><svg class="icon" viewBox="0 0 24 24" style="width:19px;height:19px;color:#000;stroke:#fff"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> Global Chat</h2>
+      <button class="chat-close" onclick="closeChat()"><svg class="icon" viewBox="0 0 24 24"><line x1="5" y1="5" x2="19" y2="19"/><line x1="19" y1="5" x2="5" y2="19"/></svg> Close</button>
+    </div>
+    <div class="chat-container">
+      <div class="chat-messages" id="chat-messages"></div>
+      <div class="chat-input-area">
+        <input class="chat-input" id="chat-input" type="text" placeholder="Type a message..." onkeydown="if(event.key==='Enter')sendChatMessage()">
+        <button class="chat-send-btn" onclick="sendChatMessage()">Send</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="history-panel" class="history-panel">
+    <div class="settings-header">
+      <h2><svg class="icon" viewBox="0 0 24 24" style="width:19px;height:19px"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> History</h2>
+      <button class="settings-close" onclick="closeHistory()"><svg class="icon" viewBox="0 0 24 24"><line x1="5" y1="5" x2="19" y2="19"/><line x1="19" y1="5" x2="5" y2="19"/></svg> Close</button>
+    </div>
+    <div class="history-list" id="history-list"></div>
+  </div>
+
   <div id="browser-wrap">
     <div id="tab-bar">
       <div id="tab-list"></div>
       <div id="tab-new" title="New tab" onclick="newTab()">+</div>
     </div>
+    <div class="bookmarks-bar" id="bookmarks-bar"></div>
     <div id="browser-toolbar">
       <button type="button" onclick="scramjetBack()" title="Back"><svg class="icon" viewBox="0 0 24 24"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg></button>
       <button type="button" onclick="scramjetForward()" title="Forward"><svg class="icon" viewBox="0 0 24 24"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></button>
       <button type="button" onclick="scramjetReload()" title="Reload"><svg class="icon" viewBox="0 0 24 24"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg></button>
+      <button type="button" onclick="addBookmark()" title="Bookmark this page"><svg class="icon" viewBox="0 0 24 24"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg></button>
+      <button type="button" onclick="openHistory()" title="History"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></button>
       <img id="browser-favicon" src="" alt="" style="display:none;width:16px;height:16px;border-radius:3px;object-fit:contain;margin-left:4px;flex-shrink:0;">
       <input id="browser-address" type="text" value="https://www.google.com/" placeholder="Enter a URL or search..." autocomplete="off" spellcheck="false" onkeydown="if(event.key==='Enter')navigateScramjet()">
       <button type="button" onclick="navigateScramjet()">Go</button>
@@ -566,6 +643,7 @@
       <button class="taskbar-btn" title="VM" onclick="launchGPUVM()" id="tb-vm"><svg class="icon icon-lg" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="13" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg></button>
       <button class="taskbar-btn" title="Links" onclick="showLinksPanel()" id="tb-links"><svg class="icon icon-lg" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.07 0l2.83-2.83a5 5 0 0 0-7.07-7.07l-1.5 1.5"/><path d="M14 11a5 5 0 0 0-7.07 0L4.1 13.83a5 5 0 0 0 7.07 7.07l1.5-1.5"/></svg></button>
       <button class="taskbar-btn" title="Settings" onclick="openSettings()" id="tb-settings"><svg class="icon icon-lg" viewBox="0 0 24 24" style="color:#000;stroke:#fff"><path d="M4 21v-7"/><path d="M4 10V3"/><path d="M12 21v-9"/><path d="M12 8V3"/><path d="M20 21v-5"/><path d="M20 12V3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg></button>
+      <button class="taskbar-btn" title="Chat" onclick="openChat()" id="tb-chat"><svg class="icon icon-lg" viewBox="0 0 24 24" style="color:#000;stroke:#fff"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></button>
     </div>
     <div id="taskbar-right">
       <div id="taskbar-clock">
@@ -590,7 +668,12 @@
     let defaultVM = localStorage.getItem('defaultVM') || 'e2b';
     let currentAccent = localStorage.getItem('accentColor') || '#0078d4';
     let blurEnabled = localStorage.getItem('blurEnabled') !== 'false';
-    
+    let incognitoMode = localStorage.getItem('incognitoMode') === 'true';
+    let bookmarks = JSON.parse(localStorage.getItem('bookmarks') || '[]');
+    let historyData = JSON.parse(localStorage.getItem('history') || '[]');
+    let recentGames = JSON.parse(localStorage.getItem('recentGames') || '[]');
+    let chatMessages = [];
+
     function updateClock(){const now=new Date(),h=String(now.getHours()).padStart(2,'0'),m=String(now.getMinutes()).padStart(2,'0'),days=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'],months=['1','2','3','4','5','6','7','8','9','10','11','12'];document.getElementById('taskbar-time').textContent=`${h}:${m}`;document.getElementById('taskbar-date').textContent=`${days[now.getDay()]} ${months[now.getMonth()]}/${now.getDate()}`}
     updateClock();setInterval(updateClock,1000);
 
@@ -713,7 +796,7 @@
     function hideLinksPanel(){document.getElementById("links-panel").classList.remove("show")}
     document.getElementById("links-toggle").addEventListener("click",showLinksPanel);
     document.getElementById("links-close").addEventListener("click",hideLinksPanel);
-    document.addEventListener('keydown',e=>{if(e.key==='Escape'){hideLinksPanel();closeGamesPanel();closeSettings()}});
+    document.addEventListener('keydown',e=>{if(e.key==='Escape'){hideLinksPanel();closeGamesPanel();closeSettings();closeChat();closeHistory()}});
 
     async function fetchPlayerCount(){try{const c=new AbortController(),t=setTimeout(()=>c.abort(),5000),r=await fetch("/api/stats",{signal:c.signal,cache:"no-store"});clearTimeout(t);if(!r.ok)throw 0;const d=await r.json(),count=d.online??d.count??d.players??null;if(count!==null)document.getElementById("player-count-text").textContent=`${count} online`}catch(_){}}
 
@@ -850,6 +933,7 @@
       browser.style.display="flex";browser.classList.remove('closing');
       document.getElementById("vm-frame-wrap").style.display="none";
       document.getElementById('tb-browser').classList.add('active');
+      renderBookmarks();
       if(tabs.length===0)await newTab(initialUrl||defaultHomepage);
       else if(initialUrl)await navigateScramjet(initialUrl);
     }
@@ -864,6 +948,9 @@
         t.url=url;document.getElementById("browser-address").value=url;
         t.title=(()=>{try{return new URL(url).hostname||"Loading…"}catch(_){return"Loading…"}})();
         renderTabBar();updateBrowserFavicon(url);
+        if(!incognitoMode){
+          addToHistory(url);
+        }
         setBrowserStatus("Loading…",true);t.sjFrame.go(url);
         setTimeout(()=>setBrowserStatus("",false),1500);
       }catch(err){console.error("Nav failed:",err);setBrowserStatus("Navigation error: "+(err?.message||err),true)}
@@ -902,15 +989,43 @@
     function renderGames(list){
       const grid=document.getElementById("games-grid");grid.innerHTML="";
       list.forEach((game,i)=>{
-        const card=document.createElement("div");card.className="game-card";card.style.animationDelay=(i*28)+'ms';card.onclick=()=>launchGame(game.url);
+        const card=document.createElement("div");card.className="game-card";card.style.animationDelay=(i*28)+'ms';card.onclick=()=>launchGame(game);
         card.innerHTML=`<img src="${game.img}" alt="${game.name}" loading="lazy" onerror="this.style.minHeight='130px';this.style.background='#18181c'"><div class="game-card-name">${game.name}</div>`;
         grid.appendChild(card);
       });
     }
     function filterGames(q){const query=q.toLowerCase().trim();filteredGames=query?GAMES.filter(g=>g.name.toLowerCase().includes(query)):[...GAMES];renderGames(filteredGames)}
-    function openGamesPanel(){document.getElementById("games-panel").classList.add("show");renderGames(GAMES)}
+    function openGamesPanel(){document.getElementById("games-panel").classList.add("show");renderGames(GAMES);renderRecentGames()}
     function closeGamesPanel(){document.getElementById("games-panel").classList.remove("show")}
-    function launchGame(url){closeGamesPanel();const b=document.getElementById("browser-wrap");b.style.display="flex";b.classList.remove('closing');document.getElementById("vm-frame-wrap").style.display="none";newTab(url)}
+    function launchGame(game){
+      closeGamesPanel();
+      const b=document.getElementById("browser-wrap");
+      b.style.display="flex";b.classList.remove('closing');
+      document.getElementById("vm-frame-wrap").style.display="none";
+      addRecentGame(game);
+      newTab(game.url);
+    }
+    function addRecentGame(game){
+      recentGames = recentGames.filter(g=>g.name!==game.name);
+      recentGames.unshift({name:game.name,img:game.img,url:game.url});
+      if(recentGames.length>8)recentGames.pop();
+      localStorage.setItem('recentGames',JSON.stringify(recentGames));
+      renderRecentGames();
+    }
+    function renderRecentGames(){
+      const section=document.getElementById('recent-games-section');
+      const list=document.getElementById('recent-games-list');
+      if(recentGames.length===0){section.style.display='none';return}
+      section.style.display='block';
+      list.innerHTML='';
+      recentGames.forEach(game=>{
+        const item=document.createElement('div');
+        item.className='recent-game-item';
+        item.onclick=()=>launchGame(game);
+        item.innerHTML=`<img src="${game.img}" alt="${game.name}" onerror="this.style.background='#18181c'"><span>${game.name}</span>`;
+        list.appendChild(item);
+      });
+    }
 
     function openSettings(){document.getElementById('settings-panel').classList.add('show');loadSettings()}
     function closeSettings(){document.getElementById('settings-panel').classList.remove('show')}
@@ -965,6 +1080,13 @@
       toast(soundEnabled?'Sound enabled':'Sound disabled',false,true);
     }
 
+    function toggleIncognito(){
+      incognitoMode=!incognitoMode;
+      localStorage.setItem('incognitoMode',incognitoMode);
+      document.getElementById('incognito-toggle').textContent=incognitoMode?'Disable':'Enable';
+      toast(incognitoMode?'Incognito mode enabled - history won\'t be saved':'Incognito mode disabled',false,true);
+    }
+
     function clearBrowsingData(){
       if(confirm('Clear all browsing data (cookies, cache, localStorage)?')){
         localStorage.clear();
@@ -1002,8 +1124,105 @@
       document.getElementById('default-vm-select').value=defaultVM;
       document.getElementById('sound-toggle').textContent=soundEnabled?'Disable':'Enable';
       document.getElementById('blur-toggle').textContent=blurEnabled?'Disable':'Enable';
+      document.getElementById('incognito-toggle').textContent=incognitoMode?'Disable':'Enable';
       const savedWall=localStorage.getItem('wallpaper');
       if(savedWall)document.getElementById('desktop-bg').style.backgroundImage=`url('${savedWall}')`;
+    }
+
+    function addBookmark(){
+      const tab=getActiveTab();
+      if(!tab||!tab.url||tab.url==='about:blank'){toast('No page to bookmark',true);return}
+      if(bookmarks.find(b=>b.url===tab.url)){toast('Already bookmarked',true);return}
+      bookmarks.push({title:tab.title,url:tab.url});
+      localStorage.setItem('bookmarks',JSON.stringify(bookmarks));
+      renderBookmarks();
+      toast('Bookmarked!',false,true);
+    }
+    function renderBookmarks(){
+      const bar=document.getElementById('bookmarks-bar');
+      bar.innerHTML='';
+      bookmarks.forEach((bm,idx)=>{
+        const item=document.createElement('div');
+        item.className='bookmark-item';
+        const fav=getFavicon(bm.url,16);
+        item.innerHTML=`${fav?`<img src="${fav}" alt="">`:''}<span>${bm.title}</span>`;
+        item.onclick=()=>navigateScramjet(bm.url);
+        item.oncontextmenu=(e)=>{e.preventDefault();bookmarks.splice(idx,1);localStorage.setItem('bookmarks',JSON.stringify(bookmarks));renderBookmarks();toast('Bookmark removed')};
+        bar.appendChild(item);
+      });
+    }
+
+    function addToHistory(url){
+      historyData = historyData.filter(h=>h.url!==url);
+      historyData.unshift({url,title:(()=>{try{return new URL(url).hostname}catch(_){return url}})(),time:new Date().toLocaleString()});
+      if(historyData.length>100)historyData.pop();
+      localStorage.setItem('history',JSON.stringify(historyData));
+    }
+    function openHistory(){
+      document.getElementById('history-panel').classList.add('show');
+      renderHistory();
+    }
+    function closeHistory(){document.getElementById('history-panel').classList.remove('show')}
+    function renderHistory(){
+      const list=document.getElementById('history-list');
+      list.innerHTML='';
+      if(historyData.length===0){list.innerHTML='<div style="color:var(--text-tertiary);text-align:center;padding:40px;">No history yet</div>';return}
+      historyData.forEach((h,idx)=>{
+        const item=document.createElement('div');
+        item.className='history-item';
+        const fav=getFavicon(h.url,16);
+        item.innerHTML=`${fav?`<img src="${fav}" alt="">`:''}<span class="h-title">${h.title}</span><span class="h-time">${h.time}</span><span class="h-delete" onclick="event.stopPropagation();deleteHistoryItem(${idx})">×</span>`;
+        item.onclick=()=>{closeHistory();openScramjetBrowser(h.url)};
+        list.appendChild(item);
+      });
+    }
+    function deleteHistoryItem(idx){
+      historyData.splice(idx,1);
+      localStorage.setItem('history',JSON.stringify(historyData));
+      renderHistory();
+    }
+
+    function openChat(){
+      document.getElementById('chat-panel').classList.add('show');
+      renderChatMessages();
+    }
+    function closeChat(){document.getElementById('chat-panel').classList.remove('show')}
+    function renderChatMessages(){
+      const container=document.getElementById('chat-messages');
+      container.innerHTML='';
+      if(chatMessages.length===0){
+        container.innerHTML='<div style="color:var(--text-tertiary);text-align:center;padding:40px;">No messages yet. Say hello!</div>';
+        return;
+      }
+      chatMessages.forEach(msg=>{
+        const div=document.createElement('div');
+        div.className='chat-message '+(msg.sent?'sent':'received');
+        div.innerHTML=`${msg.user?`<div class="msg-user">${msg.user}</div>`:''}${msg.text}<div class="msg-time">${msg.time}</div>`;
+        container.appendChild(div);
+      });
+      container.scrollTop=container.scrollHeight;
+    }
+    function sendChatMessage(){
+      const input=document.getElementById('chat-input');
+      const text=input.value.trim();
+      if(!text)return;
+      const username=document.getElementById('settings-username').textContent;
+      const msg={
+        user:username!=='Not logged in'?username:'Guest',
+        text:text,
+        time:new Date().toLocaleTimeString(),
+        sent:true
+      };
+      chatMessages.push(msg);
+      localStorage.setItem('chatMessages',JSON.stringify(chatMessages));
+      input.value='';
+      renderChatMessages();
+      setTimeout(()=>{
+        const reply={user:'System',text:'Message sent to global chat!',time:new Date().toLocaleTimeString(),sent:false};
+        chatMessages.push(reply);
+        localStorage.setItem('chatMessages',JSON.stringify(chatMessages));
+        renderChatMessages();
+      },500);
     }
 
     document.addEventListener("DOMContentLoaded",()=>{
@@ -1013,7 +1232,10 @@
       loadSettings();
       document.getElementById('sound-toggle').textContent=soundEnabled?'Disable':'Enable';
       document.getElementById('blur-toggle').textContent=blurEnabled?'Disable':'Enable';
+      document.getElementById('incognito-toggle').textContent=incognitoMode?'Disable':'Enable';
       if(!blurEnabled)document.documentElement.style.setProperty('--blur','blur(0px)');
+      if(JSON.parse(localStorage.getItem('chatMessages')||'[]').length>0)chatMessages=JSON.parse(localStorage.getItem('chatMessages')||'[]');
+      if(bookmarks.length>0)renderBookmarks();
     });
     window.addEventListener("beforeunload",e=>{e.preventDefault();e.returnValue=""});
   </script>
