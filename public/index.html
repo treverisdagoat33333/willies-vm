@@ -40,6 +40,26 @@
     button:active .icon{transform:scale(.92)}
     #desktop-bg{position:fixed;inset:0;z-index:0;background-image:url('https://images.alphacoders.com/133/thumb-1920-1330185.jpeg');background-size:cover;background-position:center}
     #desktop-bg::after{content:'';position:absolute;inset:0;background:linear-gradient(to bottom,rgba(0,0,0,.05) 0%,rgba(0,0,0,.12) 75%,rgba(0,0,0,.55) 100%)}
+    /* ADDED BACKGROUND TEXT */
+    #desktop-bg-text {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: clamp(2rem, 8vw, 5rem);
+      font-weight: 700;
+      color: rgba(255,255,255,0.6);
+      text-shadow: 0 4px 24px rgba(0,0,0,0.7), 0 0 60px rgba(255,255,255,0.15);
+      letter-spacing: .06em;
+      pointer-events: none;
+      z-index: 1;
+      animation: subtleGlow 4s ease-in-out infinite alternate;
+    }
+    @keyframes subtleGlow {
+      from { text-shadow: 0 4px 24px rgba(0,0,0,0.6), 0 0 40px rgba(255,255,255,0.1); }
+      to { text-shadow: 0 4px 32px rgba(0,0,0,0.8), 0 0 80px rgba(255,255,255,0.3); }
+    }
     #desktop{position:fixed;inset:0;bottom:var(--taskbar-h);z-index:1;display:flex;align-items:center;justify-content:center}
 
     /* WINDOW */
@@ -223,7 +243,10 @@
   </style>
 </head>
 <body>
-  <div id="desktop-bg"></div>
+  <div id="desktop-bg">
+    <!-- TEXT ADDED TO BACKGROUND -->
+    <div id="desktop-bg-text">WILLIE GAMES V3</div>
+  </div>
 
   <div id="auth-wrap">
     <form id="auth-card">
@@ -781,4 +804,4 @@
     window.addEventListener("beforeunload",e=>{e.preventDefault();e.returnValue=""});
   </script>
 </body>
-</html
+</html>
