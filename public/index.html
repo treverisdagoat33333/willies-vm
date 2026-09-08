@@ -151,6 +151,10 @@
     @keyframes frameFade{from{opacity:0}to{opacity:1}}
     .icon.spinning{animation:iconSpin .6s linear}
     @keyframes iconSpin{to{transform:rotate(360deg)}}
+    .launch-pulse{animation:launchBounce .4s var(--spring)}
+    @keyframes launchBounce{0%{transform:scale(1)}40%{transform:scale(.82)}70%{transform:scale(1.12)}100%{transform:scale(1)}}
+    .launch-ring{position:absolute;inset:-6px;border-radius:inherit;border:2px solid var(--accent-light);opacity:.9;pointer-events:none;animation:launchRing .55s var(--snappy) forwards}
+    @keyframes launchRing{from{transform:scale(.6);opacity:.9}to{transform:scale(1.9);opacity:0}}
     .browser-frame.active{display:block}
     #browser-status{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);display:none;max-width:80vw;padding:14px 20px;border:1px solid var(--border);border-radius:var(--radius);background:rgba(20,20,24,.96);color:var(--text-secondary);font-size:13px;font-family:monospace;text-align:center;z-index:2;backdrop-filter:blur(20px)}
 
@@ -201,6 +205,68 @@
     @keyframes pillIn{from{width:0;opacity:0}to{width:14px;opacity:1}}
     #taskbar-right{position:absolute;right:12px;display:flex;align-items:center;gap:4px}
     #taskbar-clock{display:flex;flex-direction:column;align-items:flex-end;font-size:11px;color:var(--text);line-height:1.4;padding:0 8px;cursor:default;letter-spacing:.01em}
+    #taskbar-date{font-size:10px}
+
+    /* BATTERY */
+    #taskbar-battery{display:flex;align-items:center;gap:5px;padding:0 8px;border-right:1px solid var(--border);color:var(--text-secondary);font-size:11px;font-variant-numeric:tabular-nums}
+    #taskbar-battery.charging #battery-fill{animation:battPulse 1.6s ease-in-out infinite}
+    #taskbar-battery.low{color:#fc6060}
+    @keyframes battPulse{0%,100%{opacity:1}50%{opacity:.35}}
+
+    /* DYNAMIC ISLAND */
+    #dynamic-island{position:fixed;top:10px;left:50%;transform:translateX(-50%);z-index:20000;background:#000;border-radius:22px;box-shadow:0 10px 30px rgba(0,0,0,.6),0 0 0 1px rgba(255,255,255,.08) inset;overflow:hidden;transition:width .45s var(--spring),height .45s var(--spring),border-radius .35s var(--spring);display:none}
+    #dynamic-island.enabled{display:block}
+    #dynamic-island.collapsed{width:118px;height:34px}
+    #dynamic-island.expanded{width:min(380px,92vw);height:420px;border-radius:20px}
+    #di-collapsed{width:100%;height:34px;display:flex;align-items:center;justify-content:center;gap:7px;cursor:pointer;color:#fff;font-size:12px;font-weight:500}
+    #dynamic-island.expanded #di-collapsed{display:none}
+    #di-dot{width:7px;height:7px;border-radius:50%;background:var(--accent-light);box-shadow:0 0 8px var(--accent-light);animation:blink 2.4s ease-in-out infinite}
+    #di-expanded{display:none;flex-direction:column;height:100%}
+    #dynamic-island.expanded #di-expanded{display:flex;animation:frameFade .25s var(--spring) both}
+    #di-header{display:flex;align-items:center;justify-content:space-between;padding:12px 14px 8px;color:#fff;font-size:13px;font-weight:600}
+    #di-header span{display:flex;align-items:center;gap:6px}
+    #di-header button{background:transparent;border:none;color:var(--text-secondary);cursor:pointer;padding:4px}
+    #di-header button:hover{color:#fff}
+    #di-messages{flex:1;overflow-y:auto;padding:4px 14px;display:flex;flex-direction:column;gap:10px}
+    .di-msg{max-width:88%;padding:8px 11px;border-radius:12px;font-size:13px;line-height:1.4;white-space:pre-wrap;word-break:break-word;animation:frameFade .2s var(--spring) both}
+    .di-msg.user{align-self:flex-end;background:var(--accent);color:#fff;border-bottom-right-radius:3px}
+    .di-msg.ai{align-self:flex-start;background:rgba(255,255,255,.08);color:var(--text);border-bottom-left-radius:3px}
+    .di-msg.pending{color:var(--text-tertiary);font-style:italic}
+    #di-form{display:flex;gap:8px;padding:10px 12px 14px;border-top:1px solid var(--border)}
+    #di-form input{flex:1;padding:9px 12px;background:rgba(255,255,255,.06);border:1px solid var(--border);border-radius:20px;color:var(--text);font-family:inherit;font-size:13px;outline:none}
+    #di-form input:focus{border-color:var(--accent)}
+    #di-form button{width:34px;height:34px;border-radius:50%;background:var(--accent);border:none;color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;transition:background .15s,transform .12s var(--spring)}
+    #di-form button:hover{background:var(--accent-light);transform:scale(1.06)}
+
+    /* AI SETTINGS MODAL */
+    #ai-settings-wrap{position:fixed;inset:0;z-index:20001;display:flex;align-items:center;justify-content:center;padding:1rem;background:rgba(0,0,0,.65);backdrop-filter:blur(10px);transition:opacity .3s,visibility .3s}
+    #ai-settings-wrap.hidden{opacity:0;visibility:hidden;pointer-events:none}
+    #ai-settings-card{width:min(400px,100%);display:flex;flex-direction:column;gap:10px;padding:26px 24px;background:rgba(22,22,26,.96);backdrop-filter:var(--blur);border:1px solid var(--border-bright);border-radius:var(--radius-lg);box-shadow:var(--shadow);animation:windowOpen .4s var(--spring) both}
+    #ai-settings-card h2{font-size:19px;font-weight:600;display:flex;align-items:center;gap:8px}
+    #ai-settings-card p{color:var(--text-secondary);font-size:12.5px;line-height:1.55}
+    #ai-settings-card input{padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-family:inherit;font-size:13px;outline:none}
+    #ai-settings-card input:focus{border-color:var(--accent)}
+    #ai-settings-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:4px}
+    #ai-key-clear{background:transparent;border:none;color:var(--text-tertiary);font-size:11.5px;cursor:pointer;text-decoration:underline;margin-top:2px}
+    #ai-key-clear:hover{color:#fc6060}
+
+    /* CUSTOMIZE PANEL */
+    #customize-wrap{position:fixed;inset:0;z-index:20002;display:flex;align-items:center;justify-content:center;padding:1rem;background:rgba(0,0,0,.72);backdrop-filter:blur(14px);transition:opacity .35s,visibility .35s}
+    #customize-wrap.hidden{opacity:0;visibility:hidden;pointer-events:none}
+    #customize-card{width:min(420px,100%);display:flex;flex-direction:column;gap:9px;padding:28px 26px;background:rgba(22,22,26,.97);border:1px solid var(--border-bright);border-radius:var(--radius-lg);box-shadow:var(--shadow);animation:windowOpen .45s var(--spring) both}
+    #customize-card h2{font-size:20px;font-weight:600}
+    #customize-card p{color:var(--text-secondary);font-size:12.5px;line-height:1.5;margin-bottom:4px}
+    .cz-label{font-size:11.5px;color:var(--text-tertiary);font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-top:6px}
+    #customize-card input[type="text"]{padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-family:inherit;font-size:13px;outline:none}
+    #customize-card input[type="text"]:focus{border-color:var(--accent)}
+    #cz-color-row{display:flex;align-items:center;gap:10px}
+    #cz-color{width:38px;height:34px;border:1px solid var(--border);border-radius:var(--radius-sm);background:transparent;cursor:pointer;padding:2px}
+    #cz-color-swatches{display:flex;gap:6px}
+    .cz-swatch{width:26px;height:26px;border-radius:50%;border:2px solid rgba(255,255,255,.2);cursor:pointer;transition:transform .15s var(--spring),border-color .15s}
+    .cz-swatch:hover{transform:scale(1.15)}
+    .cz-swatch.selected{border-color:#fff}
+    #cz-preview-note{font-size:11px;color:var(--text-tertiary);margin-top:2px}
+    #cz-save{margin-top:10px}
     #taskbar-left{position:absolute;left:12px;display:flex;align-items:center}
 
     /* DESKTOP ICONS */
@@ -261,13 +327,13 @@
           <button class="vm-btn" id="e2b-btn" type="button" onclick="launchE2BVM()">
             <img class="btn-fav" src="https://www.google.com/s2/favicons?domain=e2b.dev&sz=16" alt="" onerror="this.remove()"> VM #1
           </button>
-          <button class="vm-btn" id="gpu-btn" type="button" onclick="launchGPUVM()">
+          <button class="vm-btn" id="gpu-btn" type="button" onclick="launchPulse(this);launchGPUVM()">
              VM #2
           </button>
-          <button class="vm-btn" id="browser-btn" type="button" onclick="openScramjetBrowser()">
+          <button class="vm-btn" id="browser-btn" type="button" onclick="launchPulse(this);openScramjetBrowser()">
             <img class="btn-fav" src="https://www.google.com/s2/favicons?domain=google.com&sz=16" alt="" onerror="this.remove()"> Browser
           </button>
-          <button class="vm-btn" id="games-btn" type="button" onclick="openGamesPanel()">
+          <button class="vm-btn" id="games-btn" type="button" onclick="launchPulse(this);openGamesPanel()">
              Games
           </button>
         </div>
@@ -279,15 +345,15 @@
   </div>
 
   <div class="desktop-icons">
-    <div class="desktop-icon" onclick="openScramjetBrowser()">
+    <div class="desktop-icon" onclick="launchPulse(this);openScramjetBrowser()">
       <div class="desktop-icon-img"><img src="https://www.google.com/s2/favicons?domain=google.com&sz=48" alt="Browser" onerror="this.outerHTML='&lt;svg class=&quot;icon&quot; viewBox=&quot;0 0 24 24&quot; style=&quot;width:30px;height:30px&quot;&gt;&lt;circle cx=&quot;12&quot; cy=&quot;12&quot; r=&quot;10&quot;/&gt;&lt;line x1=&quot;2&quot; y1=&quot;12&quot; x2=&quot;22&quot; y2=&quot;12&quot;/&gt;&lt;path d=&quot;M12 2a15 15 0 0 1 0 20a15 15 0 0 1 0-20z&quot;/&gt;&lt;/svg&gt;'"></div>
       <div class="desktop-icon-label">Browser</div>
     </div>
-    <div class="desktop-icon" onclick="openGamesPanel()">
+    <div class="desktop-icon" onclick="launchPulse(this);openGamesPanel()">
       <div class="desktop-icon-img"><svg class="icon" viewBox="0 0 24 24" style="width:30px;height:30px"><rect x="2" y="7" width="20" height="10" rx="5"/><line x1="7" y1="12" x2="9" y2="12"/><line x1="8" y1="11" x2="8" y2="13"/><circle cx="15" cy="10.5" r="0.9" fill="currentColor" stroke="none"/><circle cx="17" cy="13.5" r="0.9" fill="currentColor" stroke="none"/></svg></div>
       <div class="desktop-icon-label">Games</div>
     </div>
-    <div class="desktop-icon" onclick="showLinksPanel()">
+    <div class="desktop-icon" onclick="launchPulse(this);showLinksPanel()">
       <div class="desktop-icon-img"><svg class="icon" viewBox="0 0 24 24" style="width:30px;height:30px"><path d="M10 13a5 5 0 0 0 7.07 0l2.83-2.83a5 5 0 0 0-7.07-7.07l-1.5 1.5"/><path d="M14 11a5 5 0 0 0-7.07 0L4.1 13.83a5 5 0 0 0 7.07 7.07l1.5-1.5"/></svg></div>
       <div class="desktop-icon-label">Links</div>
     </div>
@@ -412,22 +478,81 @@
       <button class="taskbar-btn" title="Start"><svg class="icon icon-lg" viewBox="0 0 24 24"><rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="3" width="8" height="8" rx="1"/><rect x="3" y="13" width="8" height="8" rx="1"/><rect x="13" y="13" width="8" height="8" rx="1"/></svg></button>
       <button class="taskbar-btn" title="Search"><svg class="icon icon-lg" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button>
       <button class="taskbar-btn" title="Task View"><svg class="icon icon-lg" viewBox="0 0 24 24"><rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="3" width="8" height="8" rx="1.5"/><rect x="3" y="13" width="8" height="8" rx="1.5"/><rect x="13" y="13" width="8" height="8" rx="1.5" stroke-dasharray="2 2"/></svg></button>
-      <button class="taskbar-btn" title="Browser" onclick="openScramjetBrowser()" id="tb-browser">
+      <button class="taskbar-btn" title="Browser" onclick="launchPulse(this);openScramjetBrowser()" id="tb-browser">
         <img src="https://www.google.com/s2/favicons?domain=google.com&sz=32" alt="Browser" onerror="this.outerHTML='&lt;svg class=&quot;icon icon-lg&quot; viewBox=&quot;0 0 24 24&quot;&gt;&lt;circle cx=&quot;12&quot; cy=&quot;12&quot; r=&quot;10&quot;/&gt;&lt;line x1=&quot;2&quot; y1=&quot;12&quot; x2=&quot;22&quot; y2=&quot;12&quot;/&gt;&lt;path d=&quot;M12 2a15 15 0 0 1 0 20a15 15 0 0 1 0-20z&quot;/&gt;&lt;/svg&gt;'">
       </button>
-      <button class="taskbar-btn" title="Games" onclick="openGamesPanel()" id="tb-games"><svg class="icon icon-lg" viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="10" rx="5"/><line x1="7" y1="12" x2="9" y2="12"/><line x1="8" y1="11" x2="8" y2="13"/><circle cx="15" cy="10.5" r="0.9" fill="currentColor" stroke="none"/><circle cx="17" cy="13.5" r="0.9" fill="currentColor" stroke="none"/></svg></button>
-      <button class="taskbar-btn" title="VM" onclick="launchGPUVM()" id="tb-vm"><svg class="icon icon-lg" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="13" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg></button>
-      <button class="taskbar-btn" title="Links" onclick="showLinksPanel()" id="tb-links"><svg class="icon icon-lg" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.07 0l2.83-2.83a5 5 0 0 0-7.07-7.07l-1.5 1.5"/><path d="M14 11a5 5 0 0 0-7.07 0L4.1 13.83a5 5 0 0 0 7.07 7.07l1.5-1.5"/></svg></button>
+      <button class="taskbar-btn" title="Games" onclick="launchPulse(this);openGamesPanel()" id="tb-games"><svg class="icon icon-lg" viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="10" rx="5"/><line x1="7" y1="12" x2="9" y2="12"/><line x1="8" y1="11" x2="8" y2="13"/><circle cx="15" cy="10.5" r="0.9" fill="currentColor" stroke="none"/><circle cx="17" cy="13.5" r="0.9" fill="currentColor" stroke="none"/></svg></button>
+      <button class="taskbar-btn" title="VM" onclick="launchPulse(this);launchGPUVM()" id="tb-vm"><svg class="icon icon-lg" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="13" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg></button>
+      <button class="taskbar-btn" title="Links" onclick="launchPulse(this);showLinksPanel()" id="tb-links"><svg class="icon icon-lg" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.07 0l2.83-2.83a5 5 0 0 0-7.07-7.07l-1.5 1.5"/><path d="M14 11a5 5 0 0 0-7.07 0L4.1 13.83a5 5 0 0 0 7.07 7.07l1.5-1.5"/></svg></button>
+      <button class="taskbar-btn" title="AI settings" onclick="openAISettings()" id="tb-ai"><svg class="icon icon-lg" viewBox="0 0 24 24"><path d="M12 3l1.8 5.4L19 10l-5.2 1.6L12 17l-1.8-5.4L5 10l5.2-1.6L12 3z"/><path d="M19 15l.7 2.1L22 18l-2.3.9L19 21l-.7-2.1L16 18l2.3-.9L19 15z"/></svg></button>
     </div>
     <div id="taskbar-right">
+      <div id="taskbar-battery" title="Battery">
+        <svg class="icon icon-sm" viewBox="0 0 24 24"><rect x="2" y="7" width="18" height="10" rx="2"/><line x1="22" y1="10" x2="22" y2="14"/><rect id="battery-fill" x="4" y="9" width="14" height="6" fill="currentColor" stroke="none"/></svg>
+        <span id="battery-pct">--%</span>
+      </div>
       <div id="taskbar-clock">
         <span id="taskbar-time">00:00</span>
-        <span id="taskbar-date">Mon 1/1</span>
+        <span id="taskbar-date">Loading date…</span>
       </div>
     </div>
   </div>
 
-  <div id="toast"></div>
+  <!-- DYNAMIC ISLAND (AI) -->
+  <div id="dynamic-island" class="collapsed">
+    <div id="di-collapsed" onclick="toggleIsland()">
+      <span id="di-dot"></span>
+      <span id="di-collapsed-text">AI</span>
+    </div>
+    <div id="di-expanded">
+      <div id="di-header">
+        <span><svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M12 3l1.8 5.4L19 10l-5.2 1.6L12 17l-1.8-5.4L5 10l5.2-1.6L12 3z"/></svg> Assistant</span>
+        <button type="button" onclick="toggleIsland()"><svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="18 15 12 9 6 15"/></svg></button>
+      </div>
+      <div id="di-messages"></div>
+      <form id="di-form">
+        <input id="di-input" type="text" placeholder="Ask anything…" autocomplete="off">
+        <button type="submit"><svg class="icon icon-sm" viewBox="0 0 24 24"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg></button>
+      </form>
+    </div>
+  </div>
+
+  <!-- AI SETTINGS MODAL -->
+  <div id="ai-settings-wrap" class="hidden">
+    <div id="ai-settings-card">
+      <h2><svg class="icon" viewBox="0 0 24 24"><path d="M12 3l1.8 5.4L19 10l-5.2 1.6L12 17l-1.8-5.4L5 10l5.2-1.6L12 3z"/></svg> Connect AI</h2>
+      <p>Paste an Anthropic API key to enable the assistant (top of screen). Stored only in this browser's localStorage — never sent anywhere but api.anthropic.com. Anyone with access to this browser/devtools can see it, so don't use a key with a high spend limit.</p>
+      <input id="ai-key-input" type="password" placeholder="sk-ant-..." autocomplete="off">
+      <div id="ai-settings-actions">
+        <button type="button" class="btn-secondary" onclick="closeAISettings()">Cancel</button>
+        <button type="button" class="vm-btn" style="width:auto" onclick="saveAIKey()">Save</button>
+      </div>
+      <button id="ai-key-clear" type="button" onclick="clearAIKey()">Remove saved key</button>
+    </div>
+  </div>
+
+  <!-- CUSTOMIZE PANEL (first login/register, cannot be dismissed except Save) -->
+  <div id="customize-wrap" class="hidden">
+    <div id="customize-card">
+      <h2>Make it yours</h2>
+      <p>Quick one-time setup — customize your desktop, then you're in.</p>
+      <label class="cz-label">Background image URL</label>
+      <input id="cz-bg-url" type="text" placeholder="https://example.com/wallpaper.jpg" autocomplete="off">
+      <label class="cz-label">Accent color</label>
+      <div id="cz-color-row">
+        <input id="cz-color" type="color" value="#0078d4">
+        <div id="cz-color-swatches">
+          <button type="button" class="cz-swatch" style="background:#0078d4" data-c="#0078d4"></button>
+          <button type="button" class="cz-swatch" style="background:#22c55e" data-c="#22c55e"></button>
+          <button type="button" class="cz-swatch" style="background:#f43f5e" data-c="#f43f5e"></button>
+          <button type="button" class="cz-swatch" style="background:#a855f7" data-c="#a855f7"></button>
+          <button type="button" class="cz-swatch" style="background:#f59e0b" data-c="#f59e0b"></button>
+        </div>
+      </div>
+      <div id="cz-preview-note">Preview updates live on the desktop behind this panel.</div>
+      <button id="cz-save" class="vm-btn" type="button" onclick="saveCustomization()">Save & continue</button>
+    </div>
+  </div>
 
   <script src="/baremux/bare.cjs"></script>
   <script src="/scramjet/scramjet.js"></script>
@@ -438,8 +563,36 @@
 
   <script>
     /* CLOCK */
-    function updateClock(){const now=new Date(),h=String(now.getHours()).padStart(2,'0'),m=String(now.getMinutes()).padStart(2,'0'),days=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'],months=['1','2','3','4','5','6','7','8','9','10','11','12'];document.getElementById('taskbar-time').textContent=`${h}:${m}`;document.getElementById('taskbar-date').textContent=`${days[now.getDay()]} ${months[now.getMonth()]}/${now.getDate()}`}
+    function updateClock(){const now=new Date(),h=String(now.getHours()).padStart(2,'0'),m=String(now.getMinutes()).padStart(2,'0'),days=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'],months=['January','February','March','April','May','June','July','August','September','October','November','December'];document.getElementById('taskbar-time').textContent=`${h}:${m}`;document.getElementById('taskbar-date').textContent=`${days[now.getDay()]}, ${months[now.getMonth()]} ${now.getDate()}, ${now.getFullYear()}`}
     updateClock();setInterval(updateClock,1000);
+
+    /* BATTERY */
+    function renderBattery(batt){
+      const wrap=document.getElementById('taskbar-battery'),pct=Math.round(batt.level*100);
+      document.getElementById('battery-pct').textContent=pct+'%';
+      document.getElementById('battery-fill').setAttribute('width',Math.max(1,(pct/100)*14));
+      wrap.classList.toggle('charging',batt.charging);
+      wrap.classList.toggle('low',pct<=15&&!batt.charging);
+    }
+    async function initBattery(){
+      try{
+        if(!navigator.getBattery){document.getElementById('taskbar-battery').style.display='none';return}
+        const batt=await navigator.getBattery();
+        renderBattery(batt);
+        batt.addEventListener('levelchange',()=>renderBattery(batt));
+        batt.addEventListener('chargingchange',()=>renderBattery(batt));
+      }catch(_){document.getElementById('taskbar-battery').style.display='none'}
+    }
+    initBattery();
+
+    /* LAUNCH RIPPLE (games/browser/vm open feedback) */
+    function launchPulse(el){
+      if(!el)return;
+      el.classList.remove('launch-pulse');void el.offsetWidth;el.classList.add('launch-pulse');
+      const ring=document.createElement('span');ring.className='launch-ring';
+      el.style.position=el.style.position||'relative';el.appendChild(ring);
+      ring.addEventListener('animationend',()=>ring.remove(),{once:true});
+    }
 
     /* STATE */
     let currentContainerId=null,currentVMType=null,currentUrl=null,pollInterval=null,vmTimerInterval=null,vmStartedAt=null,vmTimeLimitSeconds=30*60,authMode="register",windowMinimized=false,windowMaximized=false;
@@ -552,7 +705,7 @@
       else{s.textContent="Create account — 1 hour";l.textContent="Already have an account? Log in";p.autocomplete="new-password"}
       setAuthError();
     }
-    function acceptAuth(data){vmTimeLimitSeconds=data.vmMinutes*60;document.getElementById("auth-wrap").classList.add("hidden");toast(`Welcome ${data.username}! ${data.vmMinutes}min VM time.`,false,true)}
+    function acceptAuth(data){vmTimeLimitSeconds=data.vmMinutes*60;document.getElementById("auth-wrap").classList.add("hidden");toast(`Welcome ${data.username}! ${data.vmMinutes}min VM time.`,false,true);maybeShowCustomize(data.username)}
     async function checkAuth(){try{const r=await fetch("/api/auth/me"),d=await r.json();if(d.loggedIn)acceptAuth(d)}catch(_){}}
     document.getElementById("auth-card").addEventListener("submit",async e=>{
       e.preventDefault();const u=document.getElementById("auth-username").value.trim(),p=document.getElementById("auth-password").value;
@@ -777,7 +930,123 @@
     function launchGame(url){closeGamesPanel();const b=document.getElementById("browser-wrap");b.style.display="flex";b.classList.remove('closing');document.getElementById("vm-frame-wrap").style.display="none";newTab(url)}
 
     /* INIT */
-    document.addEventListener("DOMContentLoaded",()=>{checkAuth();fetchPlayerCount();setInterval(fetchPlayerCount,15000)});
+    /* CUSTOMIZATION (background + accent color) */
+    function applyCustomization(cfg){
+      if(cfg.bgUrl){document.getElementById('desktop-bg').style.backgroundImage=`url('${cfg.bgUrl.replace(/'/g,"%27")}')`}
+      if(cfg.accent){
+        document.documentElement.style.setProperty('--accent',cfg.accent);
+        document.documentElement.style.setProperty('--accent-light',cfg.accent);
+        document.documentElement.style.setProperty('--accent-hover',cfg.accent);
+      }
+    }
+    function loadCustomization(){
+      try{const raw=localStorage.getItem('vmCustomization');if(raw)applyCustomization(JSON.parse(raw))}catch(_){}
+    }
+    function maybeShowCustomize(username){
+      const key='vmCustomized_'+(username||'guest');
+      if(localStorage.getItem(key))return;
+      const wrap=document.getElementById('customize-wrap');
+      wrap.classList.remove('hidden');
+      wrap.dataset.userKey=key;
+      const colorInput=document.getElementById('cz-color');
+      colorInput.oninput=()=>{applyCustomization({accent:colorInput.value});highlightSwatch(colorInput.value)};
+      document.querySelectorAll('.cz-swatch').forEach(sw=>{
+        sw.onclick=()=>{colorInput.value=sw.dataset.c;applyCustomization({accent:sw.dataset.c});highlightSwatch(sw.dataset.c)};
+      });
+      document.getElementById('cz-bg-url').oninput=e=>{if(e.target.value.trim())applyCustomization({bgUrl:e.target.value.trim()})};
+    }
+    function highlightSwatch(c){document.querySelectorAll('.cz-swatch').forEach(s=>s.classList.toggle('selected',s.dataset.c.toLowerCase()===c.toLowerCase()))}
+    function saveCustomization(){
+      const wrap=document.getElementById('customize-wrap');
+      const bgUrl=document.getElementById('cz-bg-url').value.trim();
+      const accent=document.getElementById('cz-color').value;
+      const cfg={bgUrl,accent};
+      localStorage.setItem('vmCustomization',JSON.stringify(cfg));
+      if(wrap.dataset.userKey)localStorage.setItem(wrap.dataset.userKey,'1');
+      applyCustomization(cfg);
+      wrap.classList.add('hidden');
+      toast('Desktop customized.',false,true);
+    }
+
+    /* AI SETTINGS */
+    function openAISettings(){
+      document.getElementById('ai-key-input').value=localStorage.getItem('vmAIKey')||'';
+      document.getElementById('ai-settings-wrap').classList.remove('hidden');
+    }
+    function closeAISettings(){document.getElementById('ai-settings-wrap').classList.add('hidden')}
+    function saveAIKey(){
+      const key=document.getElementById('ai-key-input').value.trim();
+      if(!key){toast('Enter a key first.',true);return}
+      localStorage.setItem('vmAIKey',key);
+      closeAISettings();
+      updateIslandVisibility();
+      toast('AI connected.',false,true);
+    }
+    function clearAIKey(){
+      localStorage.removeItem('vmAIKey');
+      document.getElementById('ai-key-input').value='';
+      updateIslandVisibility();
+      closeAISettings();
+      toast('AI key removed.',false,true);
+    }
+    function updateIslandVisibility(){
+      const has=!!localStorage.getItem('vmAIKey');
+      document.getElementById('dynamic-island').classList.toggle('enabled',has);
+      document.getElementById('tb-ai').classList.toggle('active',has);
+    }
+
+    /* DYNAMIC ISLAND CHAT */
+    let diBusy=false;
+    function toggleIsland(){
+      const isl=document.getElementById('dynamic-island');
+      if(isl.classList.contains('expanded')){isl.classList.remove('expanded');isl.classList.add('collapsed')}
+      else{isl.classList.remove('collapsed');isl.classList.add('expanded');setTimeout(()=>document.getElementById('di-input').focus(),300)}
+    }
+    function addDiMessage(role,text){
+      const box=document.getElementById('di-messages');
+      const el=document.createElement('div');el.className='di-msg '+role;el.textContent=text;
+      box.appendChild(el);box.scrollTop=box.scrollHeight;
+      return el;
+    }
+    async function sendToAI(userText){
+      const key=localStorage.getItem('vmAIKey');
+      if(!key){openAISettings();return}
+      addDiMessage('user',userText);
+      const pending=addDiMessage('ai','Thinking…');pending.classList.add('pending');
+      diBusy=true;
+      try{
+        const res=await fetch('https://api.anthropic.com/v1/messages',{
+          method:'POST',
+          headers:{
+            'Content-Type':'application/json',
+            'x-api-key':key,
+            'anthropic-version':'2023-06-01',
+            'anthropic-dangerous-direct-browser-access':'true'
+          },
+          body:JSON.stringify({
+            model:'claude-sonnet-5',
+            max_tokens:1024,
+            messages:[{role:'user',content:userText}]
+          })
+        });
+        const data=await res.json();
+        pending.classList.remove('pending');
+        if(!res.ok){pending.textContent='Error: '+(data?.error?.message||res.status);return}
+        const text=(data.content||[]).map(b=>b.text||'').join('\n').trim()||'(no response)';
+        pending.textContent=text;
+      }catch(err){pending.classList.remove('pending');pending.textContent='Request failed: '+err.message}
+      finally{diBusy=false}
+    }
+    document.getElementById('di-form').addEventListener('submit',e=>{
+      e.preventDefault();
+      const input=document.getElementById('di-input');
+      const val=input.value.trim();
+      if(!val||diBusy)return;
+      input.value='';
+      sendToAI(val);
+    });
+
+    document.addEventListener("DOMContentLoaded",()=>{loadCustomization();updateIslandVisibility();checkAuth();fetchPlayerCount();setInterval(fetchPlayerCount,15000)});
     window.addEventListener("beforeunload",e=>{e.preventDefault();e.returnValue=""});
   </script>
 </body>
