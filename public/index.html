@@ -339,6 +339,7 @@
           </button>
         </div>
         <button class="btn-secondary" id="links-toggle" type="button"><svg class="icon" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.07 0l2.83-2.83a5 5 0 0 0-7.07-7.07l-1.5 1.5"/><path d="M14 11a5 5 0 0 0-7.07 0L4.1 13.83a5 5 0 0 0 7.07 7.07l1.5-1.5"/></svg> Links</button>
+        <button class="btn-secondary" id="ai-settings-button" type="button" onclick="openAISettings()"><svg class="icon" viewBox="0 0 24 24"><path d="M12 3l1.8 5.4L19 10l-5.2 1.6L12 17l-1.8-5.4L5 10l5.2-1.6L12 3z"/><path d="M19 15l.7 2.1L22 18l-2.3.9L19 21l-.7-2.1L16 18l2.3-.9L19 15z"/></svg> AI Settings</button>
         <div id="status"></div>
         <div id="player-count"><span class="dot"></span><span id="player-count-text">1 vms are working</span></div>
       </div>
@@ -524,7 +525,7 @@
   <div id="ai-settings-wrap" class="hidden">
     <div id="ai-settings-card">
       <h2><svg class="icon" viewBox="0 0 24 24"><path d="M12 3l1.8 5.4L19 10l-5.2 1.6L12 17l-1.8-5.4L5 10l5.2-1.6L12 3z"/></svg> Connect AI</h2>
-      <p>Paste your NVIDIA API key (runs DeepSeek V4 Pro). Stored only in this browser's localStorage — never sent anywhere but integrate.api.nvidia.com. Anyone with access to this browser/devtools can see it, so don't use a key with a high spend limit.</p>
+      <p>Paste your NVIDIA API key (runs DeepSeek V4 Pro). It is stored in this browser's localStorage and sent to your server only when you use AI, then your server forwards the request to NVIDIA. Anyone with access to this browser/devtools can see the saved key.</p>
       <input id="ai-key-input" type="password" placeholder="nvapi-..." autocomplete="off">
       <div id="ai-settings-actions">
         <button type="button" class="btn-secondary" onclick="closeAISettings()">Cancel</button>
@@ -992,6 +993,7 @@
       closeAISettings();
       toast('AI key removed.',false,true);
     }
+    document.getElementById('ai-key-input').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();saveAIKey()}});
     function updateIslandVisibility(){
       const has=!!localStorage.getItem('vmAIKey');
       document.getElementById('di-dot').classList.toggle('ready',has);
@@ -1021,21 +1023,13 @@
       const pending=addDiMessage('ai','Thinking…');pending.classList.add('pending');
       diBusy=true;
       try{
-        const res=await fetch('https://integrate.api.nvidia.com/v1/chat/completions',{
+        const res=await fetch('/api/ai/chat',{
           method:'POST',
           headers:{
             'Content-Type':'application/json',
             'Authorization':'Bearer '+key
           },
-          body:JSON.stringify({
-            model:'deepseek-ai/deepseek-v4-pro-0813',
-            messages:[{role:'user',content:userText}],
-            temperature:0.7,
-            top_p:0.95,
-            max_tokens:2048,
-            stream:false,
-            extra_body:{chat_template_kwargs:{thinking:false}}
-          })
+          body:JSON.stringify({message:userText})
         });
         const data=await res.json();
         pending.classList.remove('pending');
@@ -1044,8 +1038,7 @@
         pending.textContent=text;
       }catch(err){
         pending.classList.remove('pending');
-        const cors=/Failed to fetch|NetworkError|Load failed/i.test(err.message||'');
-        pending.textContent=cors?'Request blocked (likely CORS — NVIDIA\'s API may not allow direct browser calls; you may need a small server-side proxy).':'Request failed: '+err.message;
+        pending.textContent='Request failed: '+(err?.message||String(err));
       }
       finally{diBusy=false}
     }
