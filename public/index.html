@@ -406,6 +406,178 @@
       background: var(--accent-light);
     }
 
+    .ai-window {
+      position: fixed;
+      width: 420px;
+      height: 520px;
+      min-width: 300px;
+      min-height: 350px;
+      background: rgba(22,22,26,0.97);
+      backdrop-filter: var(--blur);
+      -webkit-backdrop-filter: var(--blur);
+      border: 1px solid var(--border-bright);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow);
+      z-index: 9994;
+      display: none;
+      flex-direction: column;
+      overflow: hidden;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+    }
+    .ai-window.visible {
+      display: flex;
+      animation: windowOpen .4s var(--spring) both;
+    }
+    .ai-window.closing {
+      animation: windowClose .28s var(--snappy) forwards !important;
+    }
+    .ai-window .ai-header {
+      background: var(--titlebar-bg);
+      height: 32px;
+      min-height: 32px;
+      display: flex;
+      align-items: center;
+      padding: 0 4px 0 10px;
+      gap: 4px;
+      border-bottom: 1px solid var(--border);
+      cursor: grab;
+      user-select: none;
+      flex-shrink: 0;
+    }
+    .ai-window .ai-header:active {
+      cursor: grabbing;
+    }
+    .ai-window .ai-header .ai-title {
+      flex: 1;
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      min-width: 0;
+    }
+    .ai-window .ai-header .ai-ctrl-btn {
+      width: 30px;
+      height: 26px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 4px;
+      cursor: pointer;
+      color: var(--text-secondary);
+      transition: background .12s, color .12s;
+      border: none;
+      background: transparent;
+      font-size: 10px;
+    }
+    .ai-window .ai-header .ai-ctrl-btn:hover {
+      background: rgba(255,255,255,.1);
+      color: var(--text);
+    }
+    .ai-window .ai-header .ai-ctrl-btn.close:hover {
+      background: #c42b1c;
+      color: #fff;
+    }
+    .ai-window .ai-settings {
+      padding: 10px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(0,0,0,.2);
+      flex-shrink: 0;
+    }
+    .ai-window .ai-settings input {
+      width: 100%;
+      padding: 6px 10px;
+      background: rgba(255,255,255,.06);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      color: var(--text);
+      font-family: inherit;
+      font-size: 11px;
+      outline: none;
+      transition: border-color .2s;
+    }
+    .ai-window .ai-settings input:focus {
+      border-color: var(--accent);
+    }
+    .ai-window .ai-messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      min-height: 0;
+    }
+    .ai-window .ai-message {
+      max-width: 85%;
+      padding: 8px 12px;
+      border-radius: 12px;
+      font-size: 12px;
+      line-height: 1.4;
+      word-wrap: break-word;
+      align-self: flex-start;
+      background: rgba(255,255,255,.08);
+      color: var(--text);
+      border-bottom-left-radius: 4px;
+      white-space: pre-wrap;
+    }
+    .ai-window .ai-message.user {
+      align-self: flex-end;
+      background: var(--accent);
+      color: #fff;
+      border-bottom-left-radius: 12px;
+      border-bottom-right-radius: 4px;
+    }
+    .ai-window .ai-message .ai-msg-label {
+      font-size: 9px;
+      font-weight: 600;
+      margin-bottom: 2px;
+      opacity: .7;
+    }
+    .ai-window .ai-input-area {
+      display: flex;
+      gap: 6px;
+      padding: 10px;
+      border-top: 1px solid var(--border);
+      background: rgba(0,0,0,.3);
+      flex-shrink: 0;
+    }
+    .ai-window .ai-input {
+      flex: 1;
+      background: rgba(255,255,255,.06);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 8px 14px;
+      outline: none;
+      font-family: inherit;
+      font-size: 12px;
+      transition: border-color .2s;
+      min-width: 0;
+    }
+    .ai-window .ai-input:focus {
+      border-color: var(--accent);
+    }
+    .ai-window .ai-send-btn {
+      padding: 8px 16px;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 18px;
+      font-family: inherit;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background .15s;
+      flex-shrink: 0;
+    }
+    .ai-window .ai-send-btn:hover {
+      background: var(--accent-light);
+    }
+
     .history-panel{position:fixed;inset:0;z-index:5000;background:rgba(10,10,13,.97);backdrop-filter:blur(24px);flex-direction:column;opacity:0;pointer-events:none;transform:scale(.97) translateY(12px);transition:opacity .3s var(--spring),transform .3s var(--spring),pointer-events 0s .3s;display:flex}
     .history-panel.show{opacity:1;pointer-events:all;transform:scale(1) translateY(0);transition:opacity .3s var(--spring),transform .3s var(--spring)}
     .history-list{flex:1;overflow-y:auto;padding:20px;max-width:600px;margin:0 auto;width:100%}
@@ -418,7 +590,7 @@
     .history-item .h-delete:hover{background:rgba(255,80,80,.25);color:#ff5050}
 
     @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
-    @media(max-width:520px){.win-window{width:96vw}#vm-buttons{grid-template-columns:1fr}.settings-row{flex-direction:column;align-items:flex-start}.settings-input{min-width:100%}.chat-window{width:90vw;height:60vh}}
+    @media(max-width:520px){.win-window{width:96vw}#vm-buttons{grid-template-columns:1fr}.settings-row{flex-direction:column;align-items:flex-start}.settings-input{min-width:100%}.chat-window,.ai-window{width:90vw;height:70vh}}
   </style>
 </head>
 <body>
@@ -746,6 +918,26 @@
     </div>
   </div>
 
+  <div id="ai-window" class="ai-window">
+    <div class="ai-header" id="ai-drag-handle">
+      <span class="ai-title"><svg class="icon" viewBox="0 0 24 24" style="width:12px;height:12px;color:#000;stroke:#fff"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8zm0-13a1 1 0 0 1 1 1v5a1 1 0 0 1-2 0V7a1 1 0 0 1 1-1zm0 9a1.5 1.5 0 1 1-1.5 1.5A1.5 1.5 0 0 1 12 16z"/></svg> DeepSeek AI</span>
+      <button class="ai-ctrl-btn" onclick="minimizeAI()" title="Minimize">
+        <svg width="9" height="1" viewBox="0 0 10 1"><rect width="10" height="1" fill="currentColor"/></svg>
+      </button>
+      <button class="ai-ctrl-btn close" onclick="closeAI()" title="Close">
+        <svg width="9" height="9" viewBox="0 0 10 10"><line x1="0" y1="0" x2="10" y2="10" stroke="currentColor" stroke-width="1.4"/><line x1="10" y1="0" x2="0" y2="10" stroke="currentColor" stroke-width="1.4"/></svg>
+      </button>
+    </div>
+    <div class="ai-settings">
+      <input id="ai-api-key" type="password" placeholder="Enter DeepSeek API Key..." autocomplete="off">
+    </div>
+    <div class="ai-messages" id="ai-messages"></div>
+    <div class="ai-input-area">
+      <input class="ai-input" id="ai-input" type="text" placeholder="Ask DeepSeek..." onkeydown="if(event.key==='Enter')sendAIMessage()">
+      <button class="ai-send-btn" onclick="sendAIMessage()">Send</button>
+    </div>
+  </div>
+
   <div id="history-panel" class="history-panel">
     <div class="settings-header">
       <h2><svg class="icon" viewBox="0 0 24 24" style="width:19px;height:19px"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> History</h2>
@@ -835,8 +1027,10 @@
     let historyData = JSON.parse(localStorage.getItem('history') || '[]');
     let recentGames = JSON.parse(localStorage.getItem('recentGames') || '[]');
     let chatMessages = JSON.parse(localStorage.getItem('chatMessages') || '[]');
+    let aiMessages = [];
     let currentUsername = 'Guest';
     let taskbarTimer = null;
+    let aiApiKey = localStorage.getItem('deepseekApiKey') || '';
 
     function updateClock(){const now=new Date(),h=String(now.getHours()).padStart(2,'0'),m=String(now.getMinutes()).padStart(2,'0'),days=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'],months=['1','2','3','4','5','6','7','8','9','10','11','12'];document.getElementById('taskbar-time').textContent=`${h}:${m}`;document.getElementById('taskbar-date').textContent=`${days[now.getDay()]} ${months[now.getMonth()]}/${now.getDate()}`}
     updateClock();setInterval(updateClock,1000);
@@ -866,8 +1060,62 @@
     document.getElementById('taskbar').addEventListener('mouseleave',hideTaskbar);
 
     function openAI(){
-      window.open('https://chat.deepseek.com/','_blank');
-      toast('Opening DeepSeek AI...',false,true);
+      const win=document.getElementById('ai-window');
+      win.classList.add('visible');
+      win.classList.remove('closing');
+      if(aiApiKey)document.getElementById('ai-api-key').value=aiApiKey;
+    }
+    function closeAI(){
+      const win=document.getElementById('ai-window');
+      win.classList.add('closing');
+      setTimeout(()=>{win.classList.remove('visible');win.classList.remove('closing')},280);
+    }
+    function minimizeAI(){
+      const win=document.getElementById('ai-window');
+      win.classList.remove('visible');
+    }
+    async function sendAIMessage(){
+      const input=document.getElementById('ai-input');
+      const text=input.value.trim();
+      if(!text)return;
+      const apiKey=document.getElementById('ai-api-key').value.trim();
+      if(!apiKey){toast('Please enter your DeepSeek API key',true);return}
+      localStorage.setItem('deepseekApiKey',apiKey);
+      aiApiKey=apiKey;
+      input.value='';
+      const container=document.getElementById('ai-messages');
+      const userDiv=document.createElement('div');
+      userDiv.className='ai-message user';
+      userDiv.innerHTML=`<div class="ai-msg-label">You</div>${text}`;
+      container.appendChild(userDiv);
+      container.scrollTop=container.scrollHeight;
+      const loadingDiv=document.createElement('div');
+      loadingDiv.className='ai-message';
+      loadingDiv.innerHTML='<div class="ai-msg-label">DeepSeek</div>Thinking...';
+      container.appendChild(loadingDiv);
+      container.scrollTop=container.scrollHeight;
+      try{
+        const res=await fetch('https://api.deepseek.com/v1/chat/completions',{
+          method:'POST',
+          headers:{'Content-Type':'application/json','Authorization':'Bearer '+apiKey},
+          body:JSON.stringify({model:'deepseek-chat',messages:[{role:'user',content:text}],max_tokens:1000})
+        });
+        const data=await res.json();
+        loadingDiv.remove();
+        if(data.error){throw new Error(data.error.message||'API error')}
+        const reply=data.choices&&data.choices[0]&&data.choices[0].message&&data.choices[0].message.content||'No response';
+        const aiDiv=document.createElement('div');
+        aiDiv.className='ai-message';
+        aiDiv.innerHTML=`<div class="ai-msg-label">DeepSeek</div>${reply}`;
+        container.appendChild(aiDiv);
+      }catch(err){
+        loadingDiv.remove();
+        const errDiv=document.createElement('div');
+        errDiv.className='ai-message';
+        errDiv.innerHTML=`<div class="ai-msg-label">Error</div>${err.message}`;
+        container.appendChild(errDiv);
+      }
+      container.scrollTop=container.scrollHeight;
     }
 
     function toggleAutoAboutBlank(){
@@ -944,6 +1192,38 @@
       document.addEventListener('mousemove',e=>{if(dragging)onMove(e.clientX,e.clientY)});
       document.addEventListener('mouseup',onEnd);
       handle.addEventListener('touchstart',e=>{if(e.target.closest('.chat-ctrl-btn'))return;const t=e.touches[0];onStart(t.clientX,t.clientY)},{passive:true});
+      document.addEventListener('touchmove',e=>{if(dragging){const t=e.touches[0];onMove(t.clientX,t.clientY)}},{passive:true});
+      document.addEventListener('touchend',onEnd);
+    })();
+
+    (function(){
+      const win=document.getElementById('ai-window'),handle=document.getElementById('ai-drag-handle');
+      let dragging=false,startX,startY,origLeft,origTop;
+      function onStart(cx,cy){
+        dragging=true;
+        startX=cx;startY=cy;
+        const rect=win.getBoundingClientRect();
+        origLeft=rect.left;
+        origTop=rect.top;
+        win.style.left=origLeft+'px';
+        win.style.top=origTop+'px';
+        win.style.transform='none';
+        document.body.style.cursor='grabbing';
+      }
+      function onMove(cx,cy){
+        if(!dragging)return;
+        let l=origLeft+(cx-startX);
+        let t=origTop+(cy-startY);
+        l=Math.max(0,Math.min(window.innerWidth-win.offsetWidth,l));
+        t=Math.max(0,Math.min(window.innerHeight-win.offsetHeight-60,t));
+        win.style.left=l+'px';
+        win.style.top=t+'px';
+      }
+      function onEnd(){if(!dragging)return;dragging=false;document.body.style.cursor=''}
+      handle.addEventListener('mousedown',e=>{if(e.target.closest('.ai-ctrl-btn'))return;onStart(e.clientX,e.clientY);e.preventDefault()});
+      document.addEventListener('mousemove',e=>{if(dragging)onMove(e.clientX,e.clientY)});
+      document.addEventListener('mouseup',onEnd);
+      handle.addEventListener('touchstart',e=>{if(e.target.closest('.ai-ctrl-btn'))return;const t=e.touches[0];onStart(t.clientX,t.clientY)},{passive:true});
       document.addEventListener('touchmove',e=>{if(dragging){const t=e.touches[0];onMove(t.clientX,t.clientY)}},{passive:true});
       document.addEventListener('touchend',onEnd);
     })();
@@ -1038,7 +1318,7 @@
     function hideLinksPanel(){document.getElementById("links-panel").classList.remove("show")}
     document.getElementById("links-toggle").addEventListener("click",showLinksPanel);
     document.getElementById("links-close").addEventListener("click",hideLinksPanel);
-    document.addEventListener('keydown',e=>{if(e.key==='Escape'){hideLinksPanel();closeGamesPanel();closeSettings();closeChat();closeHistory()}});
+    document.addEventListener('keydown',e=>{if(e.key==='Escape'){hideLinksPanel();closeGamesPanel();closeSettings();closeChat();closeHistory();closeAI()}});
 
     async function fetchPlayerCount(){try{const c=new AbortController(),t=setTimeout(()=>c.abort(),5000),r=await fetch("/api/stats",{signal:c.signal,cache:"no-store"});clearTimeout(t);if(!r.ok)throw 0;const d=await r.json(),count=d.online??d.count??d.players??null;if(count!==null)document.getElementById("player-count-text").textContent=`${count} online`}catch(_){}}
 
@@ -1500,6 +1780,7 @@
       if(!blurEnabled)document.documentElement.style.setProperty('--blur','blur(0px)');
       if(bookmarks.length>0)renderBookmarks();
       document.getElementById('settings-username').textContent=currentUsername;
+      if(aiApiKey)document.getElementById('ai-api-key').value=aiApiKey;
     });
     window.addEventListener("beforeunload",e=>{e.preventDefault();e.returnValue=""});
   </script>
