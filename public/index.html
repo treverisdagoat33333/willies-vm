@@ -486,8 +486,12 @@
       border-bottom: 1px solid var(--border);
       background: rgba(0,0,0,.2);
       flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
     }
-    .ai-window .ai-settings input {
+    .ai-window .ai-settings input,
+    .ai-window .ai-settings select {
       width: 100%;
       padding: 6px 10px;
       background: rgba(255,255,255,.06);
@@ -498,9 +502,30 @@
       font-size: 11px;
       outline: none;
       transition: border-color .2s;
+      appearance: none;
+      -webkit-appearance: none;
     }
-    .ai-window .ai-settings input:focus {
+    .ai-window .ai-settings select {
+      cursor: pointer;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='rgba(255,255,255,0.4)'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 10px center;
+      padding-right: 28px;
+    }
+    .ai-window .ai-settings select option {
+      background: #1a1a1e;
+      color: var(--text);
+    }
+    .ai-window .ai-settings input:focus,
+    .ai-window .ai-settings select:focus {
       border-color: var(--accent);
+    }
+    .ai-provider-row {
+      display: flex;
+      gap: 5px;
+    }
+    .ai-provider-row select {
+      flex: 1;
     }
     .ai-window .ai-messages {
       flex: 1;
@@ -920,7 +945,7 @@
 
   <div id="ai-window" class="ai-window">
     <div class="ai-header" id="ai-drag-handle">
-      <span class="ai-title"><svg class="icon" viewBox="0 0 24 24" style="width:12px;height:12px;color:#000;stroke:#fff"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8zm0-13a1 1 0 0 1 1 1v5a1 1 0 0 1-2 0V7a1 1 0 0 1 1-1zm0 9a1.5 1.5 0 1 1-1.5 1.5A1.5 1.5 0 0 1 12 16z"/></svg> DeepSeek AI</span>
+      <span class="ai-title" id="ai-title-label"><svg class="icon" viewBox="0 0 24 24" style="width:12px;height:12px;color:#000;stroke:#fff"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8zm0-13a1 1 0 0 1 1 1v5a1 1 0 0 1-2 0V7a1 1 0 0 1 1-1zm0 9a1.5 1.5 0 1 1-1.5 1.5A1.5 1.5 0 0 1 12 16z"/></svg> AI Assistant</span>
       <button class="ai-ctrl-btn" onclick="minimizeAI()" title="Minimize">
         <svg width="9" height="1" viewBox="0 0 10 1"><rect width="10" height="1" fill="currentColor"/></svg>
       </button>
@@ -929,11 +954,20 @@
       </button>
     </div>
     <div class="ai-settings">
-      <input id="ai-api-key" type="password" placeholder="Enter DeepSeek API Key..." autocomplete="off">
+      <div class="ai-provider-row">
+        <select id="ai-provider" onchange="onProviderChange()">
+          <option value="google">🔵 Google AI Studio</option>
+          <option value="nvidia">🟢 NVIDIA Build</option>
+        </select>
+        <select id="ai-model">
+          <option value="gemini-2.0-flash">gemini-2.0-flash</option>
+        </select>
+      </div>
+      <input id="ai-api-key" type="password" placeholder="Enter Google AI Studio API Key..." autocomplete="off">
     </div>
     <div class="ai-messages" id="ai-messages"></div>
     <div class="ai-input-area">
-      <input class="ai-input" id="ai-input" type="text" placeholder="Ask DeepSeek..." onkeydown="if(event.key==='Enter')sendAIMessage()">
+      <input class="ai-input" id="ai-input" type="text" placeholder="Ask AI..." onkeydown="if(event.key==='Enter')sendAIMessage()">
       <button class="ai-send-btn" onclick="sendAIMessage()">Send</button>
     </div>
   </div>
@@ -1030,7 +1064,20 @@
     let aiMessages = [];
     let currentUsername = 'Guest';
     let taskbarTimer = null;
-    let aiApiKey = localStorage.getItem('deepseekApiKey') || '';
+    // Multi-provider key storage
+    const aiProviderKeys = {
+      google: localStorage.getItem('googleAIKey') || '',
+      nvidia: localStorage.getItem('nvidiaAIKey') || ''
+    };
+    const AI_MODELS = {
+      google: ['gemini-2.0-flash','gemini-2.0-flash-lite','gemini-1.5-pro','gemini-1.5-flash'],
+      nvidia: ['meta/llama-3.3-70b-instruct','nvidia/llama-3.1-nemotron-ultra-253b-v1','mistralai/mistral-large-2-instruct','microsoft/phi-4','deepseek-ai/deepseek-r1','nvidia/llama-3.3-nemotron-super-49b-v1','qwen/qwen3-235b-a22b']
+    };
+    const AI_PROVIDER_LABELS = {
+      google: 'Google AI Studio',
+      nvidia: 'NVIDIA Build'
+    };
+    let currentAIProvider = (localStorage.getItem('aiProvider') === 'deepseek') ? 'google' : (localStorage.getItem('aiProvider') || 'google');
 
     function updateClock(){const now=new Date(),h=String(now.getHours()).padStart(2,'0'),m=String(now.getMinutes()).padStart(2,'0'),days=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'],months=['1','2','3','4','5','6','7','8','9','10','11','12'];document.getElementById('taskbar-time').textContent=`${h}:${m}`;document.getElementById('taskbar-date').textContent=`${days[now.getDay()]} ${months[now.getMonth()]}/${now.getDate()}`}
     updateClock();setInterval(updateClock,1000);
@@ -1059,11 +1106,41 @@
     document.getElementById('taskbar').addEventListener('mouseenter',showTaskbar);
     document.getElementById('taskbar').addEventListener('mouseleave',hideTaskbar);
 
+    function onProviderChange(){
+      const provider=document.getElementById('ai-provider').value;
+      currentAIProvider=provider;
+      localStorage.setItem('aiProvider',provider);
+      // Update model dropdown
+      const modelSel=document.getElementById('ai-model');
+      modelSel.innerHTML='';
+      AI_MODELS[provider].forEach(m=>{
+        const opt=document.createElement('option');
+        opt.value=m;
+        opt.textContent=m;
+        modelSel.appendChild(opt);
+      });
+      // Restore saved model for this provider
+      const savedModel=localStorage.getItem('aiModel_'+provider);
+      if(savedModel&&AI_MODELS[provider].includes(savedModel))modelSel.value=savedModel;
+      // Update API key field
+      const keyInput=document.getElementById('ai-api-key');
+      keyInput.value=aiProviderKeys[provider]||'';
+      const placeholders={
+        google:'Enter Google AI Studio API Key...',
+        nvidia:'Enter NVIDIA Build API Key...'
+      };
+      keyInput.placeholder=placeholders[provider];
+      // Update title
+      document.getElementById('ai-title-label').innerHTML=`<svg class="icon" viewBox="0 0 24 24" style="width:12px;height:12px;color:#000;stroke:#fff"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8zm0-13a1 1 0 0 1 1 1v5a1 1 0 0 1-2 0V7a1 1 0 0 1 1-1zm0 9a1.5 1.5 0 1 1-1.5 1.5A1.5 1.5 0 0 1 12 16z"/></svg> ${AI_PROVIDER_LABELS[provider]}`;
+    }
     function openAI(){
       const win=document.getElementById('ai-window');
       win.classList.add('visible');
       win.classList.remove('closing');
-      if(aiApiKey)document.getElementById('ai-api-key').value=aiApiKey;
+      // Set provider select to saved provider
+      const provSel=document.getElementById('ai-provider');
+      provSel.value=currentAIProvider;
+      onProviderChange();
     }
     function closeAI(){
       const win=document.getElementById('ai-window');
@@ -1078,41 +1155,63 @@
       const input=document.getElementById('ai-input');
       const text=input.value.trim();
       if(!text)return;
+      const provider=document.getElementById('ai-provider').value;
+      const model=document.getElementById('ai-model').value;
       const apiKey=document.getElementById('ai-api-key').value.trim();
-      if(!apiKey){toast('Please enter your DeepSeek API key',true);return}
-      localStorage.setItem('deepseekApiKey',apiKey);
-      aiApiKey=apiKey;
+      if(!apiKey){toast('Please enter your '+AI_PROVIDER_LABELS[provider]+' API key',true);return}
+      // Save key per provider
+      aiProviderKeys[provider]=apiKey;
+      const lsKeyMap={google:'googleAIKey',nvidia:'nvidiaAIKey'};
+      localStorage.setItem(lsKeyMap[provider],apiKey);
+      localStorage.setItem('aiModel_'+provider,model);
       input.value='';
       const container=document.getElementById('ai-messages');
       const userDiv=document.createElement('div');
       userDiv.className='ai-message user';
-      userDiv.innerHTML=`<div class="ai-msg-label">You</div>${text}`;
+      userDiv.innerHTML=`<div class="ai-msg-label">You</div>${text.replace(/</g,'&lt;')}`;
       container.appendChild(userDiv);
       container.scrollTop=container.scrollHeight;
       const loadingDiv=document.createElement('div');
       loadingDiv.className='ai-message';
-      loadingDiv.innerHTML='<div class="ai-msg-label">DeepSeek</div>Thinking...';
+      loadingDiv.innerHTML=`<div class="ai-msg-label">${AI_PROVIDER_LABELS[provider]}</div><span style="opacity:.5">Thinking...</span>`;
       container.appendChild(loadingDiv);
       container.scrollTop=container.scrollHeight;
       try{
-        const res=await fetch('https://api.deepseek.com/v1/chat/completions',{
-          method:'POST',
-          headers:{'Content-Type':'application/json','Authorization':'Bearer '+apiKey},
-          body:JSON.stringify({model:'deepseek-chat',messages:[{role:'user',content:text}],max_tokens:1000})
-        });
-        const data=await res.json();
+        let reply='';
+        if(provider==='google'){
+          // Google AI Studio — Gemini REST API
+          const endpoint=`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+          const res=await fetch(endpoint,{
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({contents:[{parts:[{text}]}]})
+          });
+          const data=await res.json();
+          if(data.error)throw new Error(data.error.message||'Google API error');
+          reply=data?.candidates?.[0]?.content?.parts?.[0]?.text||'No response';
+        } else if(provider==='nvidia'){
+          // NVIDIA Build — OpenAI-compatible endpoint
+          const res=await fetch('https://integrate.api.nvidia.com/v1/chat/completions',{
+            method:'POST',
+            headers:{'Content-Type':'application/json','Authorization':'Bearer '+apiKey},
+            body:JSON.stringify({model,messages:[{role:'user',content:text}],max_tokens:1024,stream:false})
+          });
+          const data=await res.json();
+          if(data.error)throw new Error(data.error.message||'NVIDIA API error');
+          reply=data?.choices?.[0]?.message?.content||'No response';
+        }
         loadingDiv.remove();
-        if(data.error){throw new Error(data.error.message||'API error')}
-        const reply=data.choices&&data.choices[0]&&data.choices[0].message&&data.choices[0].message.content||'No response';
         const aiDiv=document.createElement('div');
         aiDiv.className='ai-message';
-        aiDiv.innerHTML=`<div class="ai-msg-label">DeepSeek</div>${reply}`;
+        // Preserve newlines
+        const safeReply=reply.replace(/</g,'&lt;').replace(/\n/g,'<br>');
+        aiDiv.innerHTML=`<div class="ai-msg-label">${AI_PROVIDER_LABELS[provider]} · ${model}</div>${safeReply}`;
         container.appendChild(aiDiv);
       }catch(err){
         loadingDiv.remove();
         const errDiv=document.createElement('div');
         errDiv.className='ai-message';
-        errDiv.innerHTML=`<div class="ai-msg-label">Error</div>${err.message}`;
+        errDiv.innerHTML=`<div class="ai-msg-label" style="color:#fc6060">Error</div>${err.message}`;
         container.appendChild(errDiv);
       }
       container.scrollTop=container.scrollHeight;
@@ -1780,7 +1879,9 @@
       if(!blurEnabled)document.documentElement.style.setProperty('--blur','blur(0px)');
       if(bookmarks.length>0)renderBookmarks();
       document.getElementById('settings-username').textContent=currentUsername;
-      if(aiApiKey)document.getElementById('ai-api-key').value=aiApiKey;
+      // Init AI provider UI on load
+      const provSel=document.getElementById('ai-provider');
+      if(provSel){provSel.value=currentAIProvider;onProviderChange();}
     });
     window.addEventListener("beforeunload",e=>{e.preventDefault();e.returnValue=""});
   </script>
