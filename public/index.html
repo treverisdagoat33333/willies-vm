@@ -524,8 +524,8 @@
   <div id="ai-settings-wrap" class="hidden">
     <div id="ai-settings-card">
       <h2><svg class="icon" viewBox="0 0 24 24"><path d="M12 3l1.8 5.4L19 10l-5.2 1.6L12 17l-1.8-5.4L5 10l5.2-1.6L12 3z"/></svg> Connect AI</h2>
-      <p>Paste an Anthropic API key to enable the assistant (top of screen). Stored only in this browser's localStorage — never sent anywhere but api.anthropic.com. Anyone with access to this browser/devtools can see it, so don't use a key with a high spend limit.</p>
-      <input id="ai-key-input" type="password" placeholder="sk-ant-..." autocomplete="off">
+      <p>Paste your NVIDIA API key (runs DeepSeek V4 Pro). Stored only in this browser's localStorage — never sent anywhere but integrate.api.nvidia.com. Anyone with access to this browser/devtools can see it, so don't use a key with a high spend limit.</p>
+      <input id="ai-key-input" type="password" placeholder="nvapi-..." autocomplete="off">
       <div id="ai-settings-actions">
         <button type="button" class="btn-secondary" onclick="closeAISettings()">Cancel</button>
         <button type="button" class="vm-btn" style="width:auto" onclick="saveAIKey()">Save</button>
@@ -1021,26 +1021,32 @@
       const pending=addDiMessage('ai','Thinking…');pending.classList.add('pending');
       diBusy=true;
       try{
-        const res=await fetch('https://api.anthropic.com/v1/messages',{
+        const res=await fetch('https://integrate.api.nvidia.com/v1/chat/completions',{
           method:'POST',
           headers:{
             'Content-Type':'application/json',
-            'x-api-key':key,
-            'anthropic-version':'2023-06-01',
-            'anthropic-dangerous-direct-browser-access':'true'
+            'Authorization':'Bearer '+key
           },
           body:JSON.stringify({
-            model:'claude-sonnet-5',
-            max_tokens:1024,
-            messages:[{role:'user',content:userText}]
+            model:'deepseek-ai/deepseek-v4-pro-0813',
+            messages:[{role:'user',content:userText}],
+            temperature:0.7,
+            top_p:0.95,
+            max_tokens:2048,
+            stream:false,
+            extra_body:{chat_template_kwargs:{thinking:false}}
           })
         });
         const data=await res.json();
         pending.classList.remove('pending');
-        if(!res.ok){pending.textContent='Error: '+(data?.error?.message||res.status);return}
-        const text=(data.content||[]).map(b=>b.text||'').join('\n').trim()||'(no response)';
+        if(!res.ok){pending.textContent='Error: '+(data?.error?.message||data?.message||res.status);return}
+        const text=data.choices?.[0]?.message?.content?.trim()||'(no response)';
         pending.textContent=text;
-      }catch(err){pending.classList.remove('pending');pending.textContent='Request failed: '+err.message}
+      }catch(err){
+        pending.classList.remove('pending');
+        const cors=/Failed to fetch|NetworkError|Load failed/i.test(err.message||'');
+        pending.textContent=cors?'Request blocked (likely CORS — NVIDIA\'s API may not allow direct browser calls; you may need a small server-side proxy).':'Request failed: '+err.message;
+      }
       finally{diBusy=false}
     }
     document.getElementById('di-form').addEventListener('submit',e=>{
