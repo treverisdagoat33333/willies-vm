@@ -21,7 +21,6 @@ const XENV_API_KEY = process.env.XENV_API_KEY;
 const DEV_ID = process.env.XENV_DEV_ID || "willie-games-vm";
 const E2B_API_KEY = process.env.E2B_API_KEY;
 const AUTH_SECRET = process.env.AUTH_SECRET;
-const NVIDIA_API_KEY = process.env.NVIDIA_API_KEY;
 const XENV = "https://loremgroup.org";
 const GUEST_VM_TIMEOUT_MS = 30 * 60 * 1000;
 const ACCOUNT_VM_TIMEOUT_MS = 60 * 60 * 1000;
@@ -37,19 +36,17 @@ if (!AUTH_SECRET) {
 */
 server.on("upgrade", (req, socket, head) => {
   const wispPath = new URL(req.url ?? "/", "http://localhost").pathname;
-
   if (wispPath === "/wisp/") {
     req.url = wispPath;
     wisp.routeRequest(req, socket, head);
     return;
   }
-
   socket.end();
 });
 
 /*
 |--------------------------------------------------------------------------
-| COEP/COOP headers — required for SharedArrayBuffer (wisp transport)
+| COEP/COOP headers â€” required for SharedArrayBuffer (wisp transport)
 |--------------------------------------------------------------------------
 */
 app.use((_req, res, next) => {
@@ -64,31 +61,25 @@ app.use(cookieParser());
 /*
 |--------------------------------------------------------------------------
 | Serve Scramjet v2 static assets
+|
+| /scram/      â†’ scramjetPath (from @mercuryworkshop/scramjet/path)
+| /controller/ â†’ @mercuryworkshop/scramjet-controller  (exposes controller.api.js, controller.sw.js, controller.inject.js)
+| /utils/      â†’ @mercuryworkshop/scramjet-utils
+| /libcurl/    â†’ @mercuryworkshop/libcurl-transport
 |--------------------------------------------------------------------------
 */
 app.use("/scramjet/", express.static(scramjetPath));
 app.use("/scram/", express.static(scramjetPath));
-app.use(
-  "/controller/",
-  express.static(dirOf("@mercuryworkshop/scramjet-controller"))
-);
-app.use(
-  "/utils/",
-  express.static(dirOf("@mercuryworkshop/scramjet-utils"))
-);
-app.use(
-  "/libcurl/",
-  express.static(dirOf("@mercuryworkshop/libcurl-transport"))
-);
+app.use("/controller/", express.static(dirOf("@mercuryworkshop/scramjet-controller")));
+app.use("/utils/", express.static(dirOf("@mercuryworkshop/scramjet-utils")));
+app.use("/libcurl/", express.static(dirOf("@mercuryworkshop/libcurl-transport")));
 
 /*
 |--------------------------------------------------------------------------
-| Serve public static files
+| Serve public static files (your frontend)
 |--------------------------------------------------------------------------
 */
-const __dirname = path.dirname(new URL(import.meta.url).pathname);
-
-app.use(express.static(path.join(__dirname, "public")));
+app.use(express.static(path.join(path.dirname(new URL(import.meta.url).pathname), "public")));
 
 const users = new Map();
 const guestSessions = new Map();
@@ -109,9 +100,7 @@ function createToken(payload) {
 
 function getSession(req) {
   const token = req.cookies.vm_session;
-
   if (!token) return null;
-
   try {
     return jwt.verify(token, AUTH_SECRET);
   } catch (_) {
@@ -121,14 +110,11 @@ function getSession(req) {
 
 function requireSession(req, res, next) {
   const session = getSession(req);
-
   if (!session) {
     return res.status(401).json({
-      error:
-        "Please create an account, log in, or continue as a guest.",
+      error: "Please create an account, log in, or continue as a guest.",
     });
   }
-
   req.vmSession = session;
   next();
 }
@@ -150,154 +136,71 @@ function getVmSeconds(req) {
 */
 
 app.post("/api/auth/register", async (req, res) => {
-  const username = String(req.body?.username || "")
-    .trim()
-    .toLowerCase();
-
+  const username = String(req.body?.username || "").trim().toLowerCase();
   const password = String(req.body?.password || "");
 
   if (username.length < 3 || username.length > 24) {
-    return res
-      .status(400)
-      .json({ error: "Username must be 3 to 24 characters." });
+    return res.status(400).json({ error: "Username must be 3 to 24 characters." });
   }
-
   if (!/^[a-z0-9_-]+$/.test(username)) {
-    return res.status(400).json({
-      error:
-        "Username can only use letters, numbers, underscores, and hyphens.",
-    });
+    return res.status(400).json({ error: "Username can only use letters, numbers, underscores, and hyphens." });
   }
-
   if (password.length < 8) {
-    return res
-      .status(400)
-      .json({ error: "Password must be at least 8 characters." });
+    return res.status(400).json({ error: "Password must be at least 8 characters." });
   }
-
   if (users.has(username)) {
-    return res
-      .status(409)
-      .json({ error: "That username is already taken." });
+    return res.status(409).json({ error: "That username is already taken." });
   }
 
   const passwordHash = await bcrypt.hash(password, 12);
+  users.set(username, { username, passwordHash, createdAt: Date.now() });
 
-  users.set(username, {
-    username,
-    passwordHash,
-    createdAt: Date.now(),
-  });
-
-  const token = createToken({
-    type: "account",
-    username,
-  });
-
+  const token = createToken({ type: "account", username });
   res.cookie("vm_session", token, cookieOptions());
-
-  return res.json({
-    ok: true,
-    account: true,
-    username,
-    vmMinutes: 60,
-  });
+  return res.json({ ok: true, account: true, username, vmMinutes: 60 });
 });
 
 app.post("/api/auth/login", async (req, res) => {
-  const username = String(req.body?.username || "")
-    .trim()
-    .toLowerCase();
-
+  const username = String(req.body?.username || "").trim().toLowerCase();
   const password = String(req.body?.password || "");
   const user = users.get(username);
 
   if (!user) {
-    return res
-      .status(401)
-      .json({ error: "Invalid username or password." });
+    return res.status(401).json({ error: "Invalid username or password." });
   }
 
-  const valid = await bcrypt.compare(
-    password,
-    user.passwordHash
-  );
-
+  const valid = await bcrypt.compare(password, user.passwordHash);
   if (!valid) {
-    return res
-      .status(401)
-      .json({ error: "Invalid username or password." });
+    return res.status(401).json({ error: "Invalid username or password." });
   }
 
-  const token = createToken({
-    type: "account",
-    username,
-  });
-
+  const token = createToken({ type: "account", username });
   res.cookie("vm_session", token, cookieOptions());
-
-  return res.json({
-    ok: true,
-    account: true,
-    username,
-    vmMinutes: 60,
-  });
+  return res.json({ ok: true, account: true, username, vmMinutes: 60 });
 });
 
 app.post("/api/auth/guest", (req, res) => {
   const guestId = crypto.randomUUID();
-
-  guestSessions.set(guestId, {
-    createdAt: Date.now(),
-  });
-
-  const token = createToken({
-    type: "guest",
-    guestId,
-  });
-
-  res.cookie("vm_session", token, {
-    ...cookieOptions(),
-    maxAge: GUEST_VM_TIMEOUT_MS,
-  });
-
-  return res.json({
-    ok: true,
-    account: false,
-    username: "Guest",
-    vmMinutes: 30,
-  });
+  guestSessions.set(guestId, { createdAt: Date.now() });
+  const token = createToken({ type: "guest", guestId });
+  res.cookie("vm_session", token, { ...cookieOptions(), maxAge: GUEST_VM_TIMEOUT_MS });
+  return res.json({ ok: true, account: false, username: "Guest", vmMinutes: 30 });
 });
 
 app.get("/api/auth/me", (req, res) => {
   const session = getSession(req);
-
-  if (!session) {
-    return res.json({
-      loggedIn: false,
-    });
-  }
-
+  if (!session) return res.json({ loggedIn: false });
   return res.json({
     loggedIn: true,
     account: session.type === "account",
-    username:
-      session.type === "account"
-        ? session.username
-        : "Guest",
-    vmMinutes:
-      session.type === "account"
-        ? 60
-        : 30,
+    username: session.type === "account" ? session.username : "Guest",
+    vmMinutes: session.type === "account" ? 60 : 30,
   });
 });
 
 app.post("/api/auth/logout", (req, res) => {
   res.clearCookie("vm_session", cookieOptions());
-
-  return res.json({
-    ok: true,
-  });
+  return res.json({ ok: true });
 });
 
 /*
@@ -311,112 +214,8 @@ app.get("/api/health", (req, res) => {
     ok: true,
     e2bConfigured: Boolean(E2B_API_KEY),
     xenvConfigured: Boolean(XENV_API_KEY),
-    nvidiaConfigured: Boolean(NVIDIA_API_KEY),
     wispEnabled: true,
   });
-});
-
-/*
-|--------------------------------------------------------------------------
-| NVIDIA AI
-|--------------------------------------------------------------------------
-*/
-
-app.post("/api/ai/chat", requireSession, async (req, res) => {
-  if (!NVIDIA_API_KEY) {
-    return res.status(500).json({
-      error: "NVIDIA_API_KEY is not configured on the server.",
-    });
-  }
-
-  const messages = req.body?.messages;
-
-  if (!Array.isArray(messages) || messages.length === 0) {
-    return res.status(400).json({
-      error: "messages must be a non-empty array.",
-    });
-  }
-
-  try {
-    const controller = new AbortController();
-
-    const timeout = setTimeout(() => {
-      controller.abort();
-    }, 60_000);
-
-    const response = await fetch(
-      "https://integrate.api.nvidia.com/v1/chat/completions",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${NVIDIA_API_KEY}`,
-        },
-        body: JSON.stringify({
-          model:
-            req.body?.model ||
-            "deepseek-ai/deepseek-v4-pro-0813",
-          messages,
-          temperature:
-            typeof req.body?.temperature === "number"
-              ? req.body.temperature
-              : 0.7,
-          top_p:
-            typeof req.body?.top_p === "number"
-              ? req.body.top_p
-              : 0.95,
-          max_tokens:
-            typeof req.body?.max_tokens === "number"
-              ? req.body.max_tokens
-              : 2048,
-          stream: false,
-          extra_body: {
-            chat_template_kwargs: {
-              thinking: false,
-            },
-          },
-        }),
-        signal: controller.signal,
-      }
-    );
-
-    clearTimeout(timeout);
-
-    const contentType =
-      response.headers.get("content-type") || "";
-
-    const data = contentType.includes("application/json")
-      ? await response.json()
-      : {
-          error: await response.text(),
-        };
-
-    if (!response.ok) {
-      console.error(
-        "NVIDIA API error:",
-        response.status,
-        data
-      );
-
-      return res.status(response.status).json(data);
-    }
-
-    return res.json(data);
-  } catch (err) {
-    console.error("NVIDIA proxy error:", err);
-
-    if (err?.name === "AbortError") {
-      return res.status(504).json({
-        error: "NVIDIA request timed out.",
-      });
-    }
-
-    return res.status(500).json({
-      error:
-        err?.message ||
-        "NVIDIA AI request failed.",
-    });
-  }
 });
 
 /*
@@ -431,38 +230,20 @@ app.get("/api/launch", requireSession, async (req, res) => {
   const deleteAfter = getVmSeconds(req);
 
   if (!XENV_API_KEY) {
-    return res.status(500).json({
-      error: "XENV_API_KEY is not configured.",
-    });
+    return res.status(500).json({ error: "XENV_API_KEY is not configured." });
   }
 
   try {
     const response = await fetch(
-      `${XENV}/api/create?site_limit=${siteLimit}&delete_after=${deleteAfter}&gpu=${encodeURIComponent(
-        gpu
-      )}&developer_id=${encodeURIComponent(DEV_ID)}`,
-      {
-        headers: {
-          "X-API-Key": XENV_API_KEY,
-        },
-      }
+      `${XENV}/api/create?site_limit=${siteLimit}&delete_after=${deleteAfter}&gpu=${encodeURIComponent(gpu)}&developer_id=${encodeURIComponent(DEV_ID)}`,
+      { headers: { "X-API-Key": XENV_API_KEY } }
     );
-
     const data = await response.json();
-
-    if (!response.ok) {
-      return res.status(response.status).json(data);
-    }
-
-    return res.json(data);
+    if (!response.ok) return res.status(response.status).json(data);
+    res.json(data);
   } catch (err) {
     console.error("XENV launch error:", err);
-
-    return res.status(500).json({
-      error:
-        err?.message ||
-        "XENV launch failed.",
-    });
+    res.status(500).json({ error: err.message || "XENV launch failed." });
   }
 });
 
@@ -472,48 +253,22 @@ app.get("/api/launch", requireSession, async (req, res) => {
 |--------------------------------------------------------------------------
 */
 
-app.get("/api/queue", requireSession, async (req, res) => {
+app.get("/api/queue", async (req, res) => {
   const { token } = req.query;
-
-  if (!token) {
-    return res.status(400).json({
-      error: "Missing queue token.",
-    });
-  }
-
-  if (!XENV_API_KEY) {
-    return res.status(500).json({
-      error: "XENV_API_KEY is not configured.",
-    });
-  }
+  if (!token) return res.status(400).json({ error: "Missing queue token." });
+  if (!XENV_API_KEY) return res.status(500).json({ error: "XENV_API_KEY is not configured." });
 
   try {
     const response = await fetch(
-      `${XENV}/api/queue_status?token=${encodeURIComponent(
-        token
-      )}&wait=true&timeout=25`,
-      {
-        headers: {
-          "X-API-Key": XENV_API_KEY,
-        },
-      }
+      `${XENV}/api/queue_status?token=${encodeURIComponent(token)}&wait=true&timeout=25`,
+      { headers: { "X-API-Key": XENV_API_KEY } }
     );
-
     const data = await response.json();
-
-    if (!response.ok) {
-      return res.status(response.status).json(data);
-    }
-
-    return res.json(data);
+    if (!response.ok) return res.status(response.status).json(data);
+    res.json(data);
   } catch (err) {
     console.error("Queue error:", err);
-
-    return res.status(500).json({
-      error:
-        err?.message ||
-        "Queue request failed.",
-    });
+    res.status(500).json({ error: err.message || "Queue request failed." });
   }
 });
 
@@ -526,99 +281,40 @@ app.get("/api/queue", requireSession, async (req, res) => {
 app.post("/api/e2b/start", requireSession, async (req, res) => {
   if (!E2B_API_KEY) {
     console.error("E2B_API_KEY is missing.");
-
-    return res.status(500).json({
-      error:
-        "E2B_API_KEY is not configured on the server.",
-    });
+    return res.status(500).json({ error: "E2B_API_KEY is not configured on the server." });
   }
 
   let sandbox = null;
-
   try {
     console.log("Creating E2B Desktop sandbox...");
-
     const timeoutMs = getVmTimeout(req);
-
-    sandbox = await Sandbox.create({
-      apiKey: E2B_API_KEY,
-      timeoutMs,
-    });
+    sandbox = await Sandbox.create({ apiKey: E2B_API_KEY, timeoutMs });
 
     const sandboxId = sandbox.sandboxId;
+    if (!sandboxId) throw new Error("E2B created a sandbox but did not return a sandbox ID.");
+    console.log(`E2B sandbox created: ${sandboxId}`);
 
-    if (!sandboxId) {
-      throw new Error(
-        "E2B created a sandbox but did not return a sandbox ID."
-      );
-    }
+    await sandbox.stream.start({ requireAuth: true });
+    const authKey = await sandbox.stream.getAuthKey();
+    if (!authKey) throw new Error("E2B stream started but no authentication key was returned.");
 
-    console.log(
-      `E2B sandbox created: ${sandboxId}`
-    );
+    const streamUrl = sandbox.stream.getUrl({ authKey, autoConnect: true, resize: "scale", viewOnly: false });
+    if (!streamUrl) throw new Error("E2B did not return a stream URL.");
 
-    await sandbox.stream.start({
-      requireAuth: true,
-    });
-
-    const authKey =
-      await sandbox.stream.getAuthKey();
-
-    if (!authKey) {
-      throw new Error(
-        "E2B stream started but no authentication key was returned."
-      );
-    }
-
-    const streamUrl =
-      sandbox.stream.getUrl({
-        authKey,
-        autoConnect: true,
-        resize: "scale",
-        viewOnly: false,
-      });
-
-    if (!streamUrl) {
-      throw new Error(
-        "E2B did not return a stream URL."
-      );
-    }
-
-    e2bSandboxes.set(
-      sandboxId,
-      sandbox
-    );
-
+    e2bSandboxes.set(sandboxId, sandbox);
     return res.json({
       status: "success",
       sandboxId,
       url: streamUrl,
-      timeoutMinutes: Math.floor(
-        timeoutMs / 60000
-      ),
+      timeoutMinutes: Math.floor(timeoutMs / 60000),
     });
   } catch (err) {
-    console.error(
-      "E2B START FAILED",
-      err
-    );
-
+    console.error("E2B START FAILED", err);
     if (sandbox) {
-      try {
-        await sandbox.stream.stop();
-      } catch (_) {}
-
-      try {
-        await sandbox.kill();
-      } catch (_) {}
+      try { await sandbox.stream.stop(); } catch (_) {}
+      try { await sandbox.kill(); } catch (_) {}
     }
-
-    return res.status(500).json({
-      status: "error",
-      error:
-        err?.message ||
-        "Failed to start E2B Desktop VM.",
-    });
+    return res.status(500).json({ status: "error", error: err?.message || "Failed to start E2B Desktop VM." });
   }
 });
 
@@ -630,51 +326,18 @@ app.post("/api/e2b/start", requireSession, async (req, res) => {
 
 app.delete("/api/e2b/:id", async (req, res) => {
   const sandboxId = req.params.id;
-
   try {
-    const sandbox =
-      e2bSandboxes.get(sandboxId);
-
-    if (!sandbox) {
-      return res.json({
-        ok: true,
-      });
-    }
-
-    try {
-      await sandbox.stream.stop();
-    } catch (_) {}
-
-    try {
-      await sandbox.kill();
-    } catch (_) {}
-
-    e2bSandboxes.delete(
-      sandboxId
-    );
-
-    console.log(
-      `E2B sandbox killed: ${sandboxId}`
-    );
-
-    return res.json({
-      ok: true,
-    });
+    const sandbox = e2bSandboxes.get(sandboxId);
+    if (!sandbox) return res.json({ ok: true });
+    try { await sandbox.stream.stop(); } catch (_) {}
+    try { await sandbox.kill(); } catch (_) {}
+    e2bSandboxes.delete(sandboxId);
+    console.log(`E2B sandbox killed: ${sandboxId}`);
+    return res.json({ ok: true });
   } catch (err) {
-    console.error(
-      "E2B delete error:",
-      err
-    );
-
-    e2bSandboxes.delete(
-      sandboxId
-    );
-
-    return res.status(500).json({
-      error:
-        err?.message ||
-        "Failed to delete E2B sandbox.",
-    });
+    console.error("E2B delete error:", err);
+    e2bSandboxes.delete(sandboxId);
+    return res.status(500).json({ error: err.message || "Failed to delete E2B sandbox." });
   }
 });
 
@@ -685,52 +348,16 @@ app.delete("/api/e2b/:id", async (req, res) => {
 */
 
 app.delete("/api/vm/:id", async (req, res) => {
-  if (!XENV_API_KEY) {
-    return res.status(500).json({
-      error:
-        "XENV_API_KEY is not configured.",
-    });
-  }
-
+  if (!XENV_API_KEY) return res.status(500).json({ error: "XENV_API_KEY is not configured." });
   try {
-    await fetch(
-      `${XENV}/api/delete/${encodeURIComponent(
-        req.params.id
-      )}`,
-      {
-        headers: {
-          "X-API-Key": XENV_API_KEY,
-        },
-      }
-    );
-
-    return res.json({
-      ok: true,
+    await fetch(`${XENV}/api/delete/${encodeURIComponent(req.params.id)}`, {
+      headers: { "X-API-Key": XENV_API_KEY },
     });
+    return res.json({ ok: true });
   } catch (err) {
-    console.error(
-      "XENV delete error:",
-      err
-    );
-
-    return res.status(500).json({
-      error:
-        err?.message ||
-        "Failed to delete VM.",
-    });
+    console.error("XENV delete error:", err);
+    return res.status(500).json({ error: err.message || "Failed to delete VM." });
   }
-});
-
-/*
-|--------------------------------------------------------------------------
-| Stats
-|--------------------------------------------------------------------------
-*/
-
-app.get("/api/stats", (req, res) => {
-  res.json({
-    online: users.size + guestSessions.size,
-  });
 });
 
 /*
@@ -740,80 +367,27 @@ app.get("/api/stats", (req, res) => {
 */
 
 async function cleanupE2BSandboxes() {
-  console.log(
-    "Cleaning up E2B sandboxes..."
-  );
-
-  for (const [
-    sandboxId,
-    sandbox,
-  ] of e2bSandboxes) {
-    try {
-      await sandbox.stream.stop();
-    } catch (_) {}
-
-    try {
-      await sandbox.kill();
-    } catch (_) {}
-
-    console.log(
-      `Cleaned up E2B sandbox: ${sandboxId}`
-    );
+  console.log("Cleaning up E2B sandboxes...");
+  for (const [sandboxId, sandbox] of e2bSandboxes) {
+    try { await sandbox.stream.stop(); } catch (_) {}
+    try { await sandbox.kill(); } catch (_) {}
+    console.log(`Cleaned up E2B sandbox: ${sandboxId}`);
   }
-
   e2bSandboxes.clear();
 }
 
-process.on(
-  "SIGTERM",
-  async () => {
-    await cleanupE2BSandboxes();
-    process.exit(0);
-  }
-);
-
-process.on(
-  "SIGINT",
-  async () => {
-    await cleanupE2BSandboxes();
-    process.exit(0);
-  }
-);
+process.on("SIGTERM", async () => { await cleanupE2BSandboxes(); process.exit(0); });
+process.on("SIGINT", async () => { await cleanupE2BSandboxes(); process.exit(0); });
 
 /*
 |--------------------------------------------------------------------------
 | Start
 |--------------------------------------------------------------------------
 */
-
 server.listen(PORT, () => {
-  console.log(
-    `Willie Games VM running on port ${PORT}`
-  );
-
-  console.log(
-    `E2B configured: ${Boolean(
-      E2B_API_KEY
-    )}`
-  );
-
-  console.log(
-    `XENV configured: ${Boolean(
-      XENV_API_KEY
-    )}`
-  );
-
-  console.log(
-    `NVIDIA configured: ${Boolean(
-      NVIDIA_API_KEY
-    )}`
-  );
-
-  console.log(
-    "Scramjet v2 assets: /scramjet/ /scram/ /controller/ /utils/ /libcurl/"
-  );
-
-  console.log(
-    `Wisp endpoint: ws://localhost:${PORT}/wisp/`
-  );
+  console.log(`Willie Games VM running on port ${PORT}`);
+  console.log(`E2B configured: ${Boolean(E2B_API_KEY)}`);
+  console.log(`XENV configured: ${Boolean(XENV_API_KEY)}`);
+  console.log(`Scramjet v2 assets: /scram/ /controller/ /utils/ /libcurl/`);
+  console.log(`Wisp endpoint: ws://localhost:${PORT}/wisp/`);
 });
