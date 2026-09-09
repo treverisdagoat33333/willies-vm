@@ -1,4 +1,5 @@
 import http from "node:http";
+import dgram from "node:dgram";
 import { createRequire } from "node:module";
 import path from "node:path";
 import crypto from "node:crypto";
@@ -6,6 +7,7 @@ import express from "express";
 import cookieParser from "cookie-parser";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import { WebSocketServer } from "ws";
 import { scramjetPath } from "@mercuryworkshop/scramjet/path";
 import { server as wisp } from "@mercuryworkshop/wisp-js/server";
 import { Sandbox } from "@e2b/desktop";
@@ -24,6 +26,7 @@ const AUTH_SECRET = process.env.AUTH_SECRET;
 const XENV = "https://loremgroup.org";
 const GUEST_VM_TIMEOUT_MS = 30 * 60 * 1000;
 const ACCOUNT_VM_TIMEOUT_MS = 60 * 60 * 1000;
+const WOL_RELAY_TOKEN = process.env.WOL_RELAY_TOKEN;
 
 if (!AUTH_SECRET) {
   throw new Error("AUTH_SECRET is not configured.");
@@ -31,16 +34,59 @@ if (!AUTH_SECRET) {
 
 /*
 |--------------------------------------------------------------------------
-| Wisp WebSocket upgrade handler at /wisp/
+| Wake-on-LAN relay
+|
+| A small agent (see /wol-relay) runs on an always-on device on YOUR
+| home network and opens an outbound WebSocket connection to this
+| server at /ws/relay. Because the connection is outbound, no port
+| forwarding is required on your router. When you hit "Wake PC" from
+| anywhere, this server forwards the wake command down that socket and
+| the agent broadcasts the real magic packet on your local network.
+|--------------------------------------------------------------------------
+*/
+const wolRelayWss = new WebSocketServer({ noServer: true });
+let relaySocket = null;
+
+wolRelayWss.on("connection", (ws) => {
+  console.log("WoL relay agent connected.");
+  relaySocket = ws;
+  ws.on("close", () => {
+    if (relaySocket === ws) relaySocket = null;
+    console.log("WoL relay agent disconnected.");
+  });
+  ws.on("error", (err) => console.error("Relay socket error:", err.message));
+});
+
+function isRelayOnline() {
+  return Boolean(relaySocket && relaySocket.readyState === relaySocket.OPEN);
+}
+
+/*
+|--------------------------------------------------------------------------
+| Wisp WebSocket upgrade handler at /wisp/, plus WoL relay at /ws/relay
 |--------------------------------------------------------------------------
 */
 server.on("upgrade", (req, socket, head) => {
-  const wispPath = new URL(req.url ?? "/", "http://localhost").pathname;
-  if (wispPath === "/wisp/") {
-    req.url = wispPath;
+  const { pathname, searchParams } = new URL(req.url ?? "/", "http://localhost");
+
+  if (pathname === "/wisp/") {
+    req.url = pathname;
     wisp.routeRequest(req, socket, head);
     return;
   }
+
+  if (pathname === "/ws/relay") {
+    if (!WOL_RELAY_TOKEN || searchParams.get("token") !== WOL_RELAY_TOKEN) {
+      socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
+      socket.destroy();
+      return;
+    }
+    wolRelayWss.handleUpgrade(req, socket, head, (ws) => {
+      wolRelayWss.emit("connection", ws, req);
+    });
+    return;
+  }
+
   socket.end();
 });
 
@@ -201,6 +247,109 @@ app.get("/api/auth/me", (req, res) => {
 app.post("/api/auth/logout", (req, res) => {
   res.clearCookie("vm_session", cookieOptions());
   return res.json({ ok: true });
+});
+
+/*
+|--------------------------------------------------------------------------
+| Wake-on-LAN
+|--------------------------------------------------------------------------
+*/
+
+const MAC_RE = /^([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}$/;
+
+function buildMagicPacket(mac) {
+  const macBytes = mac.trim().split(/[:-]/).map((h) => parseInt(h, 16));
+  const header = Buffer.alloc(6, 0xff);
+  const macBuffer = Buffer.from(macBytes);
+  return Buffer.concat([header, ...Array(16).fill(macBuffer)]);
+}
+
+// Sends the magic packet directly from this server's network. Only useful
+// if this server and the target PC share a broadcast domain, or if your
+// router is one of the few that forwards WAN packets to a LAN broadcast
+// address. Most home routers don't support that — use the relay agent
+// (/wol-relay) instead for a setup that works from anywhere.
+function sendLocalMagicPacket(mac, broadcastIp, port) {
+  return new Promise((resolve, reject) => {
+    const packet = buildMagicPacket(mac);
+    const socket = dgram.createSocket("udp4");
+    socket.on("error", (err) => {
+      socket.close();
+      reject(err);
+    });
+    socket.bind(() => {
+      socket.setBroadcast(true);
+      socket.send(packet, 0, packet.length, port, broadcastIp, (err) => {
+        socket.close();
+        if (err) reject(err);
+        else resolve();
+      });
+    });
+  });
+}
+
+app.get("/api/wol/status", requireSession, (req, res) => {
+  res.json({ relayOnline: isRelayOnline() });
+});
+
+app.post("/api/wol", requireSession, async (req, res) => {
+  const mac = String(req.body?.mac || "").trim();
+  const broadcastIp = String(req.body?.broadcastIp || "255.255.255.255").trim();
+  const port = Number(req.body?.port) || 9;
+
+  // mode: "auto" (default) | "relay" | "direct"
+  //   auto   - use the relay if it's connected, otherwise fall back to a
+  //            direct broadcast from this server.
+  //   relay  - only use the relay agent; fail if it's not connected.
+  //   direct - always broadcast straight from this server, skipping the
+  //            relay entirely (only works if this server and the PC share
+  //            a network, or the router forwards WoL packets from WAN).
+  const mode = ["auto", "relay", "direct"].includes(req.body?.mode) ? req.body.mode : "auto";
+
+  if (!MAC_RE.test(mac)) {
+    return res.status(400).json({ error: "Invalid MAC address. Use format AA:BB:CC:DD:EE:FF." });
+  }
+
+  if (mode === "relay") {
+    if (!isRelayOnline()) {
+      return res.status(503).json({ error: "Relay agent is offline. Start wol-relay/relay.js on your home network first." });
+    }
+    relaySocket.send(JSON.stringify({ type: "wake", mac, broadcastIp, port }));
+    return res.json({ ok: true, via: "relay", message: "Wake command sent to your home relay agent." });
+  }
+
+  if (mode === "direct") {
+    try {
+      await sendLocalMagicPacket(mac, broadcastIp, port);
+      return res.json({
+        ok: true,
+        via: "direct",
+        message: "Magic packet broadcast directly from this server.",
+      });
+    } catch (err) {
+      return res.status(500).json({ error: "Direct broadcast failed.", detail: err.message });
+    }
+  }
+
+  // mode === "auto": prefer relay, fall back to direct
+  if (isRelayOnline()) {
+    relaySocket.send(JSON.stringify({ type: "wake", mac, broadcastIp, port }));
+    return res.json({ ok: true, via: "relay", message: "Wake command sent to your home relay agent." });
+  }
+
+  try {
+    await sendLocalMagicPacket(mac, broadcastIp, port);
+    return res.json({
+      ok: true,
+      via: "direct",
+      message: "Relay offline — sent a direct broadcast instead (only reaches the PC if this server shares its network, or the router forwards WoL).",
+    });
+  } catch (err) {
+    return res.status(503).json({
+      error: "Relay agent is offline and direct broadcast failed. Set up the relay agent in /wol-relay, or use your router's built-in Wake on LAN page instead.",
+      detail: err.message,
+    });
+  }
 });
 
 /*
