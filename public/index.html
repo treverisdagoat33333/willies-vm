@@ -112,28 +112,6 @@
     #guest-button:hover,#login-button:hover{background:rgba(255,255,255,.11);transform:translateY(-1px)}
     #auth-error{min-height:1.2em;color:#fc6060;font-size:12px;font-family:monospace}
 
-    #rdp-wrap{position:fixed;inset:0;z-index:10002;display:flex;align-items:center;justify-content:center;padding:1rem;background:rgba(0,0,0,.65);backdrop-filter:blur(10px);transition:opacity .3s,visibility .3s}
-    #rdp-wrap.hidden{opacity:0;visibility:hidden;pointer-events:none}
-    #rdp-card{width:min(360px,100%);display:flex;flex-direction:column;gap:14px;padding:26px 24px;background:rgba(22,22,26,.94);backdrop-filter:var(--blur);border:1px solid var(--border-bright);border-radius:var(--radius-lg);box-shadow:var(--shadow);animation:windowOpen .4s var(--spring) both}
-    #rdp-card h2{color:var(--text);font-size:20px;font-weight:600;margin:0;display:flex;align-items:center;justify-content:space-between}
-    #rdp-close{background:none;border:none;color:var(--text-tertiary);cursor:pointer;padding:4px;line-height:0}
-    #rdp-close:hover{color:var(--text)}
-    .rdp-field label{display:block;font-size:12px;color:var(--text-secondary);margin-bottom:6px}
-    .rdp-field input{width:100%;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-family:inherit;font-size:14px;outline:none;transition:border-color .2s,box-shadow .2s;box-sizing:border-box}
-    .rdp-field input:focus{border-color:var(--accent);box-shadow:0 0 0 2px rgba(0,120,212,.25)}
-    .rdp-field select{width:100%;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-family:inherit;font-size:13px;outline:none;box-sizing:border-box}
-    .rdp-field select:focus{border-color:var(--accent);box-shadow:0 0 0 2px rgba(0,120,212,.25)}
-    #rdp-wol-advanced{display:flex;flex-direction:column;gap:14px}
-    #rdp-wol-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:var(--radius-sm)}
-    #rdp-wol-status{font-size:11px;color:var(--text-tertiary);font-family:'Cascadia Code','Consolas',monospace}
-    #rdp-wol-status.online{color:#4ade80}
-    #rdp-wol-status.offline{color:#fc6060}
-    #rdp-wake-btn{padding:8px 14px;background:rgba(255,255,255,.08);color:var(--text);border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;font-weight:500;cursor:pointer;font-family:inherit;white-space:nowrap;transition:background .15s}
-    #rdp-wake-btn:hover:not(:disabled){background:rgba(255,255,255,.14)}
-    #rdp-wake-btn:disabled{opacity:.5;cursor:not-allowed}
-    #rdp-connect-btn{padding:10px;background:#fff;color:#000;font-weight:600;border:none;border-radius:var(--radius-sm);cursor:pointer;font-family:inherit;font-size:14px;transition:background .15s}
-    #rdp-connect-btn:hover{background:#e6e6e6}
-    #rdp-error{min-height:1.2em;color:#fc6060;font-size:12px;font-family:monospace}
 
     #vm-frame-wrap{display:none;position:fixed;inset:0;width:100vw;height:100vh;background:#000;z-index:9999;flex-direction:column;animation:panelIn .35s var(--spring) both}
     #vm-frame-wrap.closing{animation:panelOut .25s var(--snappy) forwards!important}
@@ -466,43 +444,6 @@
     </form>
   </div>
 
-  <div id="rdp-wrap" class="hidden">
-    <div id="rdp-card">
-      <h2>Remote Desktop
-        <button id="rdp-close" type="button" title="Close"><svg class="icon" viewBox="0 0 24 24" style="width:16px;height:16px"><line x1="5" y1="5" x2="19" y2="19"/><line x1="19" y1="5" x2="5" y2="19"/></svg></button>
-      </h2>
-
-      <div class="rdp-field"><label>Server</label><input id="rdp-server" type="text" placeholder="myhome.duckdns.org or your IP" autocomplete="off"></div>
-      <div class="rdp-field"><label>Port</label><input id="rdp-port" type="text" placeholder="3389"></div>
-      <div class="rdp-field"><label>Domain</label><input id="rdp-domain" type="text" autocomplete="off"></div>
-      <div class="rdp-field"><label>Username</label><input id="rdp-username" type="text" autocomplete="off"></div>
-      <div class="rdp-field"><label>Access token</label><input id="rdp-token" type="password" autocomplete="off"></div>
-
-      <div class="rdp-field"><label>PC's MAC address (for Wake-on-LAN)</label><input id="rdp-mac" type="text" placeholder="AA:BB:CC:DD:EE:FF"></div>
-
-      <div class="rdp-field">
-        <label>Wake method</label>
-        <select id="rdp-wol-mode">
-          <option value="auto">Auto (use relay if online, else direct)</option>
-          <option value="relay">Relay only (requires wol-relay running at home)</option>
-          <option value="direct">Direct broadcast (only works if this server shares a network with the PC)</option>
-        </select>
-      </div>
-
-      <div id="rdp-wol-advanced" style="display:none">
-        <div class="rdp-field"><label>Broadcast IP</label><input id="rdp-broadcast-ip" type="text" placeholder="255.255.255.255"></div>
-        <div class="rdp-field"><label>WoL Port</label><input id="rdp-wol-port" type="text" placeholder="9"></div>
-      </div>
-
-      <div id="rdp-wol-row">
-        <span id="rdp-wol-status" class="offline">relay: checking…</span>
-        <button id="rdp-wake-btn" type="button" onclick="wakePC()">Wake PC</button>
-      </div>
-
-      <div id="rdp-error"></div>
-      <button id="rdp-connect-btn" type="button" onclick="connectRDP()">Connect</button>
-    </div>
-  </div>
 
   <div id="desktop">
     <div class="win-window" id="main-window">
@@ -536,9 +477,6 @@
           <button class="vm-btn" id="games-btn" type="button" onclick="openGamesPanel()">
              Games
           </button>
-          <button class="vm-btn" id="rdp-btn" type="button" onclick="openRemotePC()">
-            <svg class="icon" viewBox="0 0 24 24" style="width:16px;height:16px"><rect x="2" y="4" width="20" height="13" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg> Remote PC
-          </button>
           <button class="vm-btn" id="chat-btn" type="button" onclick="openChat()">
             <svg class="icon" viewBox="0 0 24 24" style="color:#000;stroke:#fff"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> Chat
           </button>
@@ -563,10 +501,6 @@
     <div class="desktop-icon" onclick="showLinksPanel()">
       <div class="desktop-icon-img"><svg class="icon" viewBox="0 0 24 24" style="width:30px;height:30px"><path d="M10 13a5 5 0 0 0 7.07 0l2.83-2.83a5 5 0 0 0-7.07-7.07l-1.5 1.5"/><path d="M14 11a5 5 0 0 0-7.07 0L4.1 13.83a5 5 0 0 0 7.07 7.07l1.5-1.5"/></svg></div>
       <div class="desktop-icon-label">Links</div>
-    </div>
-    <div class="desktop-icon" onclick="openRemotePC()">
-      <div class="desktop-icon-img"><svg class="icon" viewBox="0 0 24 24" style="width:30px;height:30px"><rect x="2" y="4" width="20" height="13" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg></div>
-      <div class="desktop-icon-label">Remote PC</div>
     </div>
     <div class="desktop-icon" onclick="openSettings()">
       <div class="desktop-icon-img"><svg class="icon" viewBox="0 0 24 24" style="width:30px;height:30px;color:#000;stroke:#fff"><path d="M4 21v-7"/><path d="M4 10V3"/><path d="M12 21v-9"/><path d="M12 8V3"/><path d="M20 21v-5"/><path d="M20 12V3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg></div>
@@ -1377,100 +1311,7 @@
 
     function openSettings(){document.getElementById('settings-panel').classList.add('show');loadSettings()}
 
-    /*
-    |--------------------------------------------------------------------------
-    | Remote PC (Remote Desktop + Wake-on-LAN)
-    |--------------------------------------------------------------------------
-    */
-    function loadRdpConfig(){
-      let saved={};
-      try{saved=JSON.parse(localStorage.getItem('rdpConfig')||'{}')}catch(_){saved={}}
-      document.getElementById('rdp-server').value=saved.server||'';
-      document.getElementById('rdp-port').value=saved.port||'3389';
-      document.getElementById('rdp-domain').value=saved.domain||'';
-      document.getElementById('rdp-username').value=saved.username||'';
-      document.getElementById('rdp-mac').value=saved.mac||'';
-      document.getElementById('rdp-wol-mode').value=saved.wolMode||'auto';
-      document.getElementById('rdp-broadcast-ip').value=saved.broadcastIp||'255.255.255.255';
-      document.getElementById('rdp-wol-port').value=saved.wolPort||'9';
-      toggleWolAdvanced();
-    }
-    function saveRdpConfig(){
-      localStorage.setItem('rdpConfig',JSON.stringify({
-        server:document.getElementById('rdp-server').value.trim(),
-        port:document.getElementById('rdp-port').value.trim(),
-        domain:document.getElementById('rdp-domain').value.trim(),
-        username:document.getElementById('rdp-username').value.trim(),
-        mac:document.getElementById('rdp-mac').value.trim(),
-        wolMode:document.getElementById('rdp-wol-mode').value,
-        broadcastIp:document.getElementById('rdp-broadcast-ip').value.trim(),
-        wolPort:document.getElementById('rdp-wol-port').value.trim()
-      }))
-    }
-    function toggleWolAdvanced(){
-      const mode=document.getElementById('rdp-wol-mode').value;
-      document.getElementById('rdp-wol-advanced').style.display = mode==='direct' ? 'flex' : 'none';
-    }
-    document.getElementById('rdp-wol-mode').addEventListener('change',toggleWolAdvanced);
-    async function refreshWolStatus(){
-      const el=document.getElementById('rdp-wol-status');
-      try{
-        const r=await fetch('/api/wol/status');
-        if(!r.ok)throw new Error();
-        const d=await r.json();
-        if(d.relayOnline){el.textContent='relay: online';el.className='online'}
-        else{el.textContent='relay: offline (see /wol-relay setup)';el.className='offline'}
-      }catch(_){el.textContent='relay: unknown';el.className='offline'}
-    }
-    function openRemotePC(){
-      loadRdpConfig();
-      document.getElementById('rdp-wrap').classList.remove('hidden');
-      document.getElementById('rdp-error').textContent='';
-      refreshWolStatus();
-    }
-    function closeRemotePC(){document.getElementById('rdp-wrap').classList.add('hidden')}
-    document.getElementById('rdp-close').addEventListener('click',closeRemotePC);
-    document.getElementById('rdp-wrap').addEventListener('click',e=>{if(e.target.id==='rdp-wrap')closeRemotePC()});
 
-    async function wakePC(){
-      saveRdpConfig();
-      const mac=document.getElementById('rdp-mac').value.trim();
-      const mode=document.getElementById('rdp-wol-mode').value;
-      const broadcastIp=document.getElementById('rdp-broadcast-ip').value.trim()||'255.255.255.255';
-      const port=document.getElementById('rdp-wol-port').value.trim()||'9';
-      const errEl=document.getElementById('rdp-error');
-      const btn=document.getElementById('rdp-wake-btn');
-      errEl.textContent='';
-      if(!mac){errEl.textContent="Enter your PC's MAC address first.";return}
-      btn.disabled=true;btn.textContent='Waking…';
-      try{
-        const r=await fetch('/api/wol',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mac,mode,broadcastIp,port})});
-        const d=await r.json();
-        if(!r.ok)throw new Error(d.error||'Failed to wake PC.');
-        btn.textContent='Packet sent ✓';
-        if(d.via==='direct')errEl.textContent=d.message;
-        setTimeout(()=>{btn.textContent='Wake PC';btn.disabled=false},4000);
-      }catch(err){
-        errEl.textContent=err.message;
-        btn.textContent='Wake PC';btn.disabled=false;
-      }
-    }
-
-    function connectRDP(){
-      saveRdpConfig();
-      const server=document.getElementById('rdp-server').value.trim();
-      const port=document.getElementById('rdp-port').value.trim()||'3389';
-      const domain=document.getElementById('rdp-domain').value.trim();
-      const username=document.getElementById('rdp-username').value.trim();
-      const token=document.getElementById('rdp-token').value;
-      const errEl=document.getElementById('rdp-error');
-      errEl.textContent='';
-      if(!server||!username){errEl.textContent='Server and Username are required.';return}
-      // Wire this to your actual RDP gateway (e.g. Apache Guacamole) —
-      // this project doesn't ship one, this just hands off the fields.
-      const params=new URLSearchParams({server,port,domain,username,token});
-      window.open(`/rdp-client/?${params.toString()}`,'_blank');
-    }
     function closeSettings(){document.getElementById('settings-panel').classList.remove('show')}
     document.getElementById('settings-toggle').addEventListener('click',openSettings);
 
