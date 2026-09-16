@@ -19,8 +19,8 @@
   --blur:blur(22px) saturate(150%);
   --shadow:0 30px 80px rgba(0,0,0,.6),0 8px 24px rgba(0,0,0,.4);
   --tb-h:52px;--ui:1;
-  --ease:cubic-bezier(.2,.8,.2,1);--spring:cubic-bezier(.16,1,.3,1);
-  --dur:.22s;
+  --ease:cubic-bezier(.2,.8,.2,1);--spring:cubic-bezier(.34,1.56,.64,1);--springy:cubic-bezier(.22,1.8,.36,1);
+  --dur:.26s;
 }
 html[data-theme="light"]{
   --bg0:#e8ecf3;--bg1:#f6f8fb;
@@ -31,6 +31,56 @@ html[data-theme="light"]{
 }
 html[data-theme="oled"]{--bg0:#000;--bg1:#050505;--glass:rgba(0,0,0,.82)}
 html[data-blur="off"]{--blur:none}
+/* bouncy motion */
+@keyframes bounceIn{0%{opacity:0;transform:translateY(22px) scale(.92)}60%{opacity:1;transform:translateY(-5px) scale(1.02)}80%{transform:translateY(2px) scale(.995)}100%{opacity:1;transform:none}}
+@keyframes popBounce{0%{opacity:0;transform:scale(.7)}55%{opacity:1;transform:scale(1.08)}75%{transform:scale(.97)}100%{transform:scale(1)}}
+@keyframes wobble{0%{transform:scale(1)}30%{transform:scale(1.18) rotate(-6deg)}55%{transform:scale(.94) rotate(4deg)}75%{transform:scale(1.05)}100%{transform:scale(1)}}
+@keyframes startBounce{0%{opacity:0;transform:translate(-50%,28px) scale(.94)}60%{opacity:1;transform:translate(-50%,-6px) scale(1.01)}80%{transform:translate(-50%,2px)}100%{opacity:1;transform:translate(-50%,0)}}
+@keyframes toastBounce{0%{opacity:0;transform:translateX(60px) scale(.9)}60%{opacity:1;transform:translateX(-8px) scale(1.02)}80%{transform:translateX(3px)}100%{transform:none}}
+@keyframes stagger{from{opacity:0;transform:translateY(14px) scale(.96)}to{opacity:1;transform:none}}
+.win,.panel{animation-name:bounceIn!important;animation-duration:.5s!important;animation-timing-function:var(--springy)!important}
+#start{animation:startBounce .5s var(--springy)!important}
+.toast{animation:toastBounce .55s var(--springy),toastOut .3s ease 3.6s forwards!important}
+#auth-card{animation:popBounce .6s var(--springy)}
+.tile:hover{transform:translateY(-4px) scale(1.03)}
+.tile:active{transform:translateY(0) scale(.96);transition-duration:.08s}
+.tile .ic,.dicon .ic,.tbb .ic{transition:transform .35s var(--springy)}
+.tile:hover .ic{transform:scale(1.15) rotate(-6deg)}
+.dicon:hover .ic{transform:translateY(-4px) scale(1.12) rotate(-5deg)}
+.dicon:active .ic{transform:scale(.9);transition-duration:.08s}
+.tbb:hover .ic{transform:translateY(-3px) scale(1.15)}
+.tbb:active .ic{transform:scale(.85);transition-duration:.08s}
+.tbb.active .ic{animation:wobble .5s var(--springy)}
+.gcard{transition:transform .35s var(--springy),border-color .2s,box-shadow .2s}
+.gcard:hover{transform:translateY(-6px) scale(1.04) rotate(-.6deg)}
+.gcard:active{transform:scale(.96);transition-duration:.08s}
+.gcard .fav{transition:opacity .15s,transform .3s var(--springy)}
+.gcard .fav:hover{transform:scale(1.25) rotate(-10deg)}
+.gcard .fav.on{animation:wobble .45s var(--springy)}
+.chip{transition:all .3s var(--springy);display:inline-flex;align-items:center}
+.chip:hover{transform:translateY(-2px) scale(1.06)}
+.chip.active{transform:scale(1.05)}
+.btn{transition:background var(--dur),border-color var(--dur),transform .3s var(--springy)}
+.btn:hover{transform:translateY(-1px) scale(1.03)}
+.btn:active{transform:scale(.94);transition-duration:.08s}
+.switch::after{transition:transform .4s var(--springy)}
+.sw:hover,.wall:hover{transform:scale(1.15)}
+.tab{transition:background .15s,transform .3s var(--springy)}
+.tab:hover{transform:translateY(-1px)}
+.snav button{transition:all .3s var(--springy)}
+.snav button:hover{transform:translateX(4px)}
+.bm,.hitem,.ritem{transition:background .15s,transform .3s var(--springy)}
+.bm:hover,.hitem:hover,.ritem:hover{transform:translateY(-1px) scale(1.02)}
+.tiles .tile,#games-grid .gcard,#links-grid .lcard,.sgrid .dicon{animation:stagger .45s var(--springy) both}
+.tiles .tile:nth-child(1){animation-delay:.04s}.tiles .tile:nth-child(2){animation-delay:.08s}.tiles .tile:nth-child(3){animation-delay:.12s}.tiles .tile:nth-child(4){animation-delay:.16s}.tiles .tile:nth-child(5){animation-delay:.2s}.tiles .tile:nth-child(6){animation-delay:.24s}
+#games-grid .gcard{animation-delay:calc(var(--i,0)*.025s)}
+.gcard .fav .i{width:14px;height:14px}.gcard .ph{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#8b5cf6,#ec4899)}.gcard .ph .i{width:40%;height:40%;color:#fff;stroke-width:1.8;opacity:.95}
+.i.star-on{fill:#fbbf24;stroke:#fbbf24}
+.phead h2 .i,.tbar .ttl .i,#vm-toolbar .lb .i{width:1.05em;height:1.05em;opacity:.9}
+.chip .i{width:.95em;height:.95em;margin-right:5px}
+.ic .i{width:56%;height:56%;stroke-width:2.1}
+.logo .i{width:52%;height:52%;stroke-width:2}
+
 html[data-perf="on"] *{animation:none!important;transition:none!important}
 html[data-perf="on"]{--blur:none;--shadow:0 8px 24px rgba(0,0,0,.5)}
 html[data-motion="off"] *{animation-duration:.001s!important;transition-duration:.001s!important}
@@ -379,7 +429,7 @@ html[data-tbpos="floating"] #desktop,html[data-tbpos="floating"] .panel,html[dat
 <!-- AUTH -->
 <div id="auth-wrap">
   <form id="auth-card" class="glass" autocomplete="on">
-    <div class="logo">🖥️</div>
+    <div class="logo"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg></div>
     <h2 id="auth-title">Create your account</h2>
     <p id="auth-description">Accounts get <b>1 hour</b> of VM time per session. Guests get 30 minutes.</p>
     <input id="auth-username" class="field" type="text" placeholder="Username" autocomplete="username" maxlength="24" required>
@@ -394,13 +444,13 @@ html[data-tbpos="floating"] #desktop,html[data-tbpos="floating"] .panel,html[dat
 <!-- DESKTOP -->
 <div id="desktop">
   <div id="icons">
-    <button class="dicon" data-app="browser"><div class="ic c1">🌐</div><span>Browser</span></button>
-    <button class="dicon" data-app="games"><div class="ic c2">🎮</div><span>Games</span></button>
-    <button class="dicon" data-app="vm1"><div class="ic c7">💻</div><span>VM #1</span></button>
-    <button class="dicon" data-app="vm2"><div class="ic c3">⚡</div><span>VM #2</span></button>
-    <button class="dicon" data-app="links"><div class="ic c4">🔗</div><span>Links</span></button>
-    <button class="dicon" data-app="chat"><div class="ic c6">💬</div><span>Chat</span></button>
-    <button class="dicon" data-app="settings"><div class="ic c5">⚙️</div><span>Settings</span></button>
+    <button class="dicon" data-app="browser"><div class="ic c1"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></div><span>Browser</span></button>
+    <button class="dicon" data-app="games"><div class="ic c2"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h4M8 10v4M15 13h.01M18 11h.01"/><path d="M17.32 5H6.68a4 4 0 0 0-3.98 3.6L2 16a2.5 2.5 0 0 0 4.5 1.5L8 15h8l1.5 2.5A2.5 2.5 0 0 0 22 16l-.7-7.4A4 4 0 0 0 17.32 5z"/></svg></div><span>Games</span></button>
+    <button class="dicon" data-app="vm1"><div class="ic c7"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v10H4z"/><path d="M2 19h20"/></svg></div><span>VM #1</span></button>
+    <button class="dicon" data-app="vm2"><div class="ic c3"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg></div><span>VM #2</span></button>
+    <button class="dicon" data-app="links"><div class="ic c4"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></div><span>Links</span></button>
+    <button class="dicon" data-app="chat"><div class="ic c6"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div><span>Chat</span></button>
+    <button class="dicon" data-app="settings"><div class="ic c5"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></div><span>Settings</span></button>
   </div>
 
   <div class="win glass" id="main-window">
@@ -414,16 +464,16 @@ html[data-tbpos="floating"] #desktop,html[data-tbpos="floating"] .panel,html[dat
     </div>
     <div class="body">
       <div class="hero">
-        <div class="logo">🖥️</div>
+        <div class="logo"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg></div>
         <div><h1>william's virtual machine</h1><p id="hero-sub">Pick something to launch.</p></div>
       </div>
       <div class="tiles">
-        <button class="tile vm-btn" data-app="vm1"><div class="ic c7">💻</div><div><b>VM #1</b><small>Desktop sandbox</small></div></button>
-        <button class="tile vm-btn" data-app="vm2"><div class="ic c3">⚡</div><div><b>VM #2</b><small>GPU instance</small></div><span class="badge">GPU</span></button>
-        <button class="tile" data-app="browser"><div class="ic c1">🌐</div><div><b>Browser</b><small>Proxied web</small></div></button>
-        <button class="tile" data-app="games"><div class="ic c2">🎮</div><div><b>Games</b><small id="games-count">Library</small></div></button>
-        <button class="tile" data-app="links"><div class="ic c4">🔗</div><div><b>Links</b><small>Mirror list</small></div></button>
-        <button class="tile" data-app="chat"><div class="ic c6">💬</div><div><b>Chat</b><small>Local chat</small></div></button>
+        <button class="tile vm-btn" data-app="vm1"><div class="ic c7"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v10H4z"/><path d="M2 19h20"/></svg></div><div><b>VM #1</b><small>Desktop sandbox</small></div></button>
+        <button class="tile vm-btn" data-app="vm2"><div class="ic c3"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg></div><div><b>VM #2</b><small>GPU instance</small></div><span class="badge">GPU</span></button>
+        <button class="tile" data-app="browser"><div class="ic c1"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></div><div><b>Browser</b><small>Proxied web</small></div></button>
+        <button class="tile" data-app="games"><div class="ic c2"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h4M8 10v4M15 13h.01M18 11h.01"/><path d="M17.32 5H6.68a4 4 0 0 0-3.98 3.6L2 16a2.5 2.5 0 0 0 4.5 1.5L8 15h8l1.5 2.5A2.5 2.5 0 0 0 22 16l-.7-7.4A4 4 0 0 0 17.32 5z"/></svg></div><div><b>Games</b><small id="games-count">Library</small></div></button>
+        <button class="tile" data-app="links"><div class="ic c4"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></div><div><b>Links</b><small>Mirror list</small></div></button>
+        <button class="tile" data-app="chat"><div class="ic c6"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div><div><b>Chat</b><small>Local chat</small></div></button>
       </div>
       <div class="statusbar">
         <div id="status">Ready.</div>
@@ -448,20 +498,20 @@ html[data-tbpos="floating"] #desktop,html[data-tbpos="floating"] .panel,html[dat
 
 <!-- LINKS -->
 <div id="links-panel" class="panel">
-  <div class="phead"><h2>🔗 Links</h2><span class="sp"></span><input id="links-search" class="field" type="text" placeholder="Filter links…" style="width:220px" autocomplete="off"><button class="btn sm" data-close="links-panel">Close <span class="kbd">Esc</span></button></div>
+  <div class="phead"><h2><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg> Links</h2><span class="sp"></span><input id="links-search" class="field" type="text" placeholder="Filter links…" style="width:220px" autocomplete="off"><button class="btn sm" data-close="links-panel">Close <span class="kbd">Esc</span></button></div>
   <div class="pbody"><div class="lgrid" id="links-grid"></div></div>
 </div>
 
 <!-- GAMES -->
 <div id="games-panel" class="panel">
   <div class="phead">
-    <h2>🎮 Games</h2>
+    <h2><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h4M8 10v4M15 13h.01M18 11h.01"/><path d="M17.32 5H6.68a4 4 0 0 0-3.98 3.6L2 16a2.5 2.5 0 0 0 4.5 1.5L8 15h8l1.5 2.5A2.5 2.5 0 0 0 22 16l-.7-7.4A4 4 0 0 0 17.32 5z"/></svg> Games</h2>
     <div class="chips" id="game-tags">
       <button class="chip active" data-tag="all">All</button>
-      <button class="chip" data-tag="fav">★ Favorites</button>
-      <button class="chip" data-tag="nowgg">📱 Cloud</button>
-      <button class="chip" data-tag="gnmath">🕹️ Hubs</button>
-      <button class="chip" data-tag="html5">🌐 HTML5</button>
+      <button class="chip" data-tag="fav"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 22 12 18.56 5.82 22 7 14.14l-5-4.87 6.91-1.01z"/></svg> Favorites</button>
+      <button class="chip" data-tag="nowgg"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M12 18h.01"/></svg> Cloud</button>
+      <button class="chip" data-tag="gnmath"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h4M8 10v4M15 13h.01M18 11h.01"/><path d="M17.32 5H6.68a4 4 0 0 0-3.98 3.6L2 16a2.5 2.5 0 0 0 4.5 1.5L8 15h8l1.5 2.5A2.5 2.5 0 0 0 22 16l-.7-7.4A4 4 0 0 0 17.32 5z"/></svg> Hubs</button>
+      <button class="chip" data-tag="html5"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg> HTML5</button>
     </div>
     <span class="sp"></span>
     <input id="games-search" class="field" type="text" placeholder="Search games…  (press /)" autocomplete="off">
@@ -475,13 +525,13 @@ html[data-tbpos="floating"] #desktop,html[data-tbpos="floating"] .panel,html[dat
 
 <!-- HISTORY -->
 <div id="history-panel" class="panel">
-  <div class="phead"><h2>🕘 History</h2><span class="sp"></span><button class="btn sm danger" id="clear-history">Clear all</button><button class="btn sm" data-close="history-panel">Close</button></div>
+  <div class="phead"><h2><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg> History</h2><span class="sp"></span><button class="btn sm danger" id="clear-history">Clear all</button><button class="btn sm" data-close="history-panel">Close</button></div>
   <div class="pbody" id="history-list"></div>
 </div>
 
 <!-- SETTINGS -->
 <div id="settings-panel" class="panel">
-  <div class="phead"><h2>⚙️ Settings</h2><span class="sp"></span><button class="btn sm" data-close="settings-panel">Close <span class="kbd">Esc</span></button></div>
+  <div class="phead"><h2><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg> Settings</h2><span class="sp"></span><button class="btn sm" data-close="settings-panel">Close <span class="kbd">Esc</span></button></div>
   <div class="pbody">
     <nav class="snav" id="snav">
       <button class="active" data-page="appearance"><svg class="i" viewBox="0 0 24 24"><circle cx="13.5" cy="6.5" r="1.5"/><circle cx="17.5" cy="10.5" r="1.5"/><circle cx="8.5" cy="7.5" r="1.5"/><circle cx="6.5" cy="12.5" r="1.5"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.9 0 1.7-.7 1.7-1.7 0-.4-.2-.8-.4-1.1-.3-.3-.4-.7-.4-1.1 0-.9.7-1.7 1.7-1.7H16c3.3 0 6-2.7 6-6 0-4.9-4.5-8.4-10-8.4z"/></svg><span>Appearance</span></button>
@@ -643,7 +693,7 @@ html[data-tbpos="floating"] #desktop,html[data-tbpos="floating"] .panel,html[dat
 
 <!-- CHAT -->
 <div id="chat-window" class="win glass">
-  <div class="tbar" id="chat-drag-handle"><div class="ttl">💬 Chat</div><div class="wc"><button id="chat-min" title="Minimize"><svg width="10" height="2" viewBox="0 0 10 2"><rect width="10" height="1.5" fill="currentColor"/></svg></button><button class="close" id="chat-close" title="Close"><svg width="10" height="10" viewBox="0 0 10 10"><path d="M1 1l8 8M9 1L1 9" stroke="currentColor" stroke-width="1.5"/></svg></button></div></div>
+  <div class="tbar" id="chat-drag-handle"><div class="ttl"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> Chat</div><div class="wc"><button id="chat-min" title="Minimize"><svg width="10" height="2" viewBox="0 0 10 2"><rect width="10" height="1.5" fill="currentColor"/></svg></button><button class="close" id="chat-close" title="Close"><svg width="10" height="10" viewBox="0 0 10 10"><path d="M1 1l8 8M9 1L1 9" stroke="currentColor" stroke-width="1.5"/></svg></button></div></div>
   <div class="cmsgs" id="chat-messages"></div>
   <div class="cinput"><input class="field" id="chat-input" type="text" placeholder="Type a message…" maxlength="500"><button class="btn primary" id="chat-send">Send</button></div>
 </div>
@@ -669,7 +719,7 @@ html[data-tbpos="floating"] #desktop,html[data-tbpos="floating"] .panel,html[dat
 <!-- VM -->
 <div id="vm-wrap">
   <div id="vm-toolbar">
-    <span class="lb">💻 <span id="vm-label">Private VM</span></span>
+    <span class="lb"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v10H4z"/><path d="M2 19h20"/></svg> <span id="vm-label">Private VM</span></span>
     <span class="sp"></span>
     <span id="vm-timer">00:00</span>
     <button class="btn sm" id="vm-fs">Fullscreen</button>
@@ -684,13 +734,13 @@ html[data-tbpos="floating"] #desktop,html[data-tbpos="floating"] .panel,html[dat
   <div id="tb-left"><div id="tb-user"><div class="avatar" id="tb-avatar">G</div><span id="tb-username">Guest</span></div></div>
   <div id="tb-center">
     <button class="tbb start" id="tb-start" title="Start (Alt+Space)"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="3" width="8" height="8" rx="1.5"/><rect x="3" y="13" width="8" height="8" rx="1.5"/><rect x="13" y="13" width="8" height="8" rx="1.5"/></svg></button>
-    <button class="tbb" id="tb-home" title="Launcher"><div class="ic" style="background:linear-gradient(135deg,var(--accent),#a855f7)">🖥️</div></button>
-    <button class="tbb" data-app="browser" id="tb-browser" title="Browser (Alt+B)"><div class="ic c1">🌐</div></button>
-    <button class="tbb" data-app="games" id="tb-games" title="Games (Alt+G)"><div class="ic c2">🎮</div></button>
-    <button class="tbb" data-app="vm" id="tb-vm" title="VM (Alt+V)"><div class="ic c3">⚡</div></button>
-    <button class="tbb" data-app="links" id="tb-links" title="Links (Alt+L)"><div class="ic c4">🔗</div></button>
-    <button class="tbb" data-app="chat" id="tb-chat" title="Chat (Alt+C)"><div class="ic c6">💬</div></button>
-    <button class="tbb" data-app="settings" id="tb-settings" title="Settings (Alt+S)"><div class="ic c5">⚙️</div></button>
+    <button class="tbb" id="tb-home" title="Launcher"><div class="ic" style="background:linear-gradient(135deg,var(--accent),#a855f7)"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg></div></button>
+    <button class="tbb" data-app="browser" id="tb-browser" title="Browser (Alt+B)"><div class="ic c1"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></div></button>
+    <button class="tbb" data-app="games" id="tb-games" title="Games (Alt+G)"><div class="ic c2"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h4M8 10v4M15 13h.01M18 11h.01"/><path d="M17.32 5H6.68a4 4 0 0 0-3.98 3.6L2 16a2.5 2.5 0 0 0 4.5 1.5L8 15h8l1.5 2.5A2.5 2.5 0 0 0 22 16l-.7-7.4A4 4 0 0 0 17.32 5z"/></svg></div></button>
+    <button class="tbb" data-app="vm" id="tb-vm" title="VM (Alt+V)"><div class="ic c3"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg></div></button>
+    <button class="tbb" data-app="links" id="tb-links" title="Links (Alt+L)"><div class="ic c4"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></div></button>
+    <button class="tbb" data-app="chat" id="tb-chat" title="Chat (Alt+C)"><div class="ic c6"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div></button>
+    <button class="tbb" data-app="settings" id="tb-settings" title="Settings (Alt+S)"><div class="ic c5"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></div></button>
   </div>
   <div id="tb-right"><div id="clock"><b id="tb-time">00:00</b><span id="tb-date">Mon, Jan 1</span></div></div>
 </div>
@@ -888,7 +938,7 @@ const showTb=()=>{clearTimeout(tbT);tb.classList.add('visible')},hideTb=()=>{tbT
 $('#tb-zone').addEventListener('mouseenter',showTb);tb.addEventListener('mouseenter',showTb);tb.addEventListener('mouseleave',hideTb);
 
 /* start menu */
-const START_APPS=[['browser','🌐','Browser','c1'],['games','🎮','Games','c2'],['vm1','💻','VM #1','c7'],['vm2','⚡','VM #2','c3'],['links','🔗','Links','c4'],['chat','💬','Chat','c6'],['settings','⚙️','Settings','c5']];
+const START_APPS=[['browser','<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>','Browser','c1'],['games','<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h4M8 10v4M15 13h.01M18 11h.01"/><path d="M17.32 5H6.68a4 4 0 0 0-3.98 3.6L2 16a2.5 2.5 0 0 0 4.5 1.5L8 15h8l1.5 2.5A2.5 2.5 0 0 0 22 16l-.7-7.4A4 4 0 0 0 17.32 5z"/></svg>','Games','c2'],['vm1','<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v10H4z"/><path d="M2 19h20"/></svg>','VM #1','c7'],['vm2','<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg>','VM #2','c3'],['links','<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>','Links','c4'],['chat','<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>','Chat','c6'],['settings','<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>','Settings','c5']];
 function renderStart(q=''){
   q=q.toLowerCase().trim();const g=$('#start-grid');
   let html=START_APPS.filter(a=>!q||a[2].toLowerCase().includes(q)).map(a=>`<button class="dicon" data-app="${a[0]}"><div class="ic ${a[3]}">${a[1]}</div><span>${a[2]}</span></button>`).join('');
@@ -1060,9 +1110,9 @@ const GAMES=[
   {name:"Geometry Dash",img:"/img/geodash.jpeg",url:"https://nowgg.fun/apps/robtop-games/1400/geometry-dash.html",tag:"nowgg"},
   {name:"Rocket League Sideswipe",img:"/img/rocketleague.jpeg",url:"https://nowgg.fun/apps/psyonix-studios/4656/rocket-league.html",tag:"nowgg"},
   {name:"Minecraft",img:"/img/minecraft.png",url:"https://nowgg.fun/apps/aptoide/5874/aptoide.html?deep_link=aptoidesearch://com.mojang.minecrafttrialpe",tag:"nowgg"},
-  {name:"GN-Math Hub",img:"https://img.icons8.com/color/96/controller.png",url:"https://storage.googleapis.com/mathlearning/ilovessp/500k/gn-math_4",tag:"gnmath"},
-  {name:"GN-Math Hub 2",img:"https://img.icons8.com/color/96/controller.png",url:"https://storage.googleapis.com/mathlearning/ilovessp/500k/gn-math_25",tag:"gnmath"},
-  {name:"Opium Games",img:"https://img.icons8.com/color/96/game-controller.png",url:"https://opiumisbest.s3.amazonaws.com/index.html",tag:"gnmath"},
+  {name:"GN-Math Hub",img:"",url:"https://storage.googleapis.com/mathlearning/ilovessp/500k/gn-math_4",tag:"gnmath"},
+  {name:"GN-Math Hub 2",img:"",url:"https://storage.googleapis.com/mathlearning/ilovessp/500k/gn-math_25",tag:"gnmath"},
+  {name:"Opium Games",img:"",url:"https://opiumisbest.s3.amazonaws.com/index.html",tag:"gnmath"},
   ...["Slope","Moto X3M","Smash Karts","1v1.LOL","Stickman Hook","Run 3","Friday Night Funkin","Krunker.io","2048","Dino Game","Basketball Stars","Chess","Drift Hunters","Shell Shockers","Venge.io","Subway Surfers","Temple Run 2","Paper.io 2","Agar.io","Slither.io","Crossy Road","Penalty Shooters 2","Ragdoll Archers","Monkey Mart","Candy Clicker"].map(n=>{const s=n.toLowerCase().replace(/\./g,'-').replace(/[^a-z0-9]+/g,'-').replace(/-+/g,'-');return{name:n,img:`https://radon.games/thumbnails/${s}.jpg`,url:`https://radon.games/game/${s}`,tag:"html5"}})
 ];
 const TAGN={nowgg:'Cloud',gnmath:'Hub',html5:'HTML5'};
@@ -1073,13 +1123,13 @@ function renderGames(){
   if(gameQ)list=list.filter(g=>g.name.toLowerCase().includes(gameQ));
   $('#games-heading').textContent=(gameTag==='all'?'All games':gameTag==='fav'?'Favorites':TAGN[gameTag]+' games')+` · ${list.length}`;
   const grid=$('#games-grid');
-  if(!list.length){grid.innerHTML=`<div class="empty" style="grid-column:1/-1">${gameTag==='fav'?'No favorites yet — hover a game and hit ★':'No games match'}</div>`;return}
+  if(!list.length){grid.innerHTML=`<div class="empty" style="grid-column:1/-1">${gameTag==='fav'?'No favorites yet — hover a game and hit the star':'No games match'}</div>`;return}
   const frag=document.createDocumentFragment();
-  list.forEach(g=>{const c=document.createElement('button');c.className='gcard';c.dataset.name=g.name;const fav=favGames.includes(g.name);c.innerHTML=`<div class="im"><img src="${esc(g.img)}" alt="" loading="lazy" decoding="async" onerror="this.remove()"><span class="fav${fav?' on':''}" title="Favorite">${fav?'★':'☆'}</span></div><div class="nm"><span></span><span class="t">${TAGN[g.tag]||''}</span></div>`;c.querySelector('.nm span').textContent=g.name;frag.appendChild(c)});
+  list.forEach((g,gi)=>{const c=document.createElement('button');c.className='gcard';c.style.setProperty('--i',Math.min(gi,24));c.dataset.name=g.name;const fav=favGames.includes(g.name);c.innerHTML=`<div class="im">${g.img?`<img src="${esc(g.img)}" alt="" loading="lazy" decoding="async" onerror="this.remove()">`:`<div class="ph"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h4M8 10v4M15 13h.01M18 11h.01"/><path d="M17.32 5H6.68a4 4 0 0 0-3.98 3.6L2 16a2.5 2.5 0 0 0 4.5 1.5L8 15h8l1.5 2.5A2.5 2.5 0 0 0 22 16l-.7-7.4A4 4 0 0 0 17.32 5z"/></svg></div>`}<span class="fav${fav?' on':''}" title="Favorite">${fav?'<svg class="i star-on" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 22 12 18.56 5.82 22 7 14.14l-5-4.87 6.91-1.01z"/></svg>':'<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 22 12 18.56 5.82 22 7 14.14l-5-4.87 6.91-1.01z"/></svg>'}</span></div><div class="nm"><span></span><span class="t">${TAGN[g.tag]||''}</span></div>`;c.querySelector('.nm span').textContent=g.name;frag.appendChild(c)});
   grid.replaceChildren(frag);
 }
 $('#games-grid').addEventListener('click',e=>{const c=e.target.closest('.gcard');if(!c)return;const g=GAMES.find(x=>x.name===c.dataset.name);if(!g)return;if(e.target.closest('.fav')){e.stopPropagation();toggleFav(g);return}click();launchGame(g)});
-function toggleFav(g){const i=favGames.indexOf(g.name);if(i<0){favGames.push(g.name);toast(`★ ${g.name} added to favorites`,'ok')}else{favGames.splice(i,1);toast(`Removed ${g.name} from favorites`)}put('favGames',favGames);renderGames()}
+function toggleFav(g){const i=favGames.indexOf(g.name);if(i<0){favGames.push(g.name);toast(`${g.name} added to favorites`,'ok')}else{favGames.splice(i,1);toast(`Removed ${g.name} from favorites`)}put('favGames',favGames);renderGames()}
 $('#game-tags').addEventListener('click',e=>{const b=e.target.closest('.chip');if(!b)return;click();gameTag=b.dataset.tag;$$('#game-tags .chip').forEach(c=>c.classList.toggle('active',c===b));renderGames()});
 let gq;$('#games-search').addEventListener('input',e=>{clearTimeout(gq);gq=setTimeout(()=>{gameQ=e.target.value.toLowerCase().trim();renderGames()},80)});
 function openGames(){openPanel('games-panel');renderGames();renderRecent();$('#tb-games').classList.add('active')}
