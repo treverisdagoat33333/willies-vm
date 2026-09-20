@@ -1,3 +1,10 @@
+/*!
+ * william's vm
+ * Copyright (c) 2026 William (github.com/treverisdagoat33333)
+ * All rights reserved. Proprietary and confidential.
+ * Unauthorized copying, modification, distribution or hosting of this file,
+ * in whole or in part, is strictly prohibited. See LICENSE.
+ */
 import http from "node:http";
 import { createRequire } from "node:module";
 import path from "node:path";
