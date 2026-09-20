@@ -363,6 +363,9 @@ html[data-searching="1"] .spage>h2::after{content:"";}
 .nomatch{display:none!important}
 .hitlabel{display:none;font-size:.7em;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);margin-bottom:6px}
 html[data-searching="1"] .hitlabel{display:block}
+.tabpv{display:flex;align-items:center;gap:8px;max-width:260px;padding:7px 12px 7px 10px;border-radius:9px 9px 0 0;background:var(--glass-3);border:1px solid var(--border);border-bottom:0;font-size:.82em;color:var(--text-2)}
+.tabpv img{width:16px;height:16px;flex:0 0 auto;border-radius:3px}
+.tabpv span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .preview-strip{height:54px;border-radius:var(--r);border:1px solid var(--border);background:linear-gradient(120deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;letter-spacing:.02em;margin:0 16px 14px;box-shadow:0 8px 22px rgba(var(--accent-rgb),.3)}
 
 /* ── chat ───────────────────────────────────── */
@@ -832,19 +835,30 @@ html[data-tbpos="floating"] #desktop,html[data-tbpos="floating"] .panel,html[dat
         <h2>Privacy & Cloak</h2><p class="sub">Disguise the tab and set an emergency key.</p>
         <div class="card">
           <h3>Tab cloak</h3>
-          <div class="row"><div class="lab"><b>Preset</b><small>Changes the tab title and icon.</small></div><div class="ctl"><select class="field" data-setting="cloak"><option value="none">None (william's vm)</option><option value="classroom">Google Classroom</option><option value="docs">Google Docs</option><option value="drive">Google Drive</option><option value="gmail">Gmail</option><option value="canvas">Canvas</option><option value="schoology">Schoology</option><option value="wiki">Wikipedia</option><option value="custom">Custom…</option></select></div></div>
+          <div class="row"><div class="lab"><b>Preset</b><small>Changes the tab title and icon.</small></div><div class="ctl"><select class="field" data-setting="cloak"><option value="none">None (william's vm)</option><option value="classroom">Google Classroom</option><option value="docs">Google Docs</option><option value="drive">Google Drive</option><option value="gmail">Gmail</option><option value="canvas">Canvas</option><option value="schoology">Schoology</option><option value="wiki">Wikipedia</option><option value="slides">Google Slides</option><option value="sheets">Google Sheets</option><option value="forms">Google Forms</option><option value="khan">Khan Academy</option><option value="quizlet">Quizlet</option><option value="clever">Clever</option><option value="desmos">Desmos</option><option value="powerschool">PowerSchool</option><option value="campus">Infinite Campus</option><option value="ixl">IXL</option><option value="nearpod">Nearpod</option><option value="edpuzzle">Edpuzzle</option><option value="outlook">Outlook</option><option value="teams">Microsoft Teams</option><option value="zoom">Zoom</option><option value="custom">Custom…</option></select></div></div>
           <div class="row" id="cloak-custom-row"><div class="lab"><b>Custom title & icon URL</b></div><div class="ctl"><input class="field" data-setting="cloakTitle" placeholder="Tab title" style="width:150px"><input class="field" data-setting="cloakIcon" type="url" placeholder="https://…/favicon.ico" style="width:200px"></div></div>
-          <div class="row"><div class="lab"><b>Open in about:blank</b><small>Launches this site inside a blank-URL window so it doesn't appear in history.</small></div><div class="ctl"><button class="btn sm" id="open-blank">Open now</button></div></div>
+          <div class="row"><div class="lab"><b>Cloak only when you switch tabs</b><small>Keeps the real name while you're looking at it, and puts the disguise on the moment you switch away.</small></div><div class="ctl"><button class="switch" role="switch" data-setting="cloakAuto"></button></div></div>
+          <div class="row"><div class="lab"><b>Random disguise each load</b><small>Picks a different preset every time the page opens, so the tab is never the same twice.</small></div><div class="ctl"><button class="switch" role="switch" data-setting="cloakRandom"></button></div></div>
+          <div class="row"><div class="lab"><b>Preview</b><small id="cloak-preview-note">How the tab looks to anyone glancing at it.</small></div><div class="ctl"><div class="tabpv" id="cloak-preview"><img id="cloak-preview-icon" alt="" onerror="this.style.visibility='hidden'"><span id="cloak-preview-title"></span></div></div></div>
+        </div>
+        <div class="card">
+          <h3>Blank-URL window</h3>
+          <div class="row"><div class="lab"><b>Open in about:blank</b><small>Runs the site inside a blank-URL window, so the address bar and history show nothing.</small></div><div class="ctl"><button class="btn sm" id="open-blank">Open now</button></div></div>
+          <div class="row"><div class="lab"><b>Do it automatically</b><small>Opens the blank window by itself on load. You'll still want to close the original tab.</small></div><div class="ctl"><button class="switch" role="switch" data-setting="autoblank"></button></div></div>
         </div>
         <div class="card">
           <h3>Panic key</h3>
           <div class="row"><div class="lab"><b>Enable panic key</b><small>Press the key anywhere (outside a text box) to instantly jump to a safe site.</small></div><div class="ctl"><button class="switch" role="switch" data-setting="panic"></button></div></div>
           <div class="row"><div class="lab"><b>Key</b><small>Click the box, then press a key.</small></div><div class="ctl"><input class="field" id="panic-key" readonly style="width:110px;text-align:center;cursor:pointer"></div></div>
-          <div class="row"><div class="lab"><b>Redirect to</b></div><div class="ctl"><input class="field" data-setting="panicUrl" type="url" placeholder="https://classroom.google.com"></div></div>
+          <div class="row"><div class="lab"><b>Safe site</b></div><div class="ctl"><input class="field" data-setting="panicUrl" type="url" placeholder="https://classroom.google.com"></div></div>
+          <div class="row"><div class="lab"><b>What it does</b><small>Replace this tab, open the safe site in a new one, or try to close the tab outright.</small></div><div class="ctl"><div class="seg" data-setting="panicAction"><button data-v="redirect">Replace</button><button data-v="newtab">New tab</button><button data-v="close">Close</button></div></div></div>
+          <div class="row"><div class="lab"><b>Wipe local data too</b><small>Clears settings, history, bookmarks and games from this browser on the way out. There is no undo.</small></div><div class="ctl"><button class="switch" role="switch" data-setting="panicWipe"></button></div></div>
+          <div class="row"><div class="lab"><b>Test it</b><small>Runs the panic action right now so you know what it does.</small></div><div class="ctl"><button class="btn sm danger" id="panic-test">Test panic</button></div></div>
         </div>
         <div class="card">
           <h3>Screen privacy</h3>
           <div class="row"><div class="lab"><b>Blur when you switch tabs</b><small>Frosts the whole screen the moment this tab loses focus, so nothing is readable over your shoulder.</small></div><div class="ctl"><button class="switch" role="switch" data-setting="blurunfocus"></button></div></div>
+          <div class="row"><div class="lab"><b>Blur strength</b></div><div class="ctl"><input type="range" min="4" max="40" step="2" data-setting="blurAmt"><span id="bluramt-val" style="width:38px;text-align:right;font-size:.85em;color:var(--text-2)"></span></div></div>
           <div class="row"><div class="lab"><b>Auto-lock when idle</b><small>Covers the screen with a clock after a period of no input.</small></div><div class="ctl"><button class="switch" role="switch" data-setting="lock"></button></div></div>
           <div class="row"><div class="lab"><b>Lock after</b></div><div class="ctl"><select class="field" data-setting="lockMins"><option value="1">1 minute</option><option value="3">3 minutes</option><option value="5">5 minutes</option><option value="10">10 minutes</option><option value="30">30 minutes</option></select></div></div>
           <div class="row"><div class="lab"><b>Lock now</b><small>Or press <span class="kbd">Alt</span>+<span class="kbd">K</span> any time.</small></div><div class="ctl"><button class="btn sm" id="lock-now">Lock screen</button></div></div>
@@ -861,6 +875,7 @@ html[data-tbpos="floating"] #desktop,html[data-tbpos="floating"] .panel,html[dat
           <div class="row"><div class="lab"><b>Preload browser engine</b><small>Starts the proxy in the background at load, so the browser opens instantly. Uses a bit more data.</small></div><div class="ctl"><button class="switch" role="switch" data-setting="preload"></button></div></div>
           <div class="row"><div class="lab"><b>Sound effects</b><small>Tiny UI clicks.</small></div><div class="ctl"><button class="switch" role="switch" data-setting="sound"></button></div></div>
           <div class="row"><div class="lab"><b>Click sound</b></div><div class="ctl"><select class="field" data-setting="soundpack"><option value="soft">Soft blip</option><option value="click">Sharp click</option><option value="pop">Pop</option><option value="retro">Retro beep</option></select></div></div>
+          <div class="row"><div class="lab"><b>Chat message sound</b><small>A soft ping when someone posts in global chat.</small></div><div class="ctl"><button class="switch" role="switch" data-setting="chatsound"></button></div></div>
           <div class="row"><div class="lab"><b>Volume</b></div><div class="ctl"><input type="range" min="0" max="1" step="0.05" data-setting="volume"><span id="volume-val" style="width:38px;text-align:right;font-size:.85em;color:var(--text-2)"></span></div></div>
         </div>
         <div class="card">
@@ -1007,9 +1022,10 @@ const DEFAULTS={
   homepage:'https://www.google.com/',engine:'google',autoblank:false,bmbar:true,incognito:false,
   gsize:'normal',gopen:'new',recent:true,gsort:'default',
   defaultVM:'e2b',vmwarn:true,vmconfirm:false,
-  cloak:'none',cloakTitle:'',cloakIcon:'',panic:false,panicKey:'`',panicUrl:'https://classroom.google.com',
-  blurunfocus:false,lock:false,lockMins:'5',
-  perf:false,motion:false,wallimg:true,preload:false,sound:false,soundpack:'soft',volume:0.5,fps:false
+  cloak:'none',cloakTitle:'',cloakIcon:'',cloakAuto:false,cloakRandom:false,
+  panic:false,panicKey:'`',panicUrl:'https://classroom.google.com',panicAction:'redirect',panicWipe:false,
+  blurunfocus:false,blurAmt:24,lock:false,lockMins:'5',
+  perf:false,motion:false,wallimg:true,preload:false,sound:false,soundpack:'soft',volume:0.5,chatsound:true,fps:false
 };
 const KEY='wvm.settings.v1';
 let S=(()=>{
@@ -1043,6 +1059,7 @@ const WALLS=[
   {id:'photo3',name:'Dunes',img:'https://images.unsplash.com/photo-1509316785289-025f5b846b35?w=1920&q=80'},
   {id:'custom',name:'Custom',css:'repeating-linear-gradient(45deg,#333 0 10px,#444 10px 20px)'}
 ];
+const ico=d=>`https://www.google.com/s2/favicons?domain=${d}&sz=32`;
 const CLOAKS={
   none:{t:"william's vm",i:$('#favicon').href},
   classroom:{t:'Classes',i:'https://ssl.gstatic.com/classroom/favicon.png'},
@@ -1051,7 +1068,23 @@ const CLOAKS={
   gmail:{t:'Inbox - Gmail',i:'https://ssl.gstatic.com/ui/v1/icons/mail/rfr/gmail.ico'},
   canvas:{t:'Dashboard',i:'https://du11hjcvx0uqb.cloudfront.net/dist/images/favicon-e10d657a73.ico'},
   schoology:{t:'Home | Schoology',i:'https://asset-cdn.schoology.com/sites/all/themes/schoology_theme/favicon.ico'},
-  wiki:{t:'Wikipedia, the free encyclopedia',i:'https://en.wikipedia.org/static/favicon/wikipedia.ico'}
+  wiki:{t:'Wikipedia, the free encyclopedia',i:'https://en.wikipedia.org/static/favicon/wikipedia.ico'},
+  slides:{t:'Untitled presentation - Google Slides',i:ico('docs.google.com')},
+  sheets:{t:'Untitled spreadsheet - Google Sheets',i:ico('sheets.google.com')},
+  forms:{t:'Google Forms',i:ico('docs.google.com')},
+  khan:{t:'Khan Academy | Free Online Courses',i:ico('khanacademy.org')},
+  quizlet:{t:'Quizlet: Study Tools & Learning Resources',i:ico('quizlet.com')},
+  clever:{t:'Clever | Portal',i:ico('clever.com')},
+  desmos:{t:'Desmos | Graphing Calculator',i:ico('desmos.com')},
+  powerschool:{t:'PowerSchool SIS',i:ico('powerschool.com')},
+  campus:{t:'Infinite Campus Student',i:ico('infinitecampus.com')},
+  ixl:{t:'IXL | Math, Language Arts, Science',i:ico('ixl.com')},
+  nearpod:{t:'Nearpod',i:ico('nearpod.com')},
+  edpuzzle:{t:'Edpuzzle',i:ico('edpuzzle.com')},
+  outlook:{t:'Mail - Outlook',i:ico('outlook.office.com')},
+  teams:{t:'Microsoft Teams',i:ico('teams.microsoft.com')},
+  zoom:{t:'Zoom Meeting',i:ico('zoom.us')},
+  drivehq:{t:'Dashboard | Schoolwork',i:ico('google.com')}
 };
 const ENGINES={google:'https://www.google.com/search?q=',ddg:'https://duckduckgo.com/?q=',bing:'https://www.bing.com/search?q=',brave:'https://search.brave.com/search?q=',startpage:'https://www.startpage.com/do/search?q='};
 
@@ -1076,6 +1109,21 @@ function applyAll(){
 }
 /* screen filter + dimmer overlay */
 const FILTERS={none:'',warm:'sepia(.45) saturate(1.25) hue-rotate(-12deg)',cool:'saturate(1.1) hue-rotate(18deg) brightness(1.02)',gray:'grayscale(1)',sepia:'sepia(.85)',contrast:'contrast(1.35) saturate(1.1)',invert:'invert(1) hue-rotate(180deg)'};
+function panicNow(){
+  const url=S.panicUrl||'https://classroom.google.com';
+  if(S.panicWipe){try{localStorage.clear();sessionStorage.clear()}catch(_){}}
+  if(S.panicAction==='close'){
+    window.open('','_self');window.close();
+    setTimeout(()=>location.replace(url),150);
+    return;
+  }
+  if(S.panicAction==='newtab'){
+    window.open(url,'_blank');
+    location.replace('about:blank');
+    return;
+  }
+  location.replace(url);
+}
 function applyScreenFx(){
   const el=$('#screen-fx'),f=FILTERS[S.filter]||'',dim=Number(S.dim)||1;
   const parts=[f,dim<1?`brightness(${dim})`:''].filter(Boolean).join(' ');
@@ -1095,13 +1143,40 @@ function applyWallpaper(){
   if(url&&S.wallimg){const pre=new Image();pre.onload=()=>{im.style.backgroundImage=`url("${url}")`;im.classList.add('on')};pre.src=url}
   else im.style.backgroundImage='';
 }
-function applyCloak(){
-  const c=S.cloak==='custom'?{t:S.cloakTitle||"william's vm",i:S.cloakIcon||CLOAKS.none.i}:(CLOAKS[S.cloak]||CLOAKS.none);
-  document.title=c.t;$('#favicon').href=c.i;
+let randomCloakKey=null;
+function activeCloakKey(){
+  if(!S.cloakRandom)return S.cloak;
+  if(!randomCloakKey){
+    const ks=Object.keys(CLOAKS).filter(k=>k!=='none');
+    randomCloakKey=ks[Math.floor(Math.random()*ks.length)];
+  }
+  return randomCloakKey;
 }
+function cloakTarget(){
+  const k=activeCloakKey();
+  if(k==='custom')return{t:S.cloakTitle||CLOAKS.none.t,i:S.cloakIcon||CLOAKS.none.i};
+  return CLOAKS[k]||CLOAKS.none;
+}
+function applyCloak(){
+  const target=cloakTarget(),cloaking=activeCloakKey()!=='none';
+  // With auto-cloak on, the real identity shows while you are looking at the
+  // tab and only flips to the disguise once you switch away.
+  const wearIt=cloaking&&(!S.cloakAuto||document.hidden);
+  const use=wearIt?target:CLOAKS.none;
+  document.title=use.t;$('#favicon').href=use.i;
+  const pv=$('#cloak-preview');
+  if(pv){
+    $('#cloak-preview-icon').src=target.i;
+    $('#cloak-preview-title').textContent=target.t;
+    $('#cloak-preview-note').textContent=
+      !cloaking?'No cloak \u2014 the tab shows its real name':
+      S.cloakAuto?'Shown once you switch to another tab':'Shown at all times';
+  }
+}
+document.addEventListener('visibilitychange',applyCloak);
 function set(k,v){S[k]=v;save();applyAll();syncControls()}
 const pct=v=>Math.round(v*100)+'%';
-const RANGE_OUT={opacity:{el:'#opacity-val',fmt:pct},pcount:{el:'#pcount-val',fmt:v=>String(Math.round(v))},dim:{el:'#dim-val',fmt:pct},volume:{el:'#volume-val',fmt:pct}};
+const RANGE_OUT={opacity:{el:'#opacity-val',fmt:pct},pcount:{el:'#pcount-val',fmt:v=>String(Math.round(v))},dim:{el:'#dim-val',fmt:pct},volume:{el:'#volume-val',fmt:pct},blurAmt:{el:'#bluramt-val',fmt:v=>Math.round(v)+'px'}};
 
 /* bind generic controls */
 function syncControls(){
@@ -1158,7 +1233,30 @@ const pk=$('#panic-key');
 pk.addEventListener('focus',()=>{pk.value='Press a key…'});
 pk.addEventListener('blur',syncControls);
 pk.addEventListener('keydown',e=>{e.preventDefault();if(e.key==='Escape'){pk.blur();return}if(e.key.length===1||/^F\d+$/.test(e.key)){set('panicKey',e.key);pk.blur();toast(`Panic key set to ${e.key}`,'ok')}});
-$('#open-blank').onclick=()=>{const w=window.open('about:blank','_blank');if(!w)return toast('Popup blocked — allow popups for this site','err');w.document.title=document.title;w.document.body.style.margin='0';const f=w.document.createElement('iframe');f.style.cssText='border:0;width:100vw;height:100vh';f.src=location.href;w.document.body.appendChild(f);toast('Opened in about:blank','ok')};
+function openInBlank(){
+  const w=window.open('about:blank','_blank');
+  if(!w){toast('Popup blocked \u2014 allow popups for this site','err');return false}
+  w.document.title=document.title;
+  w.document.body.style.margin='0';
+  const link=w.document.createElement('link');
+  link.rel='icon';link.href=$('#favicon').href;w.document.head.appendChild(link);
+  const f=w.document.createElement('iframe');
+  f.style.cssText='border:0;width:100vw;height:100vh';
+  f.src=location.href;
+  w.document.body.appendChild(f);
+  return true;
+}
+$('#panic-test').onclick=()=>{
+  if(S.panicWipe&&!confirm('Wipe local data is on. Testing will really erase your settings, history and bookmarks. Continue?'))return;
+  panicNow();
+};
+$('#open-blank').onclick=()=>{if(openInBlank())toast('Opened in about:blank','ok')};
+/* auto-open on load, guarded so the embedded copy never opens another one */
+if(S.autoblank&&window.self===window.top){
+  let already=false;
+  try{already=sessionStorage.getItem('wvm.blanked')==='1';sessionStorage.setItem('wvm.blanked','1')}catch(_){}
+  if(!already)setTimeout(()=>{if(openInBlank())toast('Opened in about:blank \u2014 you can close this tab','ok')},600);
+}
 /* Account & data */
 $('#export-btn').onclick=()=>{const data={settings:S,bookmarks,favGames,recentGames,exported:new Date().toISOString()};const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));a.download='willies-vm-settings.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);toast('Settings exported','ok')};
 $('#import-btn').onclick=()=>$('#import-file').click();
@@ -1180,6 +1278,20 @@ function click(){if(!S.sound)return;try{
   o.type=p.type;o.frequency.setValueAtTime(p.f,t);if(p.to!==p.f)o.frequency.exponentialRampToValueAtTime(p.to,t+p.dur);
   g.gain.setValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(.0001,t+p.dur);
   o.connect(g).connect(audioCtx.destination);o.start();o.stop(t+p.dur);
+}catch(_){}}
+/* a soft two-note ping, distinct from the UI click */
+function chatPing(){if(!S.chatsound)return;try{
+  const vol=(S.volume??.5)*.5;if(vol<=0)return;
+  audioCtx=audioCtx||new (window.AudioContext||window.webkitAudioContext)();
+  const t=audioCtx.currentTime;
+  [[880,0],[1320,.09]].forEach(([f,at])=>{
+    const o=audioCtx.createOscillator(),g=audioCtx.createGain();
+    o.type='sine';o.frequency.setValueAtTime(f,t+at);
+    g.gain.setValueAtTime(0,t+at);
+    g.gain.linearRampToValueAtTime(vol,t+at+.012);
+    g.gain.exponentialRampToValueAtTime(.0001,t+at+.16);
+    o.connect(g).connect(audioCtx.destination);o.start(t+at);o.stop(t+at+.18);
+  });
 }catch(_){}}
 function toast(msg,type=''){const box=$('#toasts'),t=document.createElement('div');t.className='toast '+type;t.innerHTML=`<span class="dot"></span><span></span>`;t.lastChild.textContent=msg;box.appendChild(t);while(box.children.length>4)box.firstChild.remove();setTimeout(()=>{t.classList.add('out');setTimeout(()=>t.remove(),260)},3800)}
 function setStatus(msg,busy=false){const el=$('#status');el.textContent=msg;el.className=(/^(error|failed)/i.test(msg)?'error':'')+(busy?' busy':'')}
@@ -1297,7 +1409,7 @@ function resetIdle(){
 document.addEventListener('visibilitychange',()=>{
   if(!S.blurunfocus)return;
   const el=$('#screen-fx');
-  if(document.hidden){el.style.backdropFilter=el.style.webkitBackdropFilter='blur(24px) saturate(.5)'}
+  if(document.hidden){const b=Number(S.blurAmt)||24;el.style.backdropFilter=el.style.webkitBackdropFilter=`blur(${b}px) saturate(.5)`}
   else applyScreenFx();
 });
 
@@ -1632,7 +1744,8 @@ function handleChatEvent(d){
     appendMessage(d,false);
     if(mine||chatAtBottom)scrollChat();
     else bumpUnread();
-    if(!mine&&!$('#chat-window').classList.contains('show')){bumpBadge();click()}
+    if(!mine&&!$('#chat-window').classList.contains('show'))bumpBadge();
+    if(!mine)chatPing();
     return;
   }
   if(d.type==='presence'){setOnline(d.online,d.users);return}
@@ -1877,7 +1990,7 @@ function openSettings(){openPanel('settings-panel');syncControls();$('#tb-settin
    ═══════════════════════════════════════════════════════════ */
 document.addEventListener('keydown',e=>{
   if(locked){e.preventDefault();unlockScreen();return}
-  if(S.panic&&e.key===S.panicKey&&!typing()){e.preventDefault();location.replace(S.panicUrl||'https://classroom.google.com');return}
+  if(S.panic&&e.key===S.panicKey&&!typing()){e.preventDefault();panicNow();return}
   if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();if(!$('#start').classList.contains('show'))toggleStart();else $('#start-search').focus();return}
   if(e.key==='Escape'){closeAllPanels();$('#tb-settings').classList.remove('active');$('#tb-games').classList.remove('active');return}
   if(e.key==='/'&&$('#games-panel').classList.contains('show')&&!typing()){e.preventDefault();$('#games-search').focus();return}
