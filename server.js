@@ -9,6 +9,8 @@ import jwt from "jsonwebtoken";
 import { scramjetPath } from "@mercuryworkshop/scramjet/path";
 import { server as wisp } from "@mercuryworkshop/wisp-js/server";
 import { Sandbox } from "@e2b/desktop";
+import { getUser, createUser, touchUser, userCount } from "./db.js";
+import { handleChatUpgrade, onlineCount } from "./chat.js";
 
 const require = createRequire(import.meta.url);
 const dirOf = (specifier) => path.dirname(require.resolve(specifier));
@@ -35,12 +37,25 @@ if (!AUTH_SECRET) {
 |--------------------------------------------------------------------------
 */
 server.on("upgrade", (req, socket, head) => {
-  const wispPath = new URL(req.url ?? "/", "http://localhost").pathname;
-  if (wispPath === "/wisp/") {
-    req.url = wispPath;
+  const upgradePath = new URL(req.url ?? "/", "http://localhost").pathname;
+
+  if (upgradePath === "/wisp/") {
+    req.url = upgradePath;
     wisp.routeRequest(req, socket, head);
     return;
   }
+
+  if (upgradePath === "/chat/") {
+    const session = getSessionFromCookieHeader(req.headers.cookie);
+    if (!session) {
+      socket.write("HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n");
+      socket.destroy();
+      return;
+    }
+    handleChatUpgrade(req, socket, head, session);
+    return;
+  }
+
   socket.end();
 });
 
@@ -81,7 +96,6 @@ app.use("/libcurl/", express.static(dirOf("@mercuryworkshop/libcurl-transport"))
 */
 app.use(express.static(path.join(path.dirname(new URL(import.meta.url).pathname), "public")));
 
-const users = new Map();
 const guestSessions = new Map();
 const e2bSandboxes = new Map();
 
@@ -103,6 +117,17 @@ function getSession(req) {
   if (!token) return null;
   try {
     return jwt.verify(token, AUTH_SECRET);
+  } catch (_) {
+    return null;
+  }
+}
+
+function getSessionFromCookieHeader(header) {
+  if (!header) return null;
+  const match = /(?:^|;\s*)vm_session=([^;]+)/.exec(header);
+  if (!match) return null;
+  try {
+    return jwt.verify(decodeURIComponent(match[1]), AUTH_SECRET);
   } catch (_) {
     return null;
   }
@@ -148,12 +173,12 @@ app.post("/api/auth/register", async (req, res) => {
   if (password.length < 8) {
     return res.status(400).json({ error: "Password must be at least 8 characters." });
   }
-  if (users.has(username)) {
+  if (getUser(username)) {
     return res.status(409).json({ error: "That username is already taken." });
   }
 
   const passwordHash = await bcrypt.hash(password, 12);
-  users.set(username, { username, passwordHash, createdAt: Date.now() });
+  createUser(username, passwordHash);
 
   const token = createToken({ type: "account", username });
   res.cookie("vm_session", token, cookieOptions());
@@ -163,16 +188,18 @@ app.post("/api/auth/register", async (req, res) => {
 app.post("/api/auth/login", async (req, res) => {
   const username = String(req.body?.username || "").trim().toLowerCase();
   const password = String(req.body?.password || "");
-  const user = users.get(username);
+  const user = getUser(username);
 
   if (!user) {
     return res.status(401).json({ error: "Invalid username or password." });
   }
 
-  const valid = await bcrypt.compare(password, user.passwordHash);
+  const valid = await bcrypt.compare(password, user.password_hash);
   if (!valid) {
     return res.status(401).json({ error: "Invalid username or password." });
   }
+
+  touchUser(username);
 
   const token = createToken({ type: "account", username });
   res.cookie("vm_session", token, cookieOptions());
@@ -209,12 +236,19 @@ app.post("/api/auth/logout", (req, res) => {
 |--------------------------------------------------------------------------
 */
 
+app.get("/api/stats", (req, res) => {
+  res.json({ online: onlineCount(), accounts: userCount() });
+});
+
 app.get("/api/health", (req, res) => {
   res.json({
     ok: true,
     e2bConfigured: Boolean(E2B_API_KEY),
     xenvConfigured: Boolean(XENV_API_KEY),
     wispEnabled: true,
+    chatEnabled: true,
+    accounts: userCount(),
+    online: onlineCount(),
   });
 });
 
@@ -390,4 +424,6 @@ server.listen(PORT, () => {
   console.log(`XENV configured: ${Boolean(XENV_API_KEY)}`);
   console.log(`Scramjet v2 assets: /scram/ /controller/ /utils/ /libcurl/`);
   console.log(`Wisp endpoint: ws://localhost:${PORT}/wisp/`);
+  console.log(`Chat endpoint: ws://localhost:${PORT}/chat/`);
+  console.log(`Accounts stored: ${userCount()}`);
 });

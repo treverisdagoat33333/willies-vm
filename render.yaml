@@ -5,6 +5,14 @@ services:
     buildCommand: npm install
     startCommand: npm start
 
+    # Keeps accounts and chat history across restarts and redeploys.
+    # Requires a paid instance type; without it the DB lives on ephemeral
+    # disk and resets on each deploy.
+    disk:
+      name: willies-vm-data
+      mountPath: /var/data
+      sizeGB: 1
+
     envVars:
       - key: XENV_API_KEY
         sync: false
@@ -17,3 +25,6 @@ services:
 
       - key: AUTH_SECRET
         sync: false
+
+      - key: DATA_DIR
+        value: /var/data
