@@ -31,6 +31,58 @@ html[data-theme="light"]{
 }
 html[data-theme="oled"]{--bg0:#000;--bg1:#050505;--glass:rgba(0,0,0,.82)}
 html[data-blur="off"]{--blur:none}
+
+/* ── typography / shape / density / glow ────── */
+html{--font:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;--accent2:#a855f7}
+html[data-font="rounded"]{--font:ui-rounded,"SF Pro Rounded","Segoe UI Variable Display",Verdana,Tahoma,sans-serif}
+html[data-font="mono"]{--font:ui-monospace,"Cascadia Code",Menlo,Consolas,monospace}
+html[data-font="serif"]{--font:ui-serif,Georgia,"Times New Roman",serif}
+html[data-font="fun"]{--font:"Comic Sans MS","Chalkboard SE",Chalkboard,cursive}
+html[data-radius="sharp"]{--r:3px;--r-sm:2px;--r-lg:4px;--r-xl:6px}
+html[data-radius="round"]{--r:16px;--r-sm:12px;--r-lg:24px;--r-xl:30px}
+html[data-density="compact"]{--tb-h:44px}
+html[data-density="spacious"]{--tb-h:62px}
+html[data-density="compact"] .row{padding:8px 14px}
+html[data-density="compact"] .pbody{padding:12px 14px}
+html[data-density="compact"] .smain{padding:14px 16px}
+html[data-density="compact"] .dicon{width:74px;height:80px}
+html[data-density="spacious"] .row{padding:19px 22px}
+html[data-density="spacious"] .pbody{padding:28px 30px}
+html[data-density="spacious"] .smain{padding:34px 38px}
+html[data-glow="on"]{--shadow:0 30px 80px rgba(0,0,0,.6),0 0 0 1px rgba(var(--accent-rgb),.22),0 0 44px rgba(var(--accent-rgb),.26)}
+html[data-glow="on"] .btn.primary{box-shadow:0 0 18px rgba(var(--accent-rgb),.75)}
+html[data-glow="on"] .tbb.active::after{box-shadow:0 0 12px 2px var(--accent)}
+html[data-glow="on"] .tile:hover,html[data-glow="on"] .gcard:hover{box-shadow:0 0 28px rgba(var(--accent-rgb),.45)}
+html[data-glow="on"] .hero h1,html[data-glow="on"] .phead h2{text-shadow:0 0 18px rgba(var(--accent-rgb),.55)}
+html[data-glow="on"] .chip.active,html[data-glow="on"] .seg button.active{box-shadow:0 0 14px rgba(var(--accent-rgb),.7)}
+
+/* ── taskbar on top ─────────────────────────── */
+html[data-tbside="top"] #taskbar{top:0;bottom:auto;border-top:0;border-bottom:1px solid var(--border)}
+html[data-tbside="top"] #desktop,html[data-tbside="top"] .panel,html[data-tbside="top"] #browser-wrap,html[data-tbside="top"] #vm-wrap{inset:var(--tb-h) 0 0 0}
+html[data-tbside="top"] #tb-zone{top:0;bottom:auto}
+html[data-tbside="top"] #start{top:calc(var(--tb-h) + 10px);bottom:auto;transform-origin:top center}
+html[data-tbside="top"] #toasts{top:calc(var(--tb-h) + 16px);bottom:auto}
+html[data-tbside="top"] #chat-window{bottom:20px}
+html[data-tbside="top"][data-tbhide="on"] #taskbar{transform:translateY(-100%)}
+html[data-tbside="top"][data-tbhide="on"] #taskbar.visible{transform:none}
+html[data-tbside="top"][data-tbhide="on"] #desktop,html[data-tbside="top"][data-tbhide="on"] .panel,html[data-tbside="top"][data-tbhide="on"] #browser-wrap,html[data-tbside="top"][data-tbhide="on"] #vm-wrap{inset:0}
+
+/* ── screen effects / overlays ──────────────── */
+#screen-fx{position:fixed;inset:0;z-index:9000;pointer-events:none;transition:backdrop-filter .35s ease,background .35s ease}
+#fx-canvas{position:fixed;inset:0;z-index:1;pointer-events:none}
+.ripple{position:fixed;width:150px;height:150px;border-radius:50%;pointer-events:none;z-index:9500;background:radial-gradient(circle,rgba(var(--accent-rgb),.5),transparent 68%);transform:translate(-50%,-50%) scale(0);animation:rip .6s var(--ease) forwards}
+@keyframes rip{to{transform:translate(-50%,-50%) scale(1);opacity:0}}
+.ctrail{position:fixed;width:8px;height:8px;margin:-4px 0 0 -4px;border-radius:50%;pointer-events:none;z-index:9400;background:var(--accent);box-shadow:0 0 10px var(--accent);animation:trailOut .65s linear forwards}
+@keyframes trailOut{to{opacity:0;transform:scale(.15)}}
+#fps{position:fixed;top:8px;right:8px;z-index:9600;font-family:ui-monospace,Consolas,monospace;font-size:11px;padding:6px 10px;border-radius:9px;background:rgba(0,0,0,.62);color:#7dffb0;border:1px solid var(--border);pointer-events:none;white-space:pre;line-height:1.55;display:none}
+html[data-tbside="top"] #fps{top:calc(var(--tb-h) + 8px)}
+#fps.show{display:block}
+#lock-screen{position:fixed;inset:0;z-index:9800;display:none;flex-direction:column;align-items:center;justify-content:center;gap:10px;background:rgba(0,0,0,.5);backdrop-filter:blur(28px) saturate(140%);-webkit-backdrop-filter:blur(28px) saturate(140%);cursor:pointer;text-align:center;padding:20px}
+#lock-screen.show{display:flex;animation:fadeIn .4s ease}
+#lock-screen .lt{font-size:clamp(2.6rem,9vw,5.2rem);font-weight:800;letter-spacing:-.035em;line-height:1}
+#lock-screen .ld{color:var(--text-2);font-size:1.05em}
+#lock-screen .lh{margin-top:18px;color:var(--text-3);font-size:.86em}
+#lock-screen .avatar{width:64px;height:64px;font-size:1.5em;margin-bottom:6px}
 /* bouncy motion */
 @keyframes bounceIn{0%{opacity:0;transform:translateY(22px) scale(.92)}60%{opacity:1;transform:translateY(-5px) scale(1.02)}80%{transform:translateY(2px) scale(.995)}100%{opacity:1;transform:none}}
 @keyframes popBounce{0%{opacity:0;transform:scale(.7)}55%{opacity:1;transform:scale(1.08)}75%{transform:scale(.97)}100%{transform:scale(1)}}
@@ -87,7 +139,7 @@ html[data-motion="off"] *{animation-duration:.001s!important;transition-duration
 
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%}
-body{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg0);color:var(--text);overflow:hidden;user-select:none;font-size:calc(14px*var(--ui));-webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent}
+body{font-family:var(--font);background:var(--bg0);color:var(--text);overflow:hidden;user-select:none;font-size:calc(14px*var(--ui));-webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent}
 button,input,select{font:inherit;color:inherit}
 button{cursor:pointer;border:0;background:none}
 input,select{outline:none}
@@ -143,7 +195,7 @@ input[type=color]::-webkit-color-swatch{border:0;border-radius:50%}
 #auth-wrap{position:fixed;inset:0;z-index:200;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.55);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);transition:opacity .35s,visibility .35s}
 #auth-wrap.hidden{display:flex!important;opacity:0;visibility:hidden;pointer-events:none}
 #auth-card{width:min(400px,92vw);padding:30px 28px 24px;border-radius:var(--r-xl);display:flex;flex-direction:column;gap:12px;animation:pop .45s var(--spring)}
-#auth-card .logo{width:52px;height:52px;border-radius:16px;background:linear-gradient(135deg,var(--accent),#a855f7);display:flex;align-items:center;justify-content:center;font-size:26px;margin-bottom:6px;box-shadow:0 8px 24px rgba(var(--accent-rgb),.4)}
+#auth-card .logo{width:52px;height:52px;border-radius:16px;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;font-size:26px;margin-bottom:6px;box-shadow:0 8px 24px rgba(var(--accent-rgb),.4)}
 #auth-card h2{font-size:1.45em;font-weight:700;letter-spacing:-.01em}
 #auth-card p{color:var(--text-2);font-size:.93em;line-height:1.45;margin-bottom:6px}
 #auth-error{color:#ff8a8a;font-size:.86em;min-height:1.2em}
@@ -185,7 +237,7 @@ html[data-icons="off"] #icons{display:none}
 #main-window{width:min(560px,94vw);left:50%;top:50%;transform:translate(-50%,-52%);z-index:5}
 #main-window .body{padding:22px 22px 18px;display:flex;flex-direction:column;gap:16px}
 .hero{display:flex;align-items:center;gap:14px}
-.hero .logo{width:50px;height:50px;border-radius:15px;background:linear-gradient(135deg,var(--accent),#a855f7);display:flex;align-items:center;justify-content:center;font-size:24px;box-shadow:0 8px 24px rgba(var(--accent-rgb),.35);flex-shrink:0}
+.hero .logo{width:50px;height:50px;border-radius:15px;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;font-size:24px;box-shadow:0 8px 24px rgba(var(--accent-rgb),.35);flex-shrink:0}
 .hero h1{font-size:1.35em;font-weight:700;letter-spacing:-.02em;line-height:1.1}
 .hero p{color:var(--text-2);font-size:.88em;margin-top:3px}
 .tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
@@ -293,7 +345,16 @@ html[data-gsize="small"] .ggrid{grid-template-columns:repeat(auto-fill,minmax(11
 .kbd{display:inline-block;padding:2px 7px;border-radius:5px;background:var(--glass-3);border:1px solid var(--border);border-bottom-width:2px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.8em}
 .shortcuts{display:grid;grid-template-columns:1fr auto;gap:10px 20px;padding:14px 16px;font-size:.9em}
 .shortcuts div:nth-child(odd){color:var(--text-2)}
-.avatar{width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,var(--accent),#a855f7);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:1.1em;color:#fff;flex-shrink:0}
+.avatar{width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;font-weight:700;font-size:1.1em;color:#fff;flex-shrink:0}
+/* settings search */
+#settings-search{width:min(230px,100%)}
+html[data-searching="1"] .spage{display:block}
+html[data-searching="1"] .snav{opacity:.35;pointer-events:none}
+html[data-searching="1"] .spage>h2::after{content:"";}
+.nomatch{display:none!important}
+.hitlabel{display:none;font-size:.7em;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);margin-bottom:6px}
+html[data-searching="1"] .hitlabel{display:block}
+.preview-strip{height:54px;border-radius:var(--r);border:1px solid var(--border);background:linear-gradient(120deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;letter-spacing:.02em;margin:0 16px 14px;box-shadow:0 8px 22px rgba(var(--accent-rgb),.3)}
 
 /* ── chat ───────────────────────────────────── */
 #chat-window{width:340px;height:440px;right:24px;bottom:calc(var(--tb-h) + 20px);z-index:50;display:none}
@@ -425,6 +486,15 @@ html[data-tbpos="floating"] #desktop,html[data-tbpos="floating"] .panel,html[dat
 <body>
 
 <div id="bg"><div id="bg-img"></div><div id="bg-text">Willie Games V3</div></div>
+<canvas id="fx-canvas"></canvas>
+<div id="screen-fx"></div>
+<div id="fps"></div>
+<div id="lock-screen">
+  <div class="avatar" id="lock-avatar">G</div>
+  <div class="lt" id="lock-time">00:00</div>
+  <div class="ld" id="lock-date">Locked</div>
+  <div class="lh">Click anywhere or press any key to unlock</div>
+</div>
 
 <!-- AUTH -->
 <div id="auth-wrap">
@@ -531,10 +601,11 @@ html[data-tbpos="floating"] #desktop,html[data-tbpos="floating"] .panel,html[dat
 
 <!-- SETTINGS -->
 <div id="settings-panel" class="panel">
-  <div class="phead"><h2><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg> Settings</h2><span class="sp"></span><button class="btn sm" data-close="settings-panel">Close <span class="kbd">Esc</span></button></div>
+  <div class="phead"><h2><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg> Settings</h2><span class="sp"></span><input id="settings-search" class="field" type="text" placeholder="Search settings…" autocomplete="off"><button class="btn sm" data-close="settings-panel">Close <span class="kbd">Esc</span></button></div>
   <div class="pbody">
     <nav class="snav" id="snav">
       <button class="active" data-page="appearance"><svg class="i" viewBox="0 0 24 24"><circle cx="13.5" cy="6.5" r="1.5"/><circle cx="17.5" cy="10.5" r="1.5"/><circle cx="8.5" cy="7.5" r="1.5"/><circle cx="6.5" cy="12.5" r="1.5"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.9 0 1.7-.7 1.7-1.7 0-.4-.2-.8-.4-1.1-.3-.3-.4-.7-.4-1.1 0-.9.7-1.7 1.7-1.7H16c3.3 0 6-2.7 6-6 0-4.9-4.5-8.4-10-8.4z"/></svg><span>Appearance</span></button>
+      <button data-page="effects"><svg class="i" viewBox="0 0 24 24"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/><circle cx="12" cy="12" r="3.2"/></svg><span>Effects</span></button>
       <button data-page="desktop"><svg class="i" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg><span>Desktop</span></button>
       <button data-page="browser"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg><span>Browser</span></button>
       <button data-page="games"><svg class="i" viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="10" rx="5"/><line x1="7" y1="12" x2="9" y2="12"/><line x1="8" y1="11" x2="8" y2="13"/><circle cx="15" cy="10.5" r="0.9" fill="currentColor" stroke="none"/><circle cx="17" cy="13.5" r="0.9" fill="currentColor" stroke="none"/></svg><span>Games</span></button>
@@ -550,8 +621,18 @@ html[data-tbpos="floating"] #desktop,html[data-tbpos="floating"] .panel,html[dat
         <h2>Appearance</h2><p class="sub">Make it yours. Every change saves instantly.</p>
         <div class="card">
           <h3>Theme</h3>
+          <div class="preview-strip" id="accent-preview">Accent preview</div>
           <div class="row"><div class="lab"><b>Color mode</b><small>Dark is the default. OLED is pure black.</small></div><div class="ctl"><div class="seg" data-setting="theme"><button data-v="dark">Dark</button><button data-v="oled">OLED</button><button data-v="light">Light</button></div></div></div>
+          <div class="row"><div class="lab"><b>Auto day / night theme</b><small>Light theme between 7am and 7pm, dark after. Overrides the choice above.</small></div><div class="ctl"><button class="switch" role="switch" data-setting="autotheme"></button></div></div>
           <div class="row"><div class="lab"><b>Accent color</b><small>Used for buttons, highlights and the glow.</small></div><div class="ctl"><div class="swatches" id="swatches"></div><input type="color" id="accent-picker" title="Custom color"></div></div>
+          <div class="row"><div class="lab"><b>Gradient accent</b><small>Blend a second color into logos, avatars and buttons.</small></div><div class="ctl"><button class="switch" role="switch" data-setting="gradient"></button><input type="color" id="accent2-picker" title="Second color"></div></div>
+          <div class="row"><div class="lab"><b>Neon glow</b><small>Accent-colored glow around windows, buttons and cards.</small></div><div class="ctl"><button class="switch" role="switch" data-setting="glow"></button></div></div>
+        </div>
+        <div class="card">
+          <h3>Shape &amp; type</h3>
+          <div class="row"><div class="lab"><b>UI font</b><small>Typeface for the whole desktop.</small></div><div class="ctl"><select class="field" data-setting="font"><option value="system">System (default)</option><option value="rounded">Rounded</option><option value="mono">Monospace</option><option value="serif">Serif</option><option value="fun">Comic</option></select></div></div>
+          <div class="row"><div class="lab"><b>Corner roundness</b><small>How rounded windows, cards and buttons are.</small></div><div class="ctl"><div class="seg" data-setting="radius"><button data-v="sharp">Sharp</button><button data-v="normal">Normal</button><button data-v="round">Round</button></div></div></div>
+          <div class="row"><div class="lab"><b>Density</b><small>Spacing and padding across the interface.</small></div><div class="ctl"><div class="seg" data-setting="density"><button data-v="compact">Compact</button><button data-v="normal">Normal</button><button data-v="spacious">Spacious</button></div></div></div>
         </div>
         <div class="card">
           <h3>Wallpaper</h3>
@@ -567,11 +648,32 @@ html[data-tbpos="floating"] #desktop,html[data-tbpos="floating"] .panel,html[dat
         </div>
       </section>
 
+      <section class="spage" data-page="effects">
+        <h2>Effects</h2><p class="sub">Live background, cursor and screen filters.</p>
+        <div class="card">
+          <h3>Live background</h3>
+          <div class="row"><div class="lab"><b>Floating particles</b><small>Animated accent-colored dots drifting behind the desktop.</small></div><div class="ctl"><button class="switch" role="switch" data-setting="particles"></button></div></div>
+          <div class="row"><div class="lab"><b>Particle style</b></div><div class="ctl"><div class="seg" data-setting="pstyle"><button data-v="dots">Dots</button><button data-v="stars">Stars</button><button data-v="snow">Snow</button><button data-v="matrix">Matrix</button></div></div></div>
+          <div class="row"><div class="lab"><b>Amount</b><small>Lower it if the page feels slow.</small></div><div class="ctl"><input type="range" min="15" max="220" step="5" data-setting="pcount"><span id="pcount-val" style="width:38px;text-align:right;font-size:.85em;color:var(--text-2)"></span></div></div>
+        </div>
+        <div class="card">
+          <h3>Cursor &amp; clicks</h3>
+          <div class="row"><div class="lab"><b>Click ripple</b><small>A splash of accent color wherever you click.</small></div><div class="ctl"><button class="switch" role="switch" data-setting="ripple"></button></div></div>
+          <div class="row"><div class="lab"><b>Cursor trail</b><small>Glowing dots that follow the pointer.</small></div><div class="ctl"><button class="switch" role="switch" data-setting="trail"></button></div></div>
+        </div>
+        <div class="card">
+          <h3>Screen filter</h3>
+          <div class="row"><div class="lab"><b>Filter</b><small>Applied over everything, including the VM and browser.</small></div><div class="ctl"><select class="field" data-setting="filter"><option value="none">None</option><option value="warm">Night light (warm)</option><option value="cool">Cool blue</option><option value="gray">Grayscale</option><option value="sepia">Sepia</option><option value="contrast">High contrast</option><option value="invert">Inverted</option></select></div></div>
+          <div class="row"><div class="lab"><b>Screen dimmer</b><small>Go darker than your display allows.</small></div><div class="ctl"><input type="range" min="0.35" max="1" step="0.05" data-setting="dim"><span id="dim-val" style="width:38px;text-align:right;font-size:.85em;color:var(--text-2)"></span></div></div>
+        </div>
+      </section>
+
       <section class="spage" data-page="desktop">
         <h2>Desktop</h2><p class="sub">Layout of the desktop and taskbar.</p>
         <div class="card">
           <h3>Taskbar</h3>
           <div class="row"><div class="lab"><b>Style</b><small>Full-width bar or a floating dock.</small></div><div class="ctl"><div class="seg" data-setting="tbpos"><button data-v="bar">Bar</button><button data-v="floating">Dock</button></div></div></div>
+          <div class="row"><div class="lab"><b>Position</b><small>Put the taskbar along the top of the screen instead.</small></div><div class="ctl"><div class="seg" data-setting="tbside"><button data-v="bottom">Bottom</button><button data-v="top">Top</button></div></div></div>
           <div class="row"><div class="lab"><b>Auto-hide taskbar</b><small>Hides until you move the mouse to the bottom edge.</small></div><div class="ctl"><button class="switch" role="switch" data-setting="tbhide"></button></div></div>
           <div class="row"><div class="lab"><b>24-hour clock</b></div><div class="ctl"><button class="switch" role="switch" data-setting="clock24"></button></div></div>
           <div class="row"><div class="lab"><b>Show seconds</b></div><div class="ctl"><button class="switch" role="switch" data-setting="clocksec"></button></div></div>
@@ -582,6 +684,8 @@ html[data-tbpos="floating"] #desktop,html[data-tbpos="floating"] .panel,html[dat
           <div class="row"><div class="lab"><b>Background title</b><small>The big “Willie Games V3” text.</small></div><div class="ctl"><button class="switch" role="switch" data-setting="bgtext"></button></div></div>
           <div class="row"><div class="lab"><b>Background text</b></div><div class="ctl"><input class="field" data-setting="bgtextval" maxlength="40" placeholder="Willie Games V3"></div></div>
           <div class="row"><div class="lab"><b>Reopen launcher on start</b><small>Show the main window when the page loads.</small></div><div class="ctl"><button class="switch" role="switch" data-setting="showlauncher"></button></div></div>
+          <div class="row"><div class="lab"><b>Greeting</b><small>Shows “Good morning, name” on the launcher instead of the usual line.</small></div><div class="ctl"><button class="switch" role="switch" data-setting="greeting"></button></div></div>
+          <div class="row"><div class="lab"><b>Auto-open on load</b><small>Jump straight into an app when the page opens.</small></div><div class="ctl"><select class="field" data-setting="startapp"><option value="none">Nothing</option><option value="browser">Browser</option><option value="games">Games</option><option value="links">Links</option><option value="chat">Chat</option><option value="vm">Default VM</option></select></div></div>
         </div>
       </section>
 
@@ -607,6 +711,7 @@ html[data-tbpos="floating"] #desktop,html[data-tbpos="floating"] .panel,html[dat
           <h3>Library</h3>
           <div class="row"><div class="lab"><b>Card size</b></div><div class="ctl"><div class="seg" data-setting="gsize"><button data-v="small">Small</button><button data-v="normal">Normal</button><button data-v="large">Large</button></div></div></div>
           <div class="row"><div class="lab"><b>Open games in</b><small>A new browser tab, or replace the current tab.</small></div><div class="ctl"><div class="seg" data-setting="gopen"><button data-v="new">New tab</button><button data-v="current">Current tab</button></div></div></div>
+          <div class="row"><div class="lab"><b>Sort order</b><small>How the library is ordered.</small></div><div class="ctl"><select class="field" data-setting="gsort"><option value="default">Default</option><option value="az">Name A–Z</option><option value="za">Name Z–A</option><option value="fav">Favorites first</option><option value="random">Shuffle</option></select></div></div>
           <div class="row"><div class="lab"><b>Remember recently played</b></div><div class="ctl"><button class="switch" role="switch" data-setting="recent"></button></div></div>
           <div class="row"><div class="lab"><b>Recently played</b><small>Clear the list from this device.</small></div><div class="ctl"><button class="btn sm" id="clear-recent-2">Clear</button></div></div>
         </div>
@@ -636,6 +741,13 @@ html[data-tbpos="floating"] #desktop,html[data-tbpos="floating"] .panel,html[dat
           <div class="row"><div class="lab"><b>Key</b><small>Click the box, then press a key.</small></div><div class="ctl"><input class="field" id="panic-key" readonly style="width:110px;text-align:center;cursor:pointer"></div></div>
           <div class="row"><div class="lab"><b>Redirect to</b></div><div class="ctl"><input class="field" data-setting="panicUrl" type="url" placeholder="https://classroom.google.com"></div></div>
         </div>
+        <div class="card">
+          <h3>Screen privacy</h3>
+          <div class="row"><div class="lab"><b>Blur when you switch tabs</b><small>Frosts the whole screen the moment this tab loses focus, so nothing is readable over your shoulder.</small></div><div class="ctl"><button class="switch" role="switch" data-setting="blurunfocus"></button></div></div>
+          <div class="row"><div class="lab"><b>Auto-lock when idle</b><small>Covers the screen with a clock after a period of no input.</small></div><div class="ctl"><button class="switch" role="switch" data-setting="lock"></button></div></div>
+          <div class="row"><div class="lab"><b>Lock after</b></div><div class="ctl"><select class="field" data-setting="lockMins"><option value="1">1 minute</option><option value="3">3 minutes</option><option value="5">5 minutes</option><option value="10">10 minutes</option><option value="30">30 minutes</option></select></div></div>
+          <div class="row"><div class="lab"><b>Lock now</b><small>Or press <span class="kbd">Alt</span>+<span class="kbd">K</span> any time.</small></div><div class="ctl"><button class="btn sm" id="lock-now">Lock screen</button></div></div>
+        </div>
       </section>
 
       <section class="spage" data-page="performance">
@@ -647,6 +759,12 @@ html[data-tbpos="floating"] #desktop,html[data-tbpos="floating"] .panel,html[dat
           <div class="row"><div class="lab"><b>Load wallpaper image</b><small>Off = fast gradient only, no image download.</small></div><div class="ctl"><button class="switch" role="switch" data-setting="wallimg"></button></div></div>
           <div class="row"><div class="lab"><b>Preload browser engine</b><small>Starts the proxy in the background at load, so the browser opens instantly. Uses a bit more data.</small></div><div class="ctl"><button class="switch" role="switch" data-setting="preload"></button></div></div>
           <div class="row"><div class="lab"><b>Sound effects</b><small>Tiny UI clicks.</small></div><div class="ctl"><button class="switch" role="switch" data-setting="sound"></button></div></div>
+          <div class="row"><div class="lab"><b>Click sound</b></div><div class="ctl"><select class="field" data-setting="soundpack"><option value="soft">Soft blip</option><option value="click">Sharp click</option><option value="pop">Pop</option><option value="retro">Retro beep</option></select></div></div>
+          <div class="row"><div class="lab"><b>Volume</b></div><div class="ctl"><input type="range" min="0" max="1" step="0.05" data-setting="volume"><span id="volume-val" style="width:38px;text-align:right;font-size:.85em;color:var(--text-2)"></span></div></div>
+        </div>
+        <div class="card">
+          <h3>Diagnostics</h3>
+          <div class="row"><div class="lab"><b>Stats overlay</b><small>Live FPS, memory and session uptime in the corner.</small></div><div class="ctl"><button class="switch" role="switch" data-setting="fps"></button></div></div>
         </div>
       </section>
 
@@ -681,6 +799,8 @@ html[data-tbpos="floating"] #desktop,html[data-tbpos="floating"] .panel,html[dat
           <div>New browser tab</div><div><span class="kbd">Alt</span> + <span class="kbd">T</span></div>
           <div>Close browser tab</div><div><span class="kbd">Alt</span> + <span class="kbd">W</span></div>
           <div>Focus address bar</div><div><span class="kbd">Alt</span> + <span class="kbd">D</span></div>
+          <div>Lock screen</div><div><span class="kbd">Alt</span> + <span class="kbd">K</span></div>
+          <div>Search everything</div><div><span class="kbd">Ctrl</span> + <span class="kbd">K</span></div>
           <div>Search games (in Games)</div><div><span class="kbd">/</span></div>
           <div>Close panel / menu</div><div><span class="kbd">Esc</span></div>
           <div>Panic key</div><div id="sc-panic">off</div>
@@ -734,7 +854,7 @@ html[data-tbpos="floating"] #desktop,html[data-tbpos="floating"] .panel,html[dat
   <div id="tb-left"><div id="tb-user"><div class="avatar" id="tb-avatar">G</div><span id="tb-username">Guest</span></div></div>
   <div id="tb-center">
     <button class="tbb start" id="tb-start" title="Start (Alt+Space)"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="3" width="8" height="8" rx="1.5"/><rect x="3" y="13" width="8" height="8" rx="1.5"/><rect x="13" y="13" width="8" height="8" rx="1.5"/></svg></button>
-    <button class="tbb" id="tb-home" title="Launcher"><div class="ic" style="background:linear-gradient(135deg,var(--accent),#a855f7)"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg></div></button>
+    <button class="tbb" id="tb-home" title="Launcher"><div class="ic" style="background:linear-gradient(135deg,var(--accent),var(--accent2))"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg></div></button>
     <button class="tbb" data-app="browser" id="tb-browser" title="Browser (Alt+B)"><div class="ic c1"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></div></button>
     <button class="tbb" data-app="games" id="tb-games" title="Games (Alt+G)"><div class="ic c2"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h4M8 10v4M15 13h.01M18 11h.01"/><path d="M17.32 5H6.68a4 4 0 0 0-3.98 3.6L2 16a2.5 2.5 0 0 0 4.5 1.5L8 15h8l1.5 2.5A2.5 2.5 0 0 0 22 16l-.7-7.4A4 4 0 0 0 17.32 5z"/></svg></div></button>
     <button class="tbb" data-app="vm" id="tb-vm" title="VM (Alt+V)"><div class="ic c3"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg></div></button>
@@ -760,13 +880,17 @@ html[data-tbpos="floating"] #desktop,html[data-tbpos="floating"] .panel,html[dat
    ═══════════════════════════════════════════════════════════ */
 const $=(s,r=document)=>r.querySelector(s),$$=(s,r=document)=>[...r.querySelectorAll(s)];
 const DEFAULTS={
-  theme:'dark',accent:'#4f8cff',wallpaper:'aurora',wallpaperUrl:'',blur:true,opacity:0.72,scale:'1',
-  tbpos:'bar',tbhide:false,clock24:false,clocksec:false,icons:true,bgtext:true,bgtextval:'Willie Games V3',showlauncher:true,
+  theme:'dark',accent:'#4f8cff',accent2:'#a855f7',gradient:true,glow:false,autotheme:false,
+  font:'system',radius:'normal',density:'normal',
+  wallpaper:'aurora',wallpaperUrl:'',blur:true,opacity:0.72,scale:'1',
+  particles:false,pstyle:'dots',pcount:70,ripple:false,trail:false,filter:'none',dim:1,
+  tbpos:'bar',tbside:'bottom',tbhide:false,clock24:false,clocksec:false,icons:true,bgtext:true,bgtextval:'Willie Games V3',showlauncher:true,greeting:true,startapp:'none',
   homepage:'https://www.google.com/',engine:'google',autoblank:false,bmbar:true,incognito:false,
-  gsize:'normal',gopen:'new',recent:true,
+  gsize:'normal',gopen:'new',recent:true,gsort:'default',
   defaultVM:'e2b',vmwarn:true,vmconfirm:false,
   cloak:'none',cloakTitle:'',cloakIcon:'',panic:false,panicKey:'`',panicUrl:'https://classroom.google.com',
-  perf:false,motion:false,wallimg:true,preload:false,sound:false
+  blurunfocus:false,lock:false,lockMins:'5',
+  perf:false,motion:false,wallimg:true,preload:false,sound:false,soundpack:'soft',volume:0.5,fps:false
 };
 const KEY='wvm.settings.v1';
 let S=(()=>{
@@ -814,18 +938,35 @@ const ENGINES={google:'https://www.google.com/search?q=',ddg:'https://duckduckgo
 
 function hexToRgb(h){h=h.replace('#','');if(h.length===3)h=h.split('').map(c=>c+c).join('');const n=parseInt(h,16);return[(n>>16)&255,(n>>8)&255,n&255].join(',')}
 const root=document.documentElement;
+function effectiveTheme(){return S.autotheme?((new Date().getHours()>=7&&new Date().getHours()<19)?'light':'dark'):S.theme}
 function applyAll(){
-  root.dataset.theme=S.theme;root.dataset.blur=S.blur?'on':'off';root.dataset.perf=S.perf?'on':'off';root.dataset.motion=S.motion?'off':'on';
-  root.dataset.tbpos=S.tbpos;root.dataset.tbhide=S.tbhide?'on':'off';root.dataset.icons=S.icons?'on':'off';root.dataset.bgtext=S.bgtext?'on':'off';
+  const th=effectiveTheme();
+  root.dataset.theme=th;root.dataset.blur=S.blur?'on':'off';root.dataset.perf=S.perf?'on':'off';root.dataset.motion=S.motion?'off':'on';
+  root.dataset.tbpos=S.tbpos;root.dataset.tbside=S.tbside;root.dataset.tbhide=S.tbhide?'on':'off';root.dataset.icons=S.icons?'on':'off';root.dataset.bgtext=S.bgtext?'on':'off';
   root.dataset.gsize=S.gsize;root.dataset.bmbar=S.bmbar?'on':'off';
+  root.dataset.font=S.font;root.dataset.radius=S.radius;root.dataset.density=S.density;root.dataset.glow=S.glow?'on':'off';
   root.style.setProperty('--accent',S.accent);root.style.setProperty('--accent-rgb',hexToRgb(S.accent));root.style.setProperty('--ui',S.scale);
-  const base=S.theme==='light'?'255,255,255':S.theme==='oled'?'0,0,0':'18,21,30';
+  root.style.setProperty('--accent2',S.gradient?S.accent2:S.accent);
+  const base=th==='light'?'255,255,255':th==='oled'?'0,0,0':'18,21,30';
   root.style.setProperty('--glass',`rgba(${base},${S.opacity})`);
   $('#bg-text').textContent=S.bgtextval||'Willie Games V3';
-  $('#tb-date');updateClock();
-  applyWallpaper();applyCloak();
+  updateClock();updateHero();
+  applyWallpaper();applyCloak();applyScreenFx();applyParticles();applyFps();resetIdle();
   $('#sc-panic').textContent=S.panic?`${S.panicKey} → ${S.panicUrl}`:'off';
-  const m=document.querySelector('meta[name=theme-color]');if(m)m.content=S.theme==='light'?'#f6f8fb':'#0b0d12';
+  const m=document.querySelector('meta[name=theme-color]');if(m)m.content=th==='light'?'#f6f8fb':'#0b0d12';
+}
+/* screen filter + dimmer overlay */
+const FILTERS={none:'',warm:'sepia(.45) saturate(1.25) hue-rotate(-12deg)',cool:'saturate(1.1) hue-rotate(18deg) brightness(1.02)',gray:'grayscale(1)',sepia:'sepia(.85)',contrast:'contrast(1.35) saturate(1.1)',invert:'invert(1) hue-rotate(180deg)'};
+function applyScreenFx(){
+  const el=$('#screen-fx'),f=FILTERS[S.filter]||'',dim=Number(S.dim)||1;
+  const parts=[f,dim<1?`brightness(${dim})`:''].filter(Boolean).join(' ');
+  el.style.backdropFilter=parts;el.style.webkitBackdropFilter=parts;
+}
+function updateHero(){
+  const el=$('#hero-sub');if(!el)return;
+  if(!S.greeting){el.textContent='Pick something to launch.';return}
+  const h=new Date().getHours(),g=h<5?'Still up':h<12?'Good morning':h<18?'Good afternoon':'Good evening';
+  el.textContent=`${g}, ${currentUsername}.`;
 }
 function applyWallpaper(){
   const w=WALLS.find(x=>x.id===S.wallpaper)||WALLS[0],bg=$('#bg'),im=$('#bg-img');
@@ -840,6 +981,8 @@ function applyCloak(){
   document.title=c.t;$('#favicon').href=c.i;
 }
 function set(k,v){S[k]=v;save();applyAll();syncControls()}
+const pct=v=>Math.round(v*100)+'%';
+const RANGE_OUT={opacity:{el:'#opacity-val',fmt:pct},pcount:{el:'#pcount-val',fmt:v=>String(Math.round(v))},dim:{el:'#dim-val',fmt:pct},volume:{el:'#volume-val',fmt:pct}};
 
 /* bind generic controls */
 function syncControls(){
@@ -847,11 +990,12 @@ function syncControls(){
     const k=el.dataset.setting,v=S[k];
     if(el.classList.contains('switch'))el.setAttribute('aria-checked',String(!!v));
     else if(el.classList.contains('seg'))$$('button',el).forEach(b=>b.classList.toggle('active',String(b.dataset.v)===String(v)));
-    else if(el.type==='range'){el.value=v;if(k==='opacity')$('#opacity-val').textContent=Math.round(v*100)+'%'}
+    else if(el.type==='range'){el.value=v;const o=RANGE_OUT[k];if(o)$(o.el).textContent=o.fmt(v)}
     else if(document.activeElement!==el)el.value=v??'';
   });
   $$('#swatches .sw').forEach(s=>s.classList.toggle('active',s.dataset.c.toLowerCase()===S.accent.toLowerCase()));
   $('#accent-picker').value=S.accent;
+  $('#accent2-picker').value=S.accent2;
   $$('#walls .wall').forEach(w=>w.classList.toggle('active',w.dataset.id===S.wallpaper));
   $('#wallpaper-input').value=S.wallpaperUrl.startsWith('data:')?'(uploaded image)':S.wallpaperUrl;
   $('#panic-key').value=S.panicKey==='`'?'` (backtick)':S.panicKey;
@@ -864,11 +1008,11 @@ document.addEventListener('click',e=>{
 });
 document.addEventListener('input',e=>{
   const el=e.target;if(!el.dataset.setting)return;
-  if(el.type==='range'){S[el.dataset.setting]=parseFloat(el.value);applyAll();$('#opacity-val').textContent=Math.round(el.value*100)+'%'}
+  if(el.type==='range'){const k=el.dataset.setting;S[k]=parseFloat(el.value);applyAll();const o=RANGE_OUT[k];if(o)$(o.el).textContent=o.fmt(el.value)}
   else{S[el.dataset.setting]=el.value;applyAll()}
   saveSoon();
 });
-document.addEventListener('change',e=>{const el=e.target;if(el.dataset.setting){S[el.dataset.setting]=el.type==='range'?parseFloat(el.value):el.value;save();applyAll();syncControls()}});
+document.addEventListener('change',e=>{const el=e.target;if(!el.dataset.setting)return;const k=el.dataset.setting;S[k]=el.type==='range'?parseFloat(el.value):el.value;save();applyAll();syncControls();if(k==='gsort'||k==='gsize')renderGames()});
 let saveT;const saveSoon=()=>{clearTimeout(saveT);saveT=setTimeout(save,400)};
 
 /* Accent swatches */
@@ -877,6 +1021,8 @@ $('#swatches').innerHTML=SWATCHES.map(c=>`<button class="sw" data-c="${c}" style
 $('#swatches').addEventListener('click',e=>{const b=e.target.closest('.sw');if(b){click();set('accent',b.dataset.c)}});
 $('#accent-picker').addEventListener('input',e=>{S.accent=e.target.value;applyAll();saveSoon()});
 $('#accent-picker').addEventListener('change',e=>set('accent',e.target.value));
+$('#accent2-picker').addEventListener('input',e=>{S.accent2=e.target.value;S.gradient=true;applyAll();saveSoon()});
+$('#accent2-picker').addEventListener('change',e=>set('accent2',e.target.value));
 /* Wallpapers */
 $('#walls').innerHTML=WALLS.map(w=>`<button class="wall" data-id="${w.id}" style="background:${w.img?`url('${w.img}') center/cover`:w.css.replace(/var\(--accent-rgb\)/g,hexToRgb(S.accent)).replace(/var\(--bg1\)/g,'#12161f').replace(/var\(--bg0\)/g,'#0b0d12')}"><span>${w.name}</span></button>`).join('');
 $('#walls').addEventListener('click',e=>{const b=e.target.closest('.wall');if(!b)return;click();if(b.dataset.id==='custom'&&!S.wallpaperUrl){toast('Paste an image URL or upload a file first');$('#wallpaper-input').focus();return}set('wallpaper',b.dataset.id)});
@@ -907,7 +1053,15 @@ $('#clear-recent').onclick=$('#clear-recent-2').onclick=()=>{recentGames=[];put(
    UI HELPERS
    ═══════════════════════════════════════════════════════════ */
 let audioCtx;
-function click(){if(!S.sound)return;try{audioCtx=audioCtx||new (window.AudioContext||window.webkitAudioContext)();const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.type='sine';o.frequency.value=660;g.gain.setValueAtTime(.06,audioCtx.currentTime);g.gain.exponentialRampToValueAtTime(.0001,audioCtx.currentTime+.08);o.connect(g).connect(audioCtx.destination);o.start();o.stop(audioCtx.currentTime+.08)}catch(_){}}
+const PACKS={soft:{type:'sine',f:660,to:660,dur:.08,vol:.06},click:{type:'square',f:1400,to:700,dur:.045,vol:.035},pop:{type:'sine',f:320,to:900,dur:.11,vol:.07},retro:{type:'square',f:440,to:180,dur:.14,vol:.04}};
+function click(){if(!S.sound)return;try{
+  const p=PACKS[S.soundpack]||PACKS.soft,vol=p.vol*(S.volume??.5)*2;if(vol<=0)return;
+  audioCtx=audioCtx||new (window.AudioContext||window.webkitAudioContext)();
+  const t=audioCtx.currentTime,o=audioCtx.createOscillator(),g=audioCtx.createGain();
+  o.type=p.type;o.frequency.setValueAtTime(p.f,t);if(p.to!==p.f)o.frequency.exponentialRampToValueAtTime(p.to,t+p.dur);
+  g.gain.setValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(.0001,t+p.dur);
+  o.connect(g).connect(audioCtx.destination);o.start();o.stop(t+p.dur);
+}catch(_){}}
 function toast(msg,type=''){const box=$('#toasts'),t=document.createElement('div');t.className='toast '+type;t.innerHTML=`<span class="dot"></span><span></span>`;t.lastChild.textContent=msg;box.appendChild(t);while(box.children.length>4)box.firstChild.remove();setTimeout(()=>{t.classList.add('out');setTimeout(()=>t.remove(),260)},3800)}
 function setStatus(msg,busy=false){const el=$('#status');el.textContent=msg;el.className=(/^(error|failed)/i.test(msg)?'error':'')+(busy?' busy':'')}
 function setLaunching(on){$$('.vm-btn').forEach(b=>b.disabled=on)}
@@ -917,6 +1071,145 @@ function typing(){const a=document.activeElement;return a&&(a.tagName==='INPUT'|
 
 function updateClock(){const n=new Date();let h=n.getHours(),suf='';if(!S.clock24){suf=h>=12?' PM':' AM';h=h%12||12}const p=v=>String(v).padStart(2,'0');$('#tb-time').textContent=(S.clock24?p(h):h)+':'+p(n.getMinutes())+(S.clocksec?':'+p(n.getSeconds()):'')+suf;$('#tb-date').textContent=n.toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'})}
 setInterval(updateClock,1000);
+setInterval(()=>{if(S.autotheme&&effectiveTheme()!==root.dataset.theme)applyAll()},60000);
+
+/* ═══════════════════════════════════════════════════════════
+   LIVE BACKGROUND PARTICLES
+   ═══════════════════════════════════════════════════════════ */
+const fxc=$('#fx-canvas'),fxx=fxc.getContext('2d');
+let parts=[],fxRAF=null,fxW=0,fxH=0;
+const GLYPHS='01アイウエオｱｲｳ<>/\\{}[]#$%&';
+function fxResize(){fxW=fxc.width=Math.floor(innerWidth*Math.min(devicePixelRatio||1,2));fxH=fxc.height=Math.floor(innerHeight*Math.min(devicePixelRatio||1,2));fxc.style.width=innerWidth+'px';fxc.style.height=innerHeight+'px'}
+addEventListener('resize',()=>{if(fxRAF){fxResize();seedParticles()}});
+function seedParticles(){
+  const n=Math.round(S.pcount||70),dpr=Math.min(devicePixelRatio||1,2);
+  parts=Array.from({length:n},()=>({
+    x:Math.random()*fxW,y:Math.random()*fxH,
+    r:(S.pstyle==='snow'?1.5+Math.random()*3:1+Math.random()*2)*dpr,
+    vx:(Math.random()-.5)*.35*dpr,vy:(S.pstyle==='snow'||S.pstyle==='matrix'?.4+Math.random()*1.1:(Math.random()-.5)*.35)*dpr,
+    a:.25+Math.random()*.55,tw:Math.random()*Math.PI*2,
+    ch:GLYPHS[Math.floor(Math.random()*GLYPHS.length)]
+  }));
+}
+function fxFrame(){
+  fxx.clearRect(0,0,fxW,fxH);
+  const dpr=Math.min(devicePixelRatio||1,2),style=S.pstyle;
+  if(style==='matrix')fxx.font=`${12*dpr}px ui-monospace,Consolas,monospace`;
+  for(const p of parts){
+    p.x+=p.vx;p.y+=p.vy;p.tw+=.05;
+    if(p.x<-20)p.x=fxW+20;if(p.x>fxW+20)p.x=-20;
+    if(p.y<-20)p.y=fxH+20;if(p.y>fxH+20){p.y=-20;p.x=Math.random()*fxW}
+    const alpha=style==='stars'?p.a*(.45+.55*Math.abs(Math.sin(p.tw))):p.a;
+    fxx.globalAlpha=alpha;
+    fxx.fillStyle=style==='snow'?'#fff':`rgb(${getComputedStyle(root).getPropertyValue('--accent-rgb').trim()||'79,140,255'})`;
+    if(style==='matrix'){fxx.fillText(p.ch,p.x,p.y);if(Math.random()<.02)p.ch=GLYPHS[Math.floor(Math.random()*GLYPHS.length)]}
+    else{fxx.beginPath();fxx.arc(p.x,p.y,p.r,0,6.283);fxx.fill()}
+  }
+  fxx.globalAlpha=1;
+  fxRAF=requestAnimationFrame(fxFrame);
+}
+function applyParticles(){
+  const on=S.particles&&!S.perf;
+  if(on&&!fxRAF){fxc.style.display='block';fxResize();seedParticles();fxRAF=requestAnimationFrame(fxFrame)}
+  else if(on){seedParticles()}
+  else if(fxRAF){cancelAnimationFrame(fxRAF);fxRAF=null;fxx.clearRect(0,0,fxW,fxH);fxc.style.display='none'}
+  else fxc.style.display='none';
+}
+
+/* ═══════════════════════════════════════════════════════════
+   CLICK RIPPLE + CURSOR TRAIL
+   ═══════════════════════════════════════════════════════════ */
+document.addEventListener('pointerdown',e=>{
+  if(!S.ripple||S.perf)return;
+  const r=document.createElement('div');r.className='ripple';r.style.left=e.clientX+'px';r.style.top=e.clientY+'px';
+  document.body.appendChild(r);setTimeout(()=>r.remove(),620);
+},{passive:true});
+let trailLast=0;
+document.addEventListener('pointermove',e=>{
+  if(!S.trail||S.perf)return;
+  const now=performance.now();if(now-trailLast<28)return;trailLast=now;
+  const d=document.createElement('div');d.className='ctrail';d.style.left=e.clientX+'px';d.style.top=e.clientY+'px';
+  document.body.appendChild(d);setTimeout(()=>d.remove(),660);
+},{passive:true});
+
+/* ═══════════════════════════════════════════════════════════
+   STATS OVERLAY
+   ═══════════════════════════════════════════════════════════ */
+let fpsRAF=null,fpsFrames=0,fpsLast=performance.now(),fpsVal=60;
+const bootTime=Date.now();
+function fpsFrame(){
+  fpsFrames++;const now=performance.now();
+  if(now-fpsLast>=500){fpsVal=Math.round(fpsFrames*1000/(now-fpsLast));fpsFrames=0;fpsLast=now;
+    const up=Math.floor((Date.now()-bootTime)/1000),mm=String(Math.floor(up/60)).padStart(2,'0'),ss=String(up%60).padStart(2,'0');
+    const mem=performance.memory?`${Math.round(performance.memory.usedJSHeapSize/1048576)} MB`:'n/a';
+    $('#fps').textContent=`${fpsVal} fps\n${mem} heap\nup ${mm}:${ss}\n${tabs.length} tab${tabs.length===1?'':'s'}`;
+  }
+  fpsRAF=requestAnimationFrame(fpsFrame);
+}
+function applyFps(){
+  const el=$('#fps');el.classList.toggle('show',!!S.fps);
+  if(S.fps&&!fpsRAF)fpsRAF=requestAnimationFrame(fpsFrame);
+  else if(!S.fps&&fpsRAF){cancelAnimationFrame(fpsRAF);fpsRAF=null}
+}
+
+/* ═══════════════════════════════════════════════════════════
+   LOCK SCREEN + PRIVACY BLUR
+   ═══════════════════════════════════════════════════════════ */
+let locked=false,idleT=null,lockClockI=null;
+function lockScreen(){
+  if(locked)return;locked=true;
+  const ls=$('#lock-screen');$('#lock-avatar').textContent=currentUsername[0].toUpperCase();
+  const tick=()=>{const n=new Date();let h=n.getHours(),suf='';if(!S.clock24){suf=h>=12?' PM':' AM';h=h%12||12}
+    $('#lock-time').textContent=(S.clock24?String(h).padStart(2,'0'):h)+':'+String(n.getMinutes()).padStart(2,'0')+suf;
+    $('#lock-date').textContent=n.toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric'})};
+  tick();clearInterval(lockClockI);lockClockI=setInterval(tick,1000);
+  ls.classList.add('show');
+}
+function unlockScreen(){if(!locked)return;locked=false;clearInterval(lockClockI);$('#lock-screen').classList.remove('show');resetIdle()}
+$('#lock-screen').addEventListener('click',unlockScreen);
+$('#lock-now').onclick=()=>{closeAllPanels();lockScreen()};
+function resetIdle(){
+  clearTimeout(idleT);
+  if(!S.lock||locked)return;
+  idleT=setTimeout(lockScreen,(parseInt(S.lockMins,10)||5)*60000);
+}
+['pointermove','pointerdown','keydown','wheel','touchstart'].forEach(ev=>document.addEventListener(ev,()=>{if(locked)return;resetIdle()},{passive:true}));
+/* tab-visibility only: window blur also fires when the VM/proxy iframe takes focus */
+document.addEventListener('visibilitychange',()=>{
+  if(!S.blurunfocus)return;
+  const el=$('#screen-fx');
+  if(document.hidden){el.style.backdropFilter=el.style.webkitBackdropFilter='blur(24px) saturate(.5)'}
+  else applyScreenFx();
+});
+
+/* ═══════════════════════════════════════════════════════════
+   SETTINGS SEARCH
+   ═══════════════════════════════════════════════════════════ */
+const PAGEN={appearance:'Appearance',effects:'Effects',desktop:'Desktop',browser:'Browser',games:'Games',vm:'Virtual machines',cloak:'Privacy & Cloak',performance:'Performance',account:'Account & Data',shortcuts:'Shortcuts'};
+$$('.spage').forEach(p=>{const l=document.createElement('div');l.className='hitlabel';l.textContent=PAGEN[p.dataset.page]||p.dataset.page;p.insertBefore(l,p.firstChild)});
+function searchSettings(q){
+  q=q.toLowerCase().trim();
+  if(!q){
+    root.dataset.searching='0';
+    $$('.spage,.card,.row').forEach(el=>el.classList.remove('nomatch'));
+    $$('.spage').forEach(p=>p.classList.toggle('active',p.dataset.page===$('#snav button.active').dataset.page));
+    return;
+  }
+  root.dataset.searching='1';
+  $$('.spage').forEach(p=>{
+    let pageHit=0;
+    $$('.card',p).forEach(c=>{
+      let cardHit=0;
+      $$('.row',c).forEach(r=>{const hit=r.textContent.toLowerCase().includes(q);r.classList.toggle('nomatch',!hit);if(hit)cardHit++});
+      const shortcuts=$('.shortcuts',c);
+      if(shortcuts){const hit=c.textContent.toLowerCase().includes(q);shortcuts.classList.toggle('nomatch',!hit);if(hit)cardHit++}
+      c.classList.toggle('nomatch',!cardHit);pageHit+=cardHit;
+    });
+    p.classList.toggle('nomatch',!pageHit);
+  });
+}
+let ssT;$('#settings-search').addEventListener('input',e=>{clearTimeout(ssT);const v=e.target.value;ssT=setTimeout(()=>searchSettings(v),90)});
+$('#settings-search').addEventListener('keydown',e=>{if(e.key==='Escape'){e.stopPropagation();e.target.value='';searchSettings('')}});
 
 /* panels */
 function openPanel(id){const p=$('#'+id);p.classList.remove('closing');p.classList.add('show');$('#start').classList.remove('show')}
@@ -982,7 +1275,7 @@ $('#btn-maximize').onclick=()=>{click();winMax=!winMax;const s=mainWin.style;s.t
 let authMode='register',currentUsername='Guest',vmLimit=30*60;
 function setAuthMode(m){authMode=m;const L=m==='login';$('#auth-title').textContent=L?'Welcome back':'Create your account';$('#auth-submit').textContent=L?'Log in':'Create account';$('#auth-alt-text').textContent=L?'New here?':'Already have an account?';$('#login-button').textContent=L?'Create an account':'Log in';$('#auth-password').autocomplete=L?'current-password':'new-password';$('#auth-error').textContent=''}
 function acceptAuth(d){vmLimit=(d.vmMinutes||30)*60;currentUsername=d.username||'Guest';$('#auth-wrap').classList.add('hidden');setUser();toast(`Welcome, ${currentUsername}! ${d.vmMinutes||30} min of VM time.`,'ok')}
-function setUser(){const a=currentUsername[0].toUpperCase();['#tb-avatar','#start-avatar','#acct-avatar'].forEach(s=>$(s).textContent=a);['#tb-username','#start-username','#settings-username'].forEach(s=>$(s).textContent=currentUsername);$('#settings-vmtime').textContent=`${Math.round(vmLimit/60)} min VM time per session`}
+function setUser(){const a=currentUsername[0].toUpperCase();['#tb-avatar','#start-avatar','#acct-avatar'].forEach(s=>$(s).textContent=a);['#tb-username','#start-username','#settings-username'].forEach(s=>$(s).textContent=currentUsername);$('#settings-vmtime').textContent=`${Math.round(vmLimit/60)} min VM time per session`;updateHero()}
 async function checkAuth(){try{const r=await fetch('/api/auth/me'),d=await r.json();if(d.loggedIn)acceptAuth(d)}catch(_){}}
 $('#auth-card').addEventListener('submit',async e=>{e.preventDefault();const u=$('#auth-username').value.trim(),p=$('#auth-password').value,btn=$('#auth-submit');btn.disabled=true;try{const r=await fetch(authMode==='login'?'/api/auth/login':'/api/auth/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p})}),d=await r.json();if(!r.ok)throw new Error(d.error||'Authentication failed.');acceptAuth(d)}catch(err){$('#auth-error').textContent=err.message}finally{btn.disabled=false}});
 $('#guest-button').onclick=async()=>{try{const r=await fetch('/api/auth/guest',{method:'POST'}),d=await r.json();if(!r.ok)throw 0;acceptAuth(d)}catch(_){acceptAuth({username:'Guest',vmMinutes:30})}};
@@ -1121,6 +1414,10 @@ let gameTag='all',gameQ='';
 function renderGames(){
   let list=GAMES;if(gameTag==='fav')list=list.filter(g=>favGames.includes(g.name));else if(gameTag!=='all')list=list.filter(g=>g.tag===gameTag);
   if(gameQ)list=list.filter(g=>g.name.toLowerCase().includes(gameQ));
+  if(S.gsort==='az')list=[...list].sort((a,b)=>a.name.localeCompare(b.name));
+  else if(S.gsort==='za')list=[...list].sort((a,b)=>b.name.localeCompare(a.name));
+  else if(S.gsort==='fav')list=[...list].sort((a,b)=>(favGames.includes(b.name)?1:0)-(favGames.includes(a.name)?1:0));
+  else if(S.gsort==='random')list=[...list].sort(()=>Math.random()-.5);
   $('#games-heading').textContent=(gameTag==='all'?'All games':gameTag==='fav'?'Favorites':TAGN[gameTag]+' games')+` · ${list.length}`;
   const grid=$('#games-grid');
   if(!list.length){grid.innerHTML=`<div class="empty" style="grid-column:1/-1">${gameTag==='fav'?'No favorites yet — hover a game and hit the star':'No games match'}</div>`;return}
@@ -1173,11 +1470,13 @@ function openSettings(){openPanel('settings-panel');syncControls();$('#tb-settin
    KEYBOARD
    ═══════════════════════════════════════════════════════════ */
 document.addEventListener('keydown',e=>{
+  if(locked){e.preventDefault();unlockScreen();return}
   if(S.panic&&e.key===S.panicKey&&!typing()){e.preventDefault();location.replace(S.panicUrl||'https://classroom.google.com');return}
+  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();if(!$('#start').classList.contains('show'))toggleStart();else $('#start-search').focus();return}
   if(e.key==='Escape'){closeAllPanels();$('#tb-settings').classList.remove('active');$('#tb-games').classList.remove('active');return}
   if(e.key==='/'&&$('#games-panel').classList.contains('show')&&!typing()){e.preventDefault();$('#games-search').focus();return}
   if(!e.altKey||e.ctrlKey||e.metaKey)return;
-  const k=e.key.toLowerCase();const map={b:()=>openBrowser(),g:()=>openGames(),v:()=>APPS.vm(),s:()=>openSettings(),l:()=>openLinks(),c:()=>toggleChat(),' ':()=>toggleStart(),t:()=>{if($('#browser-wrap').style.display==='flex')newTab()},w:()=>{if($('#browser-wrap').style.display==='flex'&&activeTab)closeTab(activeTab)},d:()=>{if($('#browser-wrap').style.display==='flex'){$('#browser-address').focus()}}};
+  const k=e.key.toLowerCase();const map={b:()=>openBrowser(),g:()=>openGames(),v:()=>APPS.vm(),s:()=>openSettings(),l:()=>openLinks(),c:()=>toggleChat(),k:()=>{closeAllPanels();lockScreen()},' ':()=>toggleStart(),t:()=>{if($('#browser-wrap').style.display==='flex')newTab()},w:()=>{if($('#browser-wrap').style.display==='flex'&&activeTab)closeTab(activeTab)},d:()=>{if($('#browser-wrap').style.display==='flex'){$('#browser-address').focus()}}};
   if(map[k]){e.preventDefault();map[k]()}
 });
 /* panel close → clear active state */
@@ -1189,6 +1488,7 @@ new MutationObserver(()=>{$('#tb-settings').classList.toggle('active',$('#settin
 applyAll();syncControls();setUser();
 if(!S.showlauncher){mainWin.style.display='none';$('#tb-home').classList.remove('active')}else $('#tb-home').classList.add('active');
 checkAuth();
+if(S.startapp&&S.startapp!=='none')setTimeout(()=>{const fn=APPS[S.startapp];if(fn)fn()},600);
 requestIdleCallback?.(()=>{fetchPlayerCount();setInterval(fetchPlayerCount,30000);renderBookmarks();if(S.preload)initScramjet().catch(()=>{})},{timeout:2000})??setTimeout(()=>{fetchPlayerCount();renderBookmarks()},500);
 window.addEventListener('beforeunload',e=>{if(containerId){e.preventDefault();e.returnValue=''}});
 </script>
