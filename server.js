@@ -71,17 +71,7 @@ server.on("upgrade", (req, socket, head) => {
 | COEP/COOP headers â€” required for SharedArrayBuffer (wisp transport)
 |--------------------------------------------------------------------------
 */
-/*
- * /cloud is deliberately exempt. COEP: require-corp blocks every cross-origin
- * iframe - a framed document has to send COEP itself, and CORP does not
- * substitute - so a third-party cloud-gaming page can never render inside an
- * isolated document. The wrapper opens in its own window without these
- * headers, which costs nothing because it does not touch Scramjet.
- */
-const COEP_EXEMPT = /^\/cloud(\.html)?(\/app(\/[A-Za-z0-9._-]+)?)?\/?$/;
-
-app.use((req, res, next) => {
-  if (COEP_EXEMPT.test(req.path)) return next();
+app.use((_req, res, next) => {
   res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
   res.setHeader("Cross-Origin-Embedder-Policy", "require-corp");
   next();
@@ -113,8 +103,6 @@ app.use("/libcurl/", express.static(dirOf("@mercuryworkshop/libcurl-transport"))
 */
 const publicDir = path.join(path.dirname(new URL(import.meta.url).pathname), "public");
 
-app.get("/cloud", (_req, res) => res.sendFile(path.join(publicDir, "cloud.html")));
-
 /*
 |--------------------------------------------------------------------------
 | CloudMoon client, served from jsDelivr
@@ -126,6 +114,11 @@ app.get("/cloud", (_req, res) => res.sendFile(path.join(publicDir, "cloud.html")
 | No <base> tag: that would hijack every relative URL the app resolves,
 | including its own API calls. Only the two relative assets are rewritten,
 | and any relative page navigation falls through to this same route.
+|
+| Serving it from our own origin is what lets it run inside the desktop. A
+| cross-origin frame can never load in an isolated document, but a
+| same-origin one can as long as it carries COEP itself - which it does,
+| from the middleware above.
 |--------------------------------------------------------------------------
 */
 const CM_CDN = "https://cdn.jsdelivr.net/gh/CloudMoonApp/web@main/";
@@ -152,6 +145,15 @@ app.get("/cloud/app/:file?", async (req, res) => {
   const file = req.params.file || CM_ENTRY;
   if (!CM_NAME.test(file)) return res.status(400).send("Bad file name.");
   try {
+    /*
+     * credentialless, not require-corp. The frame has to carry COEP to be
+     * allowed inside the isolated desktop at all, but require-corp would
+     * then block every third party that does not send CORP - which is the
+     * tailwind CDN, the image CDN and the API hosts, leaving the client
+     * rendered but unstyled. credentialless satisfies the isolation rule
+     * and still loads them, by dropping credentials on those requests.
+     */
+    res.setHeader("Cross-Origin-Embedder-Policy", "credentialless");
     res.type("html").send(await cloudMoonPage(file));
   } catch (err) {
     console.error("CloudMoon fetch failed:", err.message);

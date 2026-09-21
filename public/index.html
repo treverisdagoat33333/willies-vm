@@ -570,6 +570,20 @@ html[data-tbhide="on"] #browser-wrap{bottom:0}
 .hitem .hx:hover{background:rgba(239,68,68,.2);color:#ff8a8a}
 
 /* ── VM frame ───────────────────────────────── */
+#cloud-wrap{position:fixed;inset:0 0 var(--tb-h) 0;z-index:60;display:none;flex-direction:column;background:var(--bg0);animation:rise .3s var(--spring)}
+html[data-tbhide="on"] #cloud-wrap{bottom:0}
+html[data-tbside="top"] #cloud-wrap{inset:var(--tb-h) 0 0 0}
+#cloud-wrap.closing{animation:sink .2s var(--ease) forwards}
+#cloud-toolbar{display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--glass);border-bottom:1px solid var(--border)}
+#cloud-toolbar .lb{display:flex;align-items:center;gap:8px;font-weight:600;font-size:.9em}
+#cloud-toolbar .sp{flex:1}
+#cloud-toolbar small{color:var(--text-3);font-size:.76em}
+#cloud-frame{flex:1;border:0;width:100%;background:var(--bg1)}
+#cloud-load{position:absolute;inset:48px 0 0 0;display:none;place-items:center;pointer-events:none;color:var(--text-2);font-size:.86em;gap:10px;flex-direction:column}
+#cloud-wrap.loading #cloud-load{display:grid}
+#cloud-load .ring{width:26px;height:26px;border-radius:50%;border:2px solid var(--glass-3);border-top-color:var(--accent);animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media(max-width:560px){#cloud-toolbar small{display:none}}
 #vm-wrap{position:fixed;inset:0 0 var(--tb-h) 0;z-index:60;display:none;flex-direction:column;background:#000;animation:rise .3s var(--spring)}
 html[data-tbhide="on"] #vm-wrap{bottom:0}
 #vm-wrap.closing{animation:sink .2s var(--ease) forwards}
@@ -1066,6 +1080,19 @@ html[data-tbpos="floating"] #desktop,html[data-tbpos="floating"] .panel,html[dat
   <iframe id="vm-frame" title="Virtual Machine" allow="fullscreen; autoplay; clipboard-read; clipboard-write" referrerpolicy="no-referrer"></iframe>
 </div>
 
+<div id="cloud-wrap">
+  <div id="cloud-toolbar">
+    <span class="lb"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg> Cloud gaming</span>
+    <small>CloudMoon &middot; served from jsDelivr</small>
+    <span class="sp"></span>
+    <button class="btn sm" id="cloud-reload">Reload</button>
+    <button class="btn sm" id="cloud-fs">Fullscreen</button>
+    <button class="btn sm danger" id="cloud-close">Close</button>
+  </div>
+  <iframe id="cloud-frame" title="Cloud gaming" allow="fullscreen; autoplay; gamepad; clipboard-read; clipboard-write; encrypted-media" referrerpolicy="no-referrer"></iframe>
+  <div id="cloud-load"><span class="ring"></span><span>Loading the CloudMoon client…</span></div>
+</div>
+
 <!-- TASKBAR -->
 <div id="tb-zone"></div>
 <div id="taskbar">
@@ -1077,6 +1104,7 @@ html[data-tbpos="floating"] #desktop,html[data-tbpos="floating"] .panel,html[dat
     <button class="tbb" data-app="games" id="tb-games" title="Games (Alt+G)"><div class="ic c2"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h4M8 10v4M15 13h.01M18 11h.01"/><path d="M17.32 5H6.68a4 4 0 0 0-3.98 3.6L2 16a2.5 2.5 0 0 0 4.5 1.5L8 15h8l1.5 2.5A2.5 2.5 0 0 0 22 16l-.7-7.4A4 4 0 0 0 17.32 5z"/></svg></div></button>
     <button class="tbb" data-app="vm" id="tb-vm" title="VM (Alt+V)"><div class="ic c3"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg></div></button>
     <button class="tbb" data-app="links" id="tb-links" title="Links (Alt+L)"><div class="ic c4"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></div></button>
+    <button class="tbb" data-app="cloud" id="tb-cloud" title="Cloud gaming"><div class="ic c3"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg></div></button>
     <button class="tbb" data-app="chat" id="tb-chat" title="Server (Alt+C)"><div class="ic c6"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div><span class="badge" id="chat-badge">0</span></button>
     <button class="tbb" data-app="settings" id="tb-settings" title="Settings (Alt+S)"><div class="ic c5"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></div></button>
   </div>
@@ -1556,7 +1584,7 @@ function closeAllPanels(){['links-panel','games-panel','settings-panel','history
 
 /* app launcher (delegated) */
 const APPS={
-  browser:()=>openBrowser(),games:()=>openGames(),links:()=>openLinks(),chat:()=>toggleChat(),settings:()=>openSettings(),cloud:()=>openCloud(),
+  browser:()=>openBrowser(),games:()=>openGames(),links:()=>openLinks(),chat:()=>toggleChat(),settings:()=>openSettings(),cloud:()=>toggleCloud(),
   vm1:()=>launchE2BVM(),vm2:()=>launchGPUVM(),vm:()=>(S.defaultVM==='gpu'?launchGPUVM():launchE2BVM())
 };
 document.addEventListener('click',e=>{const b=e.target.closest('[data-app]');if(!b)return;click();const fn=APPS[b.dataset.app];if(fn)fn()});
@@ -1601,15 +1629,53 @@ function makeDraggable(win,handle,opts={}){
 makeDraggable(mainWin,$('#win-drag-handle'),{bounds:'#desktop',canDrag:()=>!winMax});
 /* the community app is fullscreen, so there is nothing to drag */
 
-/* Cloud gaming opens as its own window. It cannot live inside the desktop:
-   COEP: require-corp (which Scramjet needs) blocks every cross-origin iframe,
-   and a third-party stream page will never send COEP of its own. */
+/* ═══════════════════════════════════════════════════════════
+   CLOUD GAMING
+   The client is served from our own origin at /cloud/app, so it is a
+   same-origin frame and inherits COEP from the server. That is what lets
+   it run inside the desktop: a cross-origin frame can never load in an
+   isolated document, but a same-origin one carrying COEP can.
+   ═══════════════════════════════════════════════════════════ */
+let cloudLoaded=false;
 function openCloud(){
-  const w=window.open('/cloud','wvm-cloud','noopener');
-  if(!w){toast('Popup blocked — allow popups for this site','err');return}
-  toast('Cloud gaming opened in a new window','ok');
+  const w=$('#cloud-wrap'),f=$('#cloud-frame');
+  closeAllPanels();
   $('#start').classList.remove('show');
+  $('#vm-wrap').style.display='none';
+  $('#browser-wrap').style.display='none';
+  w.style.display='flex';
+  w.classList.remove('closing');
+  $('#tb-cloud').classList.add('active');
+  if(!cloudLoaded){
+    w.classList.add('loading');
+    f.onload=()=>w.classList.remove('loading');
+    f.src='/cloud/app';
+    cloudLoaded=true;
+  }
 }
+function closeCloud(){
+  const w=$('#cloud-wrap');
+  if(w.style.display==='none'||!w.style.display)return;
+  w.classList.add('closing');
+  onCloseDone(w,()=>{w.style.display='none';w.classList.remove('closing','loading')});
+  $('#tb-cloud').classList.remove('active');
+  if(document.fullscreenElement)document.exitFullscreen().catch(()=>{});
+}
+function toggleCloud(){
+  const w=$('#cloud-wrap');
+  if(w.style.display==='flex')closeCloud();else openCloud();
+}
+$('#cloud-close').onclick=closeCloud;
+$('#cloud-reload').onclick=()=>{
+  const w=$('#cloud-wrap'),f=$('#cloud-frame');
+  w.classList.add('loading');
+  f.onload=()=>w.classList.remove('loading');
+  f.src='/cloud/app?t='+Date.now();
+};
+$('#cloud-fs').onclick=()=>{
+  if(document.fullscreenElement)document.exitFullscreen().catch(()=>{});
+  else $('#cloud-wrap').requestFullscreen().catch(()=>{});
+};
 function showLauncher(){mainWin.style.display='flex';mainWin.classList.remove('closing');winMin=false;$('#tb-home').classList.add('active')}
 function hideLauncher(){mainWin.classList.add('closing');onCloseDone(mainWin,()=>{mainWin.style.display='none';mainWin.classList.remove('closing')});$('#tb-home').classList.remove('active')}
 $('#btn-close').onclick=()=>{click();hideLauncher()};
