@@ -141,6 +141,104 @@ async function cloudMoonPage(file) {
   return html;
 }
 
+/*
+|--------------------------------------------------------------------------
+| CloudMoon catalog
+|
+| The guest catalogue needs no account, so the desktop can render its own
+| grid instead of framing CloudMoon's. Cached server-side so 200-odd games
+| are not refetched per visitor. Playing still happens in their client:
+| the play page wants a signed-in session (sid + token), which we do not
+| have and will not ask people for.
+|--------------------------------------------------------------------------
+*/
+const CM_API = process.env.CLOUDMOON_API || "https://api.prod.geometry.today";
+const CM_CATALOG_TTL = 15 * 60 * 1000;
+let cmCatalog = { at: 0, data: null };
+
+async function cloudMoonCatalog() {
+  if (cmCatalog.data && Date.now() - cmCatalog.at < CM_CATALOG_TTL) return cmCatalog.data;
+
+  const device = crypto.randomUUID();
+  const qs = (extra = {}) =>
+    new URLSearchParams({
+      device_type: "web",
+      query_uuid: crypto.randomUUID(),
+      site: "cm",
+      device_id: device,
+      ...extra,
+    }).toString();
+
+  const [gamesRes, catsRes] = await Promise.all([
+    fetch(`${CM_API}/game/guest_list?${qs()}`),
+    fetch(`${CM_API}/game/category?${qs()}`),
+  ]);
+  if (!gamesRes.ok) throw new Error(`catalog returned ${gamesRes.status}`);
+
+  const games = (await gamesRes.json())?.data?.list || [];
+  const cats = catsRes.ok ? (await catsRes.json())?.data?.list || [] : [];
+
+  const data = {
+    categories: cats
+      .filter((c) => c.is_show && c.key !== "all")
+      .map((c) => ({ key: c.key, name: c.name, count: c.count })),
+    games: games
+      .filter((g) => g.status === 1)
+      .map((g) => ({
+        name: g.title,
+        pkg: g.package_name,
+        icon: g.icon_url ? "/api/cloud/icon?u=" + encodeURIComponent(g.icon_url) : "",
+        cats: g.categories || [],
+        beta: Boolean(g.is_beta),
+        vip: g.min_vip_level > 1,
+        pc: Boolean(g.is_pc),
+      })),
+  };
+
+  cmCatalog = { at: Date.now(), data };
+  return data;
+}
+
+/*
+ * Box art lives on a bucket that sends neither CORS nor CORP, so an
+ * isolated page cannot load it directly. Re-serving it from our origin
+ * sidesteps both. Host-locked so this cannot be used as an open proxy.
+ */
+const CM_ICON_HOST = /(^|\.)myqcloud\.com$/;
+
+app.get("/api/cloud/icon", async (req, res) => {
+  let url;
+  try {
+    url = new URL(String(req.query.u || ""));
+  } catch (_) {
+    return res.status(400).end();
+  }
+  if (url.protocol !== "https:" || !CM_ICON_HOST.test(url.hostname)) {
+    return res.status(403).end();
+  }
+  try {
+    const upstream = await fetch(url, { headers: { accept: "image/*" } });
+    if (!upstream.ok) return res.status(upstream.status).end();
+    const type = upstream.headers.get("content-type") || "image/webp";
+    if (!type.startsWith("image/")) return res.status(415).end();
+    res.set("Content-Type", type);
+    res.set("Cache-Control", "public, max-age=86400, immutable");
+    res.send(Buffer.from(await upstream.arrayBuffer()));
+  } catch (err) {
+    res.status(502).end();
+  }
+});
+
+app.get("/api/cloud/games", async (_req, res) => {
+  try {
+    const data = await cloudMoonCatalog();
+    res.set("Cache-Control", "public, max-age=600").json(data);
+  } catch (err) {
+    console.error("CloudMoon catalog failed:", err.message);
+    res.status(502).json({ error: "Could not load the cloud games list." });
+  }
+});
+
 app.get("/cloud/app/:file?", async (req, res) => {
   const file = req.params.file || CM_ENTRY;
   if (!CM_NAME.test(file)) return res.status(400).send("Bad file name.");

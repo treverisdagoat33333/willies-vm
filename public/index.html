@@ -578,7 +578,45 @@ html[data-tbside="top"] #cloud-wrap{inset:var(--tb-h) 0 0 0}
 #cloud-toolbar .lb{display:flex;align-items:center;gap:8px;font-weight:600;font-size:.9em}
 #cloud-toolbar .sp{flex:1}
 #cloud-toolbar small{color:var(--text-3);font-size:.76em}
-#cloud-frame{flex:1;border:0;width:100%;background:var(--bg1)}
+#cloud-frame{flex:1;border:0;width:100%;background:var(--bg1);display:none}
+#cloud-wrap.playing #cloud-frame{display:block}
+#cloud-wrap.playing #cloud-browse{display:none}
+#cloud-wrap.playing #cloud-back{display:inline-flex}
+#cloud-back{display:none}
+
+#cloud-browse{flex:1;min-height:0;overflow-y:auto;padding:16px 18px 24px;scrollbar-width:thin}
+#cloud-browse::-webkit-scrollbar{width:9px}
+#cloud-browse::-webkit-scrollbar-thumb{background:var(--glass-3);border-radius:99px;border:2px solid transparent;background-clip:padding-box}
+.cg-filters{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px;position:sticky;top:-16px;padding:14px 0 10px;background:linear-gradient(var(--bg0) 72%,transparent);z-index:2}
+.cg-chips{display:flex;gap:6px;flex-wrap:wrap;min-width:0}
+.cg-chip{padding:5px 11px;border-radius:999px;border:1px solid var(--border);background:var(--glass-2);color:var(--text-2);font-size:.8em;font-weight:600;cursor:pointer;white-space:nowrap;transition:background .14s,color .14s,border-color .14s}
+.cg-chip:hover{background:var(--glass-3);color:var(--text)}
+.cg-chip.active{background:var(--accent);border-color:transparent;color:#fff}
+html[data-glow="on"] .cg-chip.active{box-shadow:0 0 14px rgba(var(--accent-rgb),.7)}
+.cg-count{font-size:.78em;color:var(--text-3);margin-left:auto;white-space:nowrap}
+
+.cg-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:14px}
+html[data-gsize="small"] .cg-grid{grid-template-columns:repeat(auto-fill,minmax(112px,1fr))}
+html[data-gsize="large"] .cg-grid{grid-template-columns:repeat(auto-fill,minmax(196px,1fr))}
+.cg-card{position:relative;display:flex;flex-direction:column;gap:0;padding:0;border:1px solid var(--border);border-radius:var(--r-lg);background:var(--glass-2);overflow:hidden;cursor:pointer;text-align:left;font:inherit;color:var(--text);transition:transform .16s var(--ease),border-color .16s,box-shadow .16s}
+.cg-card:hover{transform:translateY(-3px);border-color:var(--border-2);box-shadow:var(--shadow)}
+html[data-glow="on"] .cg-card:hover{box-shadow:0 0 26px rgba(var(--accent-rgb),.42)}
+.cg-card:active{transform:translateY(0) scale(.985)}
+.cg-art{position:relative;width:100%;aspect-ratio:1;background:var(--glass-3);overflow:hidden}
+.cg-art img{width:100%;height:100%;object-fit:cover;display:block}
+.cg-card:hover .cg-art img{transform:scale(1.05);transition:transform .3s var(--ease)}
+.cg-play{position:absolute;inset:0;display:grid;place-items:center;background:rgba(6,8,13,.55);opacity:0;transition:opacity .16s}
+.cg-card:hover .cg-play{opacity:1}
+.cg-play span{display:flex;align-items:center;gap:6px;padding:7px 14px;border-radius:999px;background:var(--accent);color:#fff;font-size:.8em;font-weight:700}
+.cg-meta{padding:9px 11px 11px;min-width:0}
+.cg-meta b{display:block;font-size:.86em;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cg-meta small{display:block;font-size:.72em;color:var(--text-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:1px}
+.cg-tag{position:absolute;top:8px;left:8px;padding:2px 7px;border-radius:999px;font-size:.64rem;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:#fff;background:rgba(6,8,13,.72);backdrop-filter:blur(6px)}
+.cg-tag.vip{background:#f5b301;color:#1a1400}
+.cg-empty{padding:50px 10px;text-align:center;color:var(--text-3);font-size:.9em}
+.cg-skel{aspect-ratio:1;border-radius:var(--r-lg);background:linear-gradient(90deg,var(--glass-2),var(--glass-3),var(--glass-2));background-size:200% 100%;animation:cgshine 1.2s linear infinite}
+@keyframes cgshine{to{background-position:-200% 0}}
+html[data-perf="on"] .cg-skel{animation:none}
 #cloud-load{position:absolute;inset:48px 0 0 0;display:none;place-items:center;pointer-events:none;color:var(--text-2);font-size:.86em;gap:10px;flex-direction:column}
 #cloud-wrap.loading #cloud-load{display:grid}
 #cloud-load .ring{width:26px;height:26px;border-radius:50%;border:2px solid var(--glass-3);border-top-color:var(--accent);animation:spin .8s linear infinite}
@@ -1082,12 +1120,21 @@ html[data-tbpos="floating"] #desktop,html[data-tbpos="floating"] .panel,html[dat
 
 <div id="cloud-wrap">
   <div id="cloud-toolbar">
-    <span class="lb"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg> Cloud gaming</span>
+    <span class="lb"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg> <span id="cloud-title">Cloud gaming</span></span>
     <small>CloudMoon &middot; served from jsDelivr</small>
     <span class="sp"></span>
+    <button class="btn sm" id="cloud-back">&larr; All games</button>
     <button class="btn sm" id="cloud-reload">Reload</button>
     <button class="btn sm" id="cloud-fs">Fullscreen</button>
     <button class="btn sm danger" id="cloud-close">Close</button>
+  </div>
+  <div id="cloud-browse">
+    <div class="cg-filters">
+      <input class="field" id="cloud-search" type="search" placeholder="Search cloud games…" autocomplete="off" style="width:220px">
+      <div class="cg-chips" id="cloud-cats"></div>
+      <span class="cg-count" id="cloud-count"></span>
+    </div>
+    <div class="cg-grid" id="cloud-grid"></div>
   </div>
   <iframe id="cloud-frame" title="Cloud gaming" allow="fullscreen; autoplay; gamepad; clipboard-read; clipboard-write; encrypted-media" referrerpolicy="no-referrer"></iframe>
   <div id="cloud-load"><span class="ring"></span><span>Loading the CloudMoon client…</span></div>
@@ -1636,9 +1683,10 @@ makeDraggable(mainWin,$('#win-drag-handle'),{bounds:'#desktop',canDrag:()=>!winM
    it run inside the desktop: a cross-origin frame can never load in an
    isolated document, but a same-origin one carrying COEP can.
    ═══════════════════════════════════════════════════════════ */
-let cloudLoaded=false;
+let cloudLoaded=false,cloudGames=[],cloudCats=[],cloudCat='all',cloudQuery='';
+
 function openCloud(){
-  const w=$('#cloud-wrap'),f=$('#cloud-frame');
+  const w=$('#cloud-wrap');
   closeAllPanels();
   $('#start').classList.remove('show');
   $('#vm-wrap').style.display='none';
@@ -1646,16 +1694,128 @@ function openCloud(){
   w.style.display='flex';
   w.classList.remove('closing');
   $('#tb-cloud').classList.add('active');
+  if(!cloudGames.length)loadCloudGames();
+}
+
+/* catalogue ------------------------------------------------- */
+async function loadCloudGames(){
+  const grid=$('#cloud-grid');
+  grid.innerHTML='<div class="cg-skel"></div>'.repeat(12);
+  try{
+    const r=await fetch('/api/cloud/games');
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    const d=await r.json();
+    cloudGames=d.games||[];
+    cloudCats=d.categories||[];
+    renderCloudCats();
+    renderCloudGames();
+  }catch(e){
+    grid.innerHTML='';
+    const el=document.createElement('div');
+    el.className='cg-empty';
+    el.textContent='Could not load the cloud games list. '+e.message;
+    grid.appendChild(el);
+  }
+}
+
+function renderCloudCats(){
+  const box=$('#cloud-cats'),frag=document.createDocumentFragment();
+  const mk=(key,label)=>{
+    const b=document.createElement('button');
+    b.className='cg-chip'+(cloudCat===key?' active':'');
+    b.textContent=label;
+    b.onclick=()=>{click();cloudCat=key;renderCloudCats();renderCloudGames()};
+    return b;
+  };
+  frag.appendChild(mk('all','All'));
+  cloudCats.forEach(c=>frag.appendChild(mk(c.key,c.name)));
+  box.replaceChildren(frag);
+}
+
+function renderCloudGames(){
+  const grid=$('#cloud-grid'),q=cloudQuery.trim().toLowerCase();
+  const list=cloudGames.filter(g=>{
+    if(cloudCat!=='all'&&!(g.cats||[]).includes(cloudCat))return false;
+    if(q&&!g.name.toLowerCase().includes(q))return false;
+    return true;
+  });
+  $('#cloud-count').textContent=list.length+' of '+cloudGames.length+' games';
+
+  if(!list.length){
+    const el=document.createElement('div');
+    el.className='cg-empty';
+    el.textContent=q?`Nothing matches “${cloudQuery}”`:'No games in this category.';
+    grid.replaceChildren(el);
+    return;
+  }
+
+  const frag=document.createDocumentFragment();
+  list.forEach(g=>{
+    const card=document.createElement('button');
+    card.className='cg-card';
+    card.title=g.name;
+
+    const art=document.createElement('div');
+    art.className='cg-art';
+    const img=document.createElement('img');
+    img.loading='lazy';img.alt='';img.src=g.icon;
+    img.onerror=()=>{img.style.visibility='hidden'};
+    art.appendChild(img);
+
+    if(g.vip||g.beta){
+      const tag=document.createElement('span');
+      tag.className='cg-tag'+(g.vip?' vip':'');
+      tag.textContent=g.vip?'VIP':'Beta';
+      art.appendChild(tag);
+    }
+
+    const play=document.createElement('div');
+    play.className='cg-play';
+    play.innerHTML='<span><svg class="i i-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3l14 9-14 9V3z"/></svg>Play</span>';
+    art.appendChild(play);
+    card.appendChild(art);
+
+    const meta=document.createElement('div');
+    meta.className='cg-meta';
+    const b=document.createElement('b');b.textContent=g.name;
+    const sm=document.createElement('small');
+    sm.textContent=(g.cats&&g.cats.length?g.cats[0]:'cloud').replace(/_/g,' ');
+    meta.append(b,sm);
+    card.appendChild(meta);
+
+    card.onclick=()=>{click();playCloudGame(g)};
+    frag.appendChild(card);
+  });
+  grid.replaceChildren(frag);
+}
+
+/* playing ---------------------------------------------------
+   The play page wants a signed-in CloudMoon session (sid + token), which
+   only their client can mint, so launching hands off to it. The frame is
+   loaded once and kept, so a sign-in survives going back to the grid. */
+function playCloudGame(g){
+  const w=$('#cloud-wrap'),f=$('#cloud-frame');
+  w.classList.add('playing');
+  $('#cloud-title').textContent=g.name;
   if(!cloudLoaded){
     w.classList.add('loading');
     f.onload=()=>w.classList.remove('loading');
     f.src='/cloud/app';
     cloudLoaded=true;
   }
+  toast(`Opening ${g.name} — sign in to CloudMoon to start the stream`);
 }
+
+function cloudBrowse(){
+  $('#cloud-wrap').classList.remove('playing');
+  $('#cloud-title').textContent='Cloud gaming';
+}
+$('#cloud-back').onclick=()=>{click();cloudBrowse()};
+$('#cloud-search').addEventListener('input',e=>{cloudQuery=e.target.value;renderCloudGames()});
 function closeCloud(){
   const w=$('#cloud-wrap');
   if(w.style.display==='none'||!w.style.display)return;
+  cloudBrowse();
   w.classList.add('closing');
   onCloseDone(w,()=>{w.style.display='none';w.classList.remove('closing','loading')});
   $('#tb-cloud').classList.remove('active');
@@ -1668,6 +1828,7 @@ function toggleCloud(){
 $('#cloud-close').onclick=closeCloud;
 $('#cloud-reload').onclick=()=>{
   const w=$('#cloud-wrap'),f=$('#cloud-frame');
+  if(!w.classList.contains('playing')){cloudGames=[];loadCloudGames();return}
   w.classList.add('loading');
   f.onload=()=>w.classList.remove('loading');
   f.src='/cloud/app?t='+Date.now();
