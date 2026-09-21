@@ -78,7 +78,7 @@ server.on("upgrade", (req, socket, head) => {
  * isolated document. The wrapper opens in its own window without these
  * headers, which costs nothing because it does not touch Scramjet.
  */
-const COEP_EXEMPT = /^\/cloud(\.html)?\/?$/;
+const COEP_EXEMPT = /^\/cloud(\.html)?(\/app(\/[A-Za-z0-9._-]+)?)?\/?$/;
 
 app.use((req, res, next) => {
   if (COEP_EXEMPT.test(req.path)) return next();
@@ -114,6 +114,58 @@ app.use("/libcurl/", express.static(dirOf("@mercuryworkshop/libcurl-transport"))
 const publicDir = path.join(path.dirname(new URL(import.meta.url).pathname), "public");
 
 app.get("/cloud", (_req, res) => res.sendFile(path.join(publicDir, "cloud.html")));
+
+/*
+|--------------------------------------------------------------------------
+| CloudMoon client, served from jsDelivr
+|
+| jsDelivr returns .html as text/plain on purpose, so the CDN URL cannot be
+| framed directly - it would render as source. We fetch it and re-serve it
+| as text/html from our own origin instead.
+|
+| No <base> tag: that would hijack every relative URL the app resolves,
+| including its own API calls. Only the two relative assets are rewritten,
+| and any relative page navigation falls through to this same route.
+|--------------------------------------------------------------------------
+*/
+const CM_CDN = "https://cdn.jsdelivr.net/gh/CloudMoonApp/web@main/";
+const CM_ENTRY = process.env.CLOUDMOON_ENTRY || "index-260909.html";
+const CM_NAME = /^[A-Za-z0-9._-]+\.html$/;
+const CM_TTL = 10 * 60 * 1000;
+const cmCache = new Map();
+
+async function cloudMoonPage(file) {
+  const hit = cmCache.get(file);
+  if (hit && Date.now() - hit.at < CM_TTL) return hit.html;
+
+  const r = await fetch(CM_CDN + file);
+  if (!r.ok) throw new Error(`CDN returned ${r.status} for ${file}`);
+  let html = await r.text();
+  html = html.replaceAll('"./run-site/', `"${CM_CDN}run-site/`);
+  html = html.replaceAll('"run-site/', `"${CM_CDN}run-site/`);
+
+  cmCache.set(file, { html, at: Date.now() });
+  return html;
+}
+
+app.get("/cloud/app/:file?", async (req, res) => {
+  const file = req.params.file || CM_ENTRY;
+  if (!CM_NAME.test(file)) return res.status(400).send("Bad file name.");
+  try {
+    res.type("html").send(await cloudMoonPage(file));
+  } catch (err) {
+    console.error("CloudMoon fetch failed:", err.message);
+    res
+      .status(502)
+      .type("html")
+      .send(
+        `<body style="font:15px system-ui;background:#0b0d12;color:#f3f5f9;padding:40px">` +
+          `<h2>Cloud gaming is unavailable</h2><p>Could not load the client from jsDelivr.</p>` +
+          `<p style="opacity:.6">${err.message}</p>` +
+          `<p><a style="color:#a855f7" href="https://web.cloudmoonapp.com" target="_blank" rel="noopener">Open CloudMoon directly</a></p></body>`
+      );
+  }
+});
 
 app.use(express.static(publicDir));
 
