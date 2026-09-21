@@ -1444,7 +1444,29 @@ $('#settings-search').addEventListener('keydown',e=>{if(e.key==='Escape'){e.stop
 
 /* panels */
 function openPanel(id){const p=$('#'+id);p.classList.remove('closing');p.classList.add('show');$('#start').classList.remove('show')}
-function closePanel(id){const p=$('#'+id);if(!p.classList.contains('show'))return;p.classList.add('closing');p.addEventListener('animationend',()=>{p.classList.remove('show','closing')},{once:true})}
+/* Run `done` when the closing animation finishes.
+   animationend alone is not enough: Performance mode kills animations
+   outright (so it never fires), a background tab can stall them, and the
+   event bubbles from children like chat bubbles and roster pills. This
+   fires exactly once, ignores children, and falls back to a timer. */
+function onCloseDone(el,done){
+  let fired=false;
+  const finish=()=>{
+    if(fired)return;
+    fired=true;
+    el.removeEventListener('animationend',onEnd);
+    clearTimeout(timer);
+    done();
+  };
+  const onEnd=e=>{if(e.target===el)finish()};
+  el.addEventListener('animationend',onEnd);
+  const timer=setTimeout(finish,500);
+  // no animation to wait for - don't leave the element stuck open
+  let anim='';
+  try{anim=getComputedStyle(el).animationName}catch(_){}
+  if(!anim||anim==='none')finish();
+}
+function closePanel(id){const p=$('#'+id);if(!p.classList.contains('show'))return;p.classList.add('closing');onCloseDone(p,()=>p.classList.remove('show','closing'))}
 document.addEventListener('click',e=>{const b=e.target.closest('[data-close]');if(b){click();closePanel(b.dataset.close)}});
 function closeAllPanels(){['links-panel','games-panel','settings-panel','history-panel'].forEach(closePanel);$('#start').classList.remove('show')}
 
@@ -1495,7 +1517,7 @@ function makeDraggable(win,handle,opts={}){
 makeDraggable(mainWin,$('#win-drag-handle'),{bounds:'#desktop',canDrag:()=>!winMax});
 makeDraggable($('#chat-window'),$('#chat-drag-handle'));
 function showLauncher(){mainWin.style.display='flex';mainWin.classList.remove('closing');winMin=false;$('#tb-home').classList.add('active')}
-function hideLauncher(){mainWin.classList.add('closing');mainWin.addEventListener('animationend',()=>{mainWin.style.display='none';mainWin.classList.remove('closing')},{once:true});$('#tb-home').classList.remove('active')}
+function hideLauncher(){mainWin.classList.add('closing');onCloseDone(mainWin,()=>{mainWin.style.display='none';mainWin.classList.remove('closing')});$('#tb-home').classList.remove('active')}
 $('#btn-close').onclick=()=>{click();hideLauncher()};
 $('#btn-minimize').onclick=()=>{click();hideLauncher()};
 $('#btn-maximize').onclick=()=>{click();winMax=!winMax;const s=mainWin.style;s.transition='all .25s var(--ease)';if(winMax){s.left='0';s.top='0';s.width='100%';s.height='100%';s.transform='none';s.borderRadius='0'}else{s.left='';s.top='';s.width='';s.height='';s.transform='';s.borderRadius=''}setTimeout(()=>s.transition='',260)};
@@ -1525,7 +1547,7 @@ function openVM(url,label){vmUrl=url;const f=$('#vm-frame'),w=$('#vm-wrap');$('#
 async function closeVM(force){
   if(!force&&S.vmconfirm&&!confirm('Close the VM? Your session will end.'))return;
   clearInterval(pollI);clearInterval(vmTimerI);vmStart=null;$('#vm-timer').textContent='00:00';$('#vm-timer').className='';
-  const w=$('#vm-wrap');w.classList.add('closing');w.addEventListener('animationend',()=>{w.style.display='none';w.classList.remove('closing')},{once:true});setTimeout(()=>$('#vm-frame').src='about:blank',220);
+  const w=$('#vm-wrap');w.classList.add('closing');onCloseDone(w,()=>{w.style.display='none';w.classList.remove('closing')});setTimeout(()=>$('#vm-frame').src='about:blank',220);
   const id=containerId,type=vmType;containerId=vmType=vmUrl=null;
   if(id&&type==='gpu')fetch(`/api/vm/${encodeURIComponent(id)}`,{method:'DELETE'}).catch(()=>{});
   if(id&&type==='e2b')fetch(`/api/e2b/${encodeURIComponent(id)}`,{method:'DELETE'}).catch(()=>{});
@@ -1608,7 +1630,7 @@ $('#b-home').onclick=()=>navigate(S.homepage);
 $('#b-fs').onclick=async()=>{try{if(!document.fullscreenElement)await $('#browser-wrap').requestFullscreen();else await document.exitFullscreen()}catch(_){}};
 $('#tab-new').onclick=()=>{click();newTab()};
 $('#b-close').onclick=()=>closeBrowser();$('#b-hist').onclick=()=>openHistory();$('#b-bm').onclick=()=>addBookmark();
-function closeBrowser(){const b=$('#browser-wrap');b.classList.add('closing');b.addEventListener('animationend',()=>{b.style.display='none';b.classList.remove('closing')},{once:true});tabs.forEach(t=>{try{t.frame.src='about:blank'}catch(_){}t.frame.remove()});tabs=[];activeTab=null;$('#tab-list').innerHTML='';$('#tb-browser').classList.remove('active');if(document.fullscreenElement)document.exitFullscreen().catch(()=>{})}
+function closeBrowser(){const b=$('#browser-wrap');b.classList.add('closing');onCloseDone(b,()=>{b.style.display='none';b.classList.remove('closing')});tabs.forEach(t=>{try{t.frame.src='about:blank'}catch(_){}t.frame.remove()});tabs=[];activeTab=null;$('#tab-list').innerHTML='';$('#tb-browser').classList.remove('active');if(document.fullscreenElement)document.exitFullscreen().catch(()=>{})}
 
 /* bookmarks */
 function addBookmark(){const t=getTab();if(!t||!t.url||t.url==='about:blank')return toast('Nothing to bookmark','err');if(bookmarks.some(b=>b.url===t.url))return toast('Already bookmarked');bookmarks.push({title:t.title,url:t.url});put('bookmarks',bookmarks);renderBookmarks();syncControls();toast('Bookmarked!','ok')}
@@ -1932,7 +1954,7 @@ function closeChat(){
   signalTyping(false);
   $('#chat-emoji').classList.remove('show');
   w.classList.add('closing');
-  w.addEventListener('animationend',()=>{w.classList.remove('show','closing')},{once:true});
+  onCloseDone(w,()=>w.classList.remove('show','closing'));
   $('#tb-chat').classList.remove('active');
 }
 $('#chat-close').onclick=$('#chat-min').onclick=closeChat;
