@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<!--
+  william's vm
+  Copyright (c) 2026 William (github.com/treverisdagoat33333)
+  All rights reserved. Proprietary and confidential.
+
+  This page and its source are protected by copyright. Being able to read
+  this in your browser is not permission to copy it. Unauthorized copying,
+  modification, redistribution or re-hosting is prohibited.
+
+  CloudMoon is a third-party service. This page only frames it; the games,
+  the streaming and the accounts are theirs.
+-->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Cloud gaming</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23a855f7' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z'/%3E%3C/svg%3E">
+<style>
+  :root{
+    --accent:#a855f7;--bg0:#0b0d12;--bg1:#12161f;
+    --glass:rgba(18,21,30,.82);--glass-3:rgba(255,255,255,.08);
+    --border:rgba(255,255,255,.1);--text:#f3f5f9;--text-2:rgba(243,245,249,.62);
+    --bar:46px;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0;background:var(--bg0);color:var(--text);
+    font:15px/1.4 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    display:flex;flex-direction:column;overflow:hidden;
+  }
+  .bar{
+    flex:0 0 auto;height:var(--bar);display:flex;align-items:center;gap:10px;
+    padding:0 12px;background:var(--glass);border-bottom:1px solid var(--border);
+    backdrop-filter:blur(18px) saturate(150%);
+  }
+  .bar .dot{width:9px;height:9px;border-radius:50%;background:var(--accent);flex:0 0 auto}
+  .bar b{font-size:.92em;letter-spacing:-.01em}
+  .bar small{color:var(--text-2);font-size:.76em}
+  .sp{flex:1}
+  .bar button,.bar a{
+    display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 12px;
+    border-radius:8px;border:1px solid var(--border);background:var(--glass-3);
+    color:var(--text);font:inherit;font-size:.8em;font-weight:600;
+    text-decoration:none;cursor:pointer;transition:background .15s,transform .12s;
+  }
+  .bar button:hover,.bar a:hover{background:rgba(255,255,255,.14)}
+  .bar button:active,.bar a:active{transform:scale(.96)}
+  .frame{flex:1 1 auto;min-height:0;position:relative;background:var(--bg1)}
+  iframe{width:100%;height:100%;border:0;display:block}
+  .note{
+    position:absolute;inset:auto 0 0 0;padding:6px 12px;font-size:.72em;
+    color:var(--text-2);background:rgba(11,13,18,.9);border-top:1px solid var(--border);
+    display:flex;gap:8px;align-items:center;
+  }
+  .note.gone{display:none}
+  .note button{margin-left:auto;background:none;border:0;color:var(--text-2);cursor:pointer;font:inherit;text-decoration:underline}
+  @media(max-width:560px){.bar small{display:none}}
+</style>
+</head>
+<body>
+  <div class="bar">
+    <span class="dot"></span>
+    <b>Cloud gaming</b>
+    <small>CloudMoon &middot; Android titles, streamed</small>
+    <span class="sp"></span>
+    <button id="reload" title="Reload">Reload</button>
+    <button id="full" title="Fullscreen">Fullscreen</button>
+    <a href="https://web.cloudmoonapp.com" target="_blank" rel="noopener">Open direct</a>
+    <button id="close" title="Close">Close</button>
+  </div>
+
+  <div class="frame">
+    <iframe
+      id="cm"
+      src="https://web.cloudmoonapp.com"
+      referrerpolicy="no-referrer"
+      allow="autoplay; fullscreen; gamepad; clipboard-write; encrypted-media"
+      allowfullscreen></iframe>
+    <div class="note" id="note">
+      <span>Runs on CloudMoon's servers and needs a free CloudMoon account. Nothing here is proxied.</span>
+      <button id="dismiss">Dismiss</button>
+    </div>
+  </div>
+
+<script>
+  const frame = document.getElementById('cm');
+  document.getElementById('reload').onclick = () => { frame.src = frame.src; };
+  document.getElementById('close').onclick = () => { window.close(); setTimeout(() => location.replace('/'), 120); };
+  document.getElementById('dismiss').onclick = () => document.getElementById('note').classList.add('gone');
+  document.getElementById('full').onclick = () => {
+    if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+    else (frame.requestFullscreen ? frame : document.documentElement).requestFullscreen().catch(() => {});
+  };
+  addEventListener('keydown', e => { if (e.key === 'Escape' && !document.fullscreenElement) document.getElementById('close').click(); });
+  setTimeout(() => document.getElementById('note').classList.add('gone'), 12000);
+</script>
+</body>
+</html>

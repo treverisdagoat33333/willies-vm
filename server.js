@@ -71,7 +71,17 @@ server.on("upgrade", (req, socket, head) => {
 | COEP/COOP headers â€” required for SharedArrayBuffer (wisp transport)
 |--------------------------------------------------------------------------
 */
-app.use((_req, res, next) => {
+/*
+ * /cloud is deliberately exempt. COEP: require-corp blocks every cross-origin
+ * iframe - a framed document has to send COEP itself, and CORP does not
+ * substitute - so a third-party cloud-gaming page can never render inside an
+ * isolated document. The wrapper opens in its own window without these
+ * headers, which costs nothing because it does not touch Scramjet.
+ */
+const COEP_EXEMPT = /^\/cloud(\.html)?\/?$/;
+
+app.use((req, res, next) => {
+  if (COEP_EXEMPT.test(req.path)) return next();
   res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
   res.setHeader("Cross-Origin-Embedder-Policy", "require-corp");
   next();
@@ -101,7 +111,11 @@ app.use("/libcurl/", express.static(dirOf("@mercuryworkshop/libcurl-transport"))
 | Serve public static files (your frontend)
 |--------------------------------------------------------------------------
 */
-app.use(express.static(path.join(path.dirname(new URL(import.meta.url).pathname), "public")));
+const publicDir = path.join(path.dirname(new URL(import.meta.url).pathname), "public");
+
+app.get("/cloud", (_req, res) => res.sendFile(path.join(publicDir, "cloud.html")));
+
+app.use(express.static(publicDir));
 
 const guestSessions = new Map();
 const e2bSandboxes = new Map();
