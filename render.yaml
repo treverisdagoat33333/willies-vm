@@ -30,5 +30,10 @@ services:
       - key: AUTH_SECRET
         sync: false
 
+      # The account that holds the owner role. Register this username on the
+      # site and it gets owner automatically, now and on every later login.
+      - key: OWNER_USERNAME
+        value: william
+
       # - key: DATA_DIR
       #   value: /var/data
