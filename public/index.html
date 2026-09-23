@@ -578,6 +578,31 @@ html[data-tbside="top"] #cloud-wrap{inset:var(--tb-h) 0 0 0}
 #cloud-toolbar .lb{display:flex;align-items:center;gap:8px;font-weight:600;font-size:.9em}
 #cloud-toolbar .sp{flex:1}
 #cloud-toolbar small{color:var(--text-3);font-size:.76em}
+#remote-wrap{position:fixed;inset:0 0 var(--tb-h) 0;z-index:60;display:none;flex-direction:column;background:#000;animation:rise .3s var(--spring)}
+html[data-tbhide="on"] #remote-wrap{bottom:0}
+html[data-tbside="top"] #remote-wrap{inset:var(--tb-h) 0 0 0}
+#remote-wrap.closing{animation:sink .2s var(--ease) forwards}
+#remote-toolbar{display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--glass);border-bottom:1px solid var(--border);flex:0 0 auto;flex-wrap:wrap}
+#remote-toolbar .lb{display:flex;align-items:center;gap:8px;font-weight:600;font-size:.9em}
+#remote-toolbar .sp{flex:1}
+#remote-toolbar small{color:var(--text-3);font-size:.76em;font-variant-numeric:tabular-nums;white-space:nowrap}
+#remote-toolbar label{display:flex;align-items:center;gap:5px;font-size:.74em;color:var(--text-3)}
+#remote-toolbar select.field{width:auto;padding:4px 8px}
+.rc-dot{width:9px;height:9px;border-radius:50%;background:var(--bad);flex:0 0 auto;transition:background .3s}
+#remote-wrap[data-state="on"] .rc-dot{background:var(--ok);box-shadow:0 0 8px var(--ok)}
+#remote-wrap[data-state="wait"] .rc-dot{background:var(--warn)}
+#remote-stage{flex:1;min-height:0;position:relative;overflow:hidden;background:#05070c;display:grid;place-items:center}
+#remote-canvas{width:100%;height:100%;display:block;cursor:crosshair;touch-action:none;outline:none}
+#remote-overlay{position:absolute;inset:0;display:grid;place-items:center;background:rgba(9,11,16,.94);backdrop-filter:blur(6px);text-align:center;padding:24px}
+#remote-wrap[data-state="on"] #remote-overlay{display:none}
+.rc-card{max-width:380px;display:flex;flex-direction:column;gap:12px}
+.rc-card .ic{width:52px;height:52px;margin:0 auto;border-radius:14px;display:grid;place-items:center;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff}
+.rc-card .ic svg{width:26px;height:26px}
+.rc-card h3{font-size:1.15em;font-weight:800}
+.rc-card p{font-size:.85em;color:var(--text-2);line-height:1.55}
+.rc-card .row{display:flex;gap:8px}
+.rc-hint{min-height:1.1em;font-size:.8em}
+.rc-hint.err{color:var(--bad)}
 #cloud-frame{flex:1;border:0;width:100%;background:var(--bg1);display:none}
 #cloud-wrap.playing #cloud-frame{display:block}
 #cloud-wrap.playing #cloud-browse{display:none}
@@ -725,6 +750,7 @@ html[data-tbpos="floating"] #desktop,html[data-tbpos="floating"] .panel,html[dat
     <button class="dicon" data-app="vm1"><div class="ic c7"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v10H4z"/><path d="M2 19h20"/></svg></div><span>VM #1</span></button>
     <button class="dicon" data-app="vm2"><div class="ic c3"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg></div><span>VM #2</span></button>
     <button class="dicon" data-app="links"><div class="ic c4"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></div><span>Links</span></button>
+    <button class="dicon" data-app="remote"><div class="ic c7"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/><circle cx="12" cy="10" r="2.4"/></svg></div><span>Remote PC</span></button>
     <button class="dicon" data-app="cloud"><div class="ic c3"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg></div><span>Cloud</span></button>
   <button class="dicon" data-app="chat"><div class="ic c6"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div><span>Chat</span></button>
     <button class="dicon" data-app="settings"><div class="ic c5"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></div><span>Settings</span></button>
@@ -750,6 +776,7 @@ html[data-tbpos="floating"] #desktop,html[data-tbpos="floating"] .panel,html[dat
         <button class="tile" data-app="browser"><div class="ic c1"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></div><div><b>Browser</b><small>Proxied web</small></div></button>
         <button class="tile" data-app="games"><div class="ic c2"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h4M8 10v4M15 13h.01M18 11h.01"/><path d="M17.32 5H6.68a4 4 0 0 0-3.98 3.6L2 16a2.5 2.5 0 0 0 4.5 1.5L8 15h8l1.5 2.5A2.5 2.5 0 0 0 22 16l-.7-7.4A4 4 0 0 0 17.32 5z"/></svg></div><div><b>Games</b><small id="games-count">Library</small></div></button>
         <button class="tile" data-app="links"><div class="ic c4"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></div><div><b>Links</b><small>Mirror list</small></div></button>
+        <button class="tile" data-app="remote"><div class="ic c7"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/><circle cx="12" cy="10" r="2.4"/></svg></div><div><b>Remote PC</b><small>Control your PC</small></div></button>
         <button class="tile" data-app="cloud"><div class="ic c3"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg></div><div><b>Cloud</b><small>Streamed games</small></div></button>
         <button class="tile" data-app="chat"><div class="ic c6"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div><div><b>Server</b><small>Channels &amp; DMs</small></div></button>
       </div>
@@ -1140,6 +1167,44 @@ html[data-tbpos="floating"] #desktop,html[data-tbpos="floating"] .panel,html[dat
   <div id="cloud-load"><span class="ring"></span><span>Loading the CloudMoon client…</span></div>
 </div>
 
+<div id="remote-wrap" data-state="off">
+  <div id="remote-toolbar">
+    <span class="lb"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/><circle cx="12" cy="10" r="2.4"/></svg> Remote PC</span>
+    <span class="rc-dot"></span>
+    <small id="remote-stat">Not connected</small>
+    <span class="sp"></span>
+    <label>Quality
+      <select class="field" id="remote-quality">
+        <option value="30">Low</option>
+        <option value="45" selected>Medium</option>
+        <option value="65">High</option>
+        <option value="85">Max</option>
+      </select></label>
+    <label>Scale
+      <select class="field" id="remote-scale">
+        <option value="100">100%</option>
+        <option value="80" selected>80%</option>
+        <option value="60">60%</option>
+        <option value="40">40%</option>
+      </select></label>
+    <button class="btn sm" id="remote-fs">Fullscreen</button>
+    <button class="btn sm danger" id="remote-close">Close</button>
+  </div>
+  <div id="remote-stage">
+    <canvas id="remote-canvas" width="1280" height="720" tabindex="0"></canvas>
+    <div id="remote-overlay">
+      <div class="rc-card">
+        <div class="ic"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/><circle cx="12" cy="10" r="2.4"/></svg></div>
+        <h3>Control your PC</h3>
+        <p>Run the agent on the PC you want to control (see the <b>agent</b> folder in the repo), then enter your <b>REMOTE_KEY</b> here — the same secret set on the server.</p>
+        <input class="field" id="remote-key" type="password" placeholder="REMOTE_KEY" autocomplete="off" spellcheck="false">
+        <div class="row"><button class="btn primary" id="remote-connect" style="flex:1">Connect</button></div>
+        <p class="rc-hint" id="remote-hint"></p>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- TASKBAR -->
 <div id="tb-zone"></div>
 <div id="taskbar">
@@ -1151,6 +1216,7 @@ html[data-tbpos="floating"] #desktop,html[data-tbpos="floating"] .panel,html[dat
     <button class="tbb" data-app="games" id="tb-games" title="Games (Alt+G)"><div class="ic c2"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h4M8 10v4M15 13h.01M18 11h.01"/><path d="M17.32 5H6.68a4 4 0 0 0-3.98 3.6L2 16a2.5 2.5 0 0 0 4.5 1.5L8 15h8l1.5 2.5A2.5 2.5 0 0 0 22 16l-.7-7.4A4 4 0 0 0 17.32 5z"/></svg></div></button>
     <button class="tbb" data-app="vm" id="tb-vm" title="VM (Alt+V)"><div class="ic c3"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg></div></button>
     <button class="tbb" data-app="links" id="tb-links" title="Links (Alt+L)"><div class="ic c4"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></div></button>
+    <button class="tbb" data-app="remote" id="tb-remote" title="Remote PC"><div class="ic c7"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/><circle cx="12" cy="10" r="2.4"/></svg></div></button>
     <button class="tbb" data-app="cloud" id="tb-cloud" title="Cloud gaming"><div class="ic c3"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg></div></button>
     <button class="tbb" data-app="chat" id="tb-chat" title="Server (Alt+C)"><div class="ic c6"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div><span class="badge" id="chat-badge">0</span></button>
     <button class="tbb" data-app="settings" id="tb-settings" title="Settings (Alt+S)"><div class="ic c5"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></div></button>
@@ -1631,7 +1697,7 @@ function closeAllPanels(){['links-panel','games-panel','settings-panel','history
 
 /* app launcher (delegated) */
 const APPS={
-  browser:()=>openBrowser(),games:()=>openGames(),links:()=>openLinks(),chat:()=>toggleChat(),settings:()=>openSettings(),cloud:()=>toggleCloud(),
+  browser:()=>openBrowser(),games:()=>openGames(),links:()=>openLinks(),chat:()=>toggleChat(),settings:()=>openSettings(),cloud:()=>toggleCloud(),remote:()=>toggleRemote(),
   vm1:()=>launchE2BVM(),vm2:()=>launchGPUVM(),vm:()=>(S.defaultVM==='gpu'?launchGPUVM():launchE2BVM())
 };
 document.addEventListener('click',e=>{const b=e.target.closest('[data-app]');if(!b)return;click();const fn=APPS[b.dataset.app];if(fn)fn()});
@@ -1643,7 +1709,7 @@ const showTb=()=>{clearTimeout(tbT);tb.classList.add('visible')},hideTb=()=>{tbT
 $('#tb-zone').addEventListener('mouseenter',showTb);tb.addEventListener('mouseenter',showTb);tb.addEventListener('mouseleave',hideTb);
 
 /* start menu */
-const START_APPS=[['browser','<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>','Browser','c1'],['games','<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h4M8 10v4M15 13h.01M18 11h.01"/><path d="M17.32 5H6.68a4 4 0 0 0-3.98 3.6L2 16a2.5 2.5 0 0 0 4.5 1.5L8 15h8l1.5 2.5A2.5 2.5 0 0 0 22 16l-.7-7.4A4 4 0 0 0 17.32 5z"/></svg>','Games','c2'],['vm1','<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v10H4z"/><path d="M2 19h20"/></svg>','VM #1','c7'],['vm2','<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg>','VM #2','c3'],['links','<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>','Links','c4'],['cloud','<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg>','Cloud','c3'],['chat','<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>','Server','c6'],['settings','<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>','Settings','c5']];
+const START_APPS=[['browser','<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>','Browser','c1'],['games','<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h4M8 10v4M15 13h.01M18 11h.01"/><path d="M17.32 5H6.68a4 4 0 0 0-3.98 3.6L2 16a2.5 2.5 0 0 0 4.5 1.5L8 15h8l1.5 2.5A2.5 2.5 0 0 0 22 16l-.7-7.4A4 4 0 0 0 17.32 5z"/></svg>','Games','c2'],['vm1','<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v10H4z"/><path d="M2 19h20"/></svg>','VM #1','c7'],['vm2','<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg>','VM #2','c3'],['links','<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>','Links','c4'],['remote','<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/><circle cx="12" cy="10" r="2.4"/></svg>','Remote PC','c7'],['cloud','<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg>','Cloud','c3'],['chat','<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>','Server','c6'],['settings','<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>','Settings','c5']];
 function renderStart(q=''){
   q=q.toLowerCase().trim();const g=$('#start-grid');
   let html=START_APPS.filter(a=>!q||a[2].toLowerCase().includes(q)).map(a=>`<button class="dicon" data-app="${a[0]}"><div class="ic ${a[3]}">${a[1]}</div><span>${a[2]}</span></button>`).join('');
@@ -1675,6 +1741,197 @@ function makeDraggable(win,handle,opts={}){
 }
 makeDraggable(mainWin,$('#win-drag-handle'),{bounds:'#desktop',canDrag:()=>!winMax});
 /* the community app is fullscreen, so there is nothing to drag */
+
+/* ═══════════════════════════════════════════════════════════
+   REMOTE PC
+   A small agent on your PC streams its screen through the /remote/
+   relay and injects the mouse/keyboard we send back. Frames are
+   adaptive JPEG drawn to a canvas; input is normalized 0..10000 of
+   the primary screen so it survives any scaling.
+   ═══════════════════════════════════════════════════════════ */
+let rmWS=null,rmMeta=null,rmActive=false,rmRetry=0,rmRetryT=null;
+let rmDecoding=false,rmPending=null,rmRect={x:0,y:0,w:0,h:0};
+let rmFrames=0,rmFps=0,rmLat=0,rmPingT=null,rmStatT=null,rmLastMove=0;
+const rmKeyLS='remoteKey';
+
+/* physical-key -> Windows virtual-key code (US layout; the OS composes
+   characters, and modifiers are forwarded as their own keys, so shift +
+   symbols and shortcuts all work like a real keyboard) */
+const RVK={Backspace:8,Tab:9,Enter:13,ShiftLeft:16,ShiftRight:16,ControlLeft:17,ControlRight:17,
+AltLeft:18,AltRight:18,Pause:19,CapsLock:20,Escape:27,Space:32,PageUp:33,PageDown:34,End:35,Home:36,
+ArrowLeft:37,ArrowUp:38,ArrowRight:39,ArrowDown:40,PrintScreen:44,Insert:45,Delete:46,
+MetaLeft:91,MetaRight:92,ContextMenu:93,
+Digit0:48,Digit1:49,Digit2:50,Digit3:51,Digit4:52,Digit5:53,Digit6:54,Digit7:55,Digit8:56,Digit9:57,
+Numpad0:96,Numpad1:97,Numpad2:98,Numpad3:99,Numpad4:100,Numpad5:101,Numpad6:102,Numpad7:103,Numpad8:104,
+Numpad9:105,NumpadMultiply:106,NumpadAdd:107,NumpadEnter:13,NumpadSubtract:109,NumpadDecimal:110,NumpadDivide:111,
+F1:112,F2:113,F3:114,F4:115,F5:116,F6:117,F7:118,F8:119,F9:120,F10:121,F11:122,F12:123,
+NumLock:144,ScrollLock:145,Semicolon:186,Equal:187,Comma:188,Minus:189,Period:190,Slash:191,
+Backquote:192,BracketLeft:219,Backslash:220,BracketRight:221,Quote:222};
+for(let i=0;i<26;i++)RVK['Key'+String.fromCharCode(65+i)]=65+i;
+
+function rmSend(o){if(rmWS&&rmWS.readyState===1)rmWS.send(JSON.stringify(o))}
+function rmState(v){$('#remote-wrap').dataset.state=v}
+
+function openRemote(){
+  const w=$('#remote-wrap');
+  closeAllPanels();$('#start').classList.remove('show');
+  $('#vm-wrap').style.display='none';$('#browser-wrap').style.display='none';$('#cloud-wrap').style.display='none';
+  w.style.display='flex';w.classList.remove('closing');
+  $('#tb-remote').classList.add('active');
+  const saved=(()=>{try{return localStorage.getItem(rmKeyLS)||''}catch(_){return''}})();
+  $('#remote-key').value=saved;
+  if(saved&&(!rmWS||rmWS.readyState>1))rmConnect(saved);
+  else if(!rmWS)rmState('off');
+  setTimeout(()=>$((saved?'#remote-canvas':'#remote-key')).focus(),80);
+}
+function closeRemote(){
+  const w=$('#remote-wrap');
+  if(w.style.display==='none'||!w.style.display)return;
+  w.classList.add('closing');
+  onCloseDone(w,()=>{w.style.display='none';w.classList.remove('closing')});
+  $('#tb-remote').classList.remove('active');
+  if(document.fullscreenElement)document.exitFullscreen().catch(()=>{});
+}
+function toggleRemote(){const w=$('#remote-wrap');if(w.style.display==='flex')closeRemote();else openRemote()}
+function remoteVisible(){return $('#remote-wrap').style.display==='flex'}
+
+function rmConnect(key){
+  clearTimeout(rmRetryT);
+  try{if(rmWS)rmWS.close()}catch(_){}
+  rmState('wait');
+  $('#remote-stat').textContent='Connecting…';
+  const hint=$('#remote-hint');hint.textContent='';hint.classList.remove('err');
+  let ws;
+  try{ws=new WebSocket((location.protocol==='https:'?'wss://':'ws://')+location.host+'/remote/?role=viewer&key='+encodeURIComponent(key))}
+  catch(_){rmState('off');return}
+  ws.binaryType='arraybuffer';
+  rmWS=ws;
+
+  ws.onopen=()=>{
+    rmRetry=0;
+    $('#remote-stat').textContent='Waiting for your PC…';
+    rmSendSettings();
+    clearInterval(rmPingT);rmPingT=setInterval(()=>rmSend({t:'ping',ts:performance.now()}),2000);
+    clearInterval(rmStatT);rmStatT=setInterval(rmUpdateStat,1000);
+  };
+  ws.onmessage=(e)=>{
+    if(typeof e.data!=='string'){rmFrame(e.data);return}
+    let m;try{m=JSON.parse(e.data)}catch(_){return}
+    if(m.t==='up'){rmState('on');rmActive=true;$('#remote-canvas').focus()}
+    else if(m.t==='down'){rmState('wait');rmActive=false;$('#remote-stat').textContent='Your PC agent is offline';}
+    else if(m.t==='meta'){rmMeta={w:m.w,h:m.h}}
+    else if(m.t==='pong'){rmLat=Math.round(performance.now()-m.ts)}
+  };
+  ws.onclose=(ev)=>{
+    clearInterval(rmPingT);clearInterval(rmStatT);rmActive=false;
+    if(ev.code===1008||ev.code===4001){
+      rmState('off');
+      const h=$('#remote-hint');h.textContent='Rejected: wrong key, or this account is not the owner.';h.classList.add('err');
+      try{localStorage.removeItem(rmKeyLS)}catch(_){}
+      return;
+    }
+    if(!remoteVisible()){rmState('off');return}
+    rmState('wait');$('#remote-stat').textContent='Reconnecting…';
+    rmRetry++;rmRetryT=setTimeout(()=>rmConnect(key),Math.min(1000*Math.pow(1.5,rmRetry),12000));
+  };
+  ws.onerror=()=>{};
+}
+$('#remote-connect').onclick=()=>{
+  const k=$('#remote-key').value.trim();
+  if(!k){$('#remote-hint').textContent='Enter your key.';return}
+  try{localStorage.setItem(rmKeyLS,k)}catch(_){}
+  rmConnect(k);
+};
+$('#remote-key').addEventListener('keydown',e=>{if(e.key==='Enter')$('#remote-connect').click()});
+$('#remote-close').onclick=closeRemote;
+$('#remote-fs').onclick=()=>{
+  if(document.fullscreenElement)document.exitFullscreen().catch(()=>{});
+  else $('#remote-wrap').requestFullscreen().catch(()=>{});
+};
+
+function rmSendSettings(){
+  rmSend({t:'set',quality:+$('#remote-quality').value,scale:+$('#remote-scale').value,fps:15});
+}
+$('#remote-quality').onchange=rmSendSettings;
+$('#remote-scale').onchange=rmSendSettings;
+
+/* draw incoming frames, always keeping only the newest if we fall behind */
+function rmFrame(buf){
+  if(rmDecoding){rmPending=buf;return}
+  rmDecoding=true;
+  createImageBitmap(new Blob([buf],{type:'image/jpeg'})).then(bmp=>{
+    rmDraw(bmp);try{bmp.close()}catch(_){}
+    rmFrames++;rmDecoding=false;
+    if(rmPending){const p=rmPending;rmPending=null;rmFrame(p)}
+  }).catch(()=>{rmDecoding=false});
+}
+function rmDraw(bmp){
+  const cv=$('#remote-canvas'),stage=$('#remote-stage');
+  const cw=stage.clientWidth||1,ch=stage.clientHeight||1;
+  if(cv.width!==cw||cv.height!==ch){cv.width=cw;cv.height=ch}
+  const g=cv.getContext('2d',{alpha:false});
+  g.fillStyle='#05070c';g.fillRect(0,0,cw,ch);
+  const ar=bmp.width/bmp.height,car=cw/ch;
+  let dw,dh;
+  if(ar>car){dw=cw;dh=cw/ar}else{dh=ch;dw=ch*ar}
+  const dx=(cw-dw)/2,dy=(ch-dh)/2;
+  g.drawImage(bmp,dx,dy,dw,dh);
+  rmRect={x:dx,y:dy,w:dw,h:dh};
+}
+function rmUpdateStat(){
+  rmFps=rmFrames;rmFrames=0;
+  if(!rmActive)return;
+  const dims=rmMeta?rmMeta.w+'×'+rmMeta.h:'';
+  $('#remote-stat').textContent=[dims,rmFps+' fps',rmLat+' ms'].filter(Boolean).join('  ·  ');
+}
+
+/* pointer -> normalized screen coords */
+function rmPos(e){
+  const cv=$('#remote-canvas'),r=cv.getBoundingClientRect();
+  const bx=(e.clientX-r.left)*(cv.width/r.width);
+  const by=(e.clientY-r.top)*(cv.height/r.height);
+  if(rmRect.w<1||rmRect.h<1)return null;
+  const nx=Math.max(0,Math.min(1,(bx-rmRect.x)/rmRect.w));
+  const ny=Math.max(0,Math.min(1,(by-rmRect.y)/rmRect.h));
+  return{x:Math.round(nx*10000),y:Math.round(ny*10000)};
+}
+(function rmBindPointer(){
+  const cv=$('#remote-canvas');
+  cv.addEventListener('pointermove',e=>{
+    if(!rmActive)return;
+    const now=performance.now();if(now-rmLastMove<16)return;rmLastMove=now;
+    const p=rmPos(e);if(p)rmSend({t:'m',x:p.x,y:p.y});
+  });
+  cv.addEventListener('pointerdown',e=>{
+    if(!rmActive)return;cv.focus();e.preventDefault();
+    const p=rmPos(e);if(p)rmSend({t:'m',x:p.x,y:p.y});
+    rmSend({t:'d',b:e.button});
+  });
+  window.addEventListener('pointerup',e=>{if(rmActive&&remoteVisible())rmSend({t:'u',b:e.button})});
+  cv.addEventListener('contextmenu',e=>{if(rmActive)e.preventDefault()});
+  cv.addEventListener('wheel',e=>{
+    if(!rmActive)return;e.preventDefault();
+    rmSend({t:'w',d:Math.max(-360,Math.min(360,Math.round(-e.deltaY)))});
+  },{passive:false});
+})();
+
+/* keyboard: only while the remote window is the focused app */
+function rmKeysActive(){
+  if(!rmActive||!remoteVisible())return false;
+  const a=document.activeElement;
+  return a===$('#remote-canvas')||$('#remote-wrap').contains(a);
+}
+window.addEventListener('keydown',e=>{
+  if(!rmKeysActive())return;
+  const vk=RVK[e.code];if(vk==null)return;
+  e.preventDefault();rmSend({t:'k',down:true,vk});
+},true);
+window.addEventListener('keyup',e=>{
+  if(!rmKeysActive())return;
+  const vk=RVK[e.code];if(vk==null)return;
+  e.preventDefault();rmSend({t:'k',down:false,vk});
+},true);
+
 
 /* ═══════════════════════════════════════════════════════════
    CLOUD GAMING

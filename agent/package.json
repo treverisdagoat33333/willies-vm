@@ -1,0 +1,10 @@
+{
+  "name": "willies-remote-agent",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Screen + input agent that lets willies-vm remote-control this PC.",
+  "bin": { "willies-agent": "willies-agent.mjs" },
+  "scripts": { "start": "node willies-agent.mjs" },
+  "dependencies": { "ws": "^8.18.3" }
+}

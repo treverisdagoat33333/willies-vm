@@ -18,6 +18,7 @@ import { server as wisp } from "@mercuryworkshop/wisp-js/server";
 import { Sandbox } from "@e2b/desktop";
 import { getUser, createUser, touchUser, userCount } from "./db.js";
 import { handleChatUpgrade, onlineCount } from "./chat.js";
+import { handleRemoteUpgrade, authorizeRemote, remoteStatus } from "./remote.js";
 
 const require = createRequire(import.meta.url);
 const dirOf = (specifier) => path.dirname(require.resolve(specifier));
@@ -60,6 +61,22 @@ server.on("upgrade", (req, socket, head) => {
       return;
     }
     handleChatUpgrade(req, socket, head, session);
+    return;
+  }
+
+  if (upgradePath === "/remote/") {
+    const q = new URL(req.url ?? "/", "http://localhost").searchParams;
+    const role = authorizeRemote({
+      role: q.get("role"),
+      key: q.get("key") || "",
+      session: getSessionFromCookieHeader(req.headers.cookie),
+    });
+    if (!role) {
+      socket.write("HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n");
+      socket.destroy();
+      return;
+    }
+    handleRemoteUpgrade(req, socket, head, role);
     return;
   }
 
@@ -423,6 +440,8 @@ app.post("/api/auth/logout", (req, res) => {
 app.get("/api/stats", (req, res) => {
   res.json({ online: onlineCount(), accounts: userCount() });
 });
+
+app.get("/api/remote/status", (_req, res) => res.json(remoteStatus()));
 
 app.get("/api/health", (req, res) => {
   res.json({

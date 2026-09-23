@@ -35,5 +35,11 @@ services:
       - key: OWNER_USERNAME
         value: william
 
+      # Secret that gates remote desktop control. Set the SAME value here and
+      # when you run the agent on your PC. Leave it unset to keep the feature
+      # off entirely.
+      - key: REMOTE_KEY
+        sync: false
+
       # - key: DATA_DIR
       #   value: /var/data
