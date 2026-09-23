@@ -239,6 +239,17 @@ app.get("/api/cloud/games", async (_req, res) => {
   }
 });
 
+/*
+ * Their client navigates with relative URLs, so the frame is loaded at
+ * /cloud/app/ (trailing slash) and "play-260909.html" resolves to
+ * /cloud/app/play-260909.html. /cloud/:file is kept as a fallback for any
+ * link that still resolves one level up, which otherwise 404s and dumps
+ * the user back on the home screen.
+ */
+app.get("/cloud/:file([A-Za-z0-9._-]+\.html)", (req, res) =>
+  res.redirect(302, "/cloud/app/" + req.params.file)
+);
+
 app.get("/cloud/app/:file?", async (req, res) => {
   const file = req.params.file || CM_ENTRY;
   if (!CM_NAME.test(file)) return res.status(400).send("Bad file name.");
