@@ -29,6 +29,11 @@ import {
   setRole,
   setProfile,
   getUser,
+  editMessage,
+  toggleReaction,
+  sanction,
+  liftSanction,
+  activeSanction,
 } from "./db.js";
 
 /*
@@ -44,9 +49,12 @@ const MAX_LEN = 2000;
 const RATE_WINDOW_MS = 10_000;
 const RATE_MAX = 10;
 
-const wss = new WebSocketServer({ noServer: true });
+/* one emoji (with skin tones, ZWJ sequences, flags), nothing else */
+const EMOJI_RE = /^(?:\p{Extended_Pictographic}|\p{Emoji_Presentation}|\p{Regional_Indicator}|\p{Emoji_Modifier}|\u200d|\ufe0f|\u20e3|[0-9#*])+$/u;
+const isEmoji = (s) => s.length > 0 && s.length <= 16 && EMOJI_RE.test(s) && /\p{Extended_Pictographic}|\p{Regional_Indicator}/u.test(s);
+
+const wss = new WebSocketServer({ noServer: true, maxPayload: 64 * 1024 });
 const clients = new Map(); // ws -> state
-const timeouts = new Map(); // username -> expires at
 
 function send(ws, payload) {
   if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(payload));
@@ -79,6 +87,8 @@ function can(state, action, targetRole = "guest") {
       return r >= RANK.admin;
     case "moderate":
       return r >= RANK.mod;
+    case "ban":
+      return r >= RANK.admin;
     case "assignRole":
       // you may only hand out a role strictly below your own
       return r >= RANK.admin && r > rankOf(targetRole);
@@ -124,14 +134,27 @@ function rateLimited(state) {
   return false;
 }
 
-function timedOut(name) {
-  const until = timeouts.get(name);
-  if (!until) return 0;
-  if (until <= Date.now()) {
-    timeouts.delete(name);
-    return 0;
-  }
-  return until;
+/* Mutes and bans live in the database, so a restart does not lift them. */
+function muteOf(state) {
+  return activeSanction(state.name, "mute", state.account ? null : state.ip);
+}
+function banOf(name, account, ip) {
+  return activeSanction(name, "ban", account ? null : ip);
+}
+function untilText(until) {
+  if (until == null) return "permanently";
+  const secs = Math.ceil((until - Date.now()) / 1000);
+  if (secs < 90) return `for another ${secs}s`;
+  const mins = Math.ceil(secs / 60);
+  if (mins < 90) return `for another ${mins}m`;
+  return `for another ${Math.ceil(mins / 60)}h`;
+}
+
+/* Target's role, checked against the actor's so nobody acts upward. */
+function outranks(st, target) {
+  const targetState = [...clients.values()].find((c) => c.name === target);
+  const targetRole = targetState ? roleOf(targetState) : getUser(target)?.role || "guest";
+  return rankOf(roleOf(st)) > rankOf(targetRole);
 }
 
 /* A connection may read a channel if it is a text channel, or a DM it is in. */
@@ -151,13 +174,20 @@ function mayPost(state, channel) {
   return true;
 }
 
-wss.on("connection", (ws, _req, session) => {
+wss.on("connection", (ws, _req, session, ip) => {
   const account = session.type === "account";
   const name = account
     ? session.username
-    : `guest-${String(session.guestId || "").slice(0, 4)}`;
+    : `guest-${String(session.guestId || "").slice(0, 6)}`;
 
-  const state = { name, account, stamps: [], typing: null };
+  const ban = banOf(name, account, ip);
+  if (ban) {
+    send(ws, { type: "banned", until: ban.until, reason: ban.reason });
+    ws.close(4003, "banned");
+    return;
+  }
+
+  const state = { name, account, ip, stamps: [], typing: null, since: Date.now() };
   clients.set(ws, state);
   ws.isAlive = true;
 
@@ -222,23 +252,54 @@ wss.on("connection", (ws, _req, session) => {
       /* ---- posting ---- */
       case "msg": {
         const ch = String(d.channel || "");
-        const text = String(d.text || "").replace(/[ \t]+/g, " ").trim().slice(0, MAX_LEN);
+        const text = clean(d.text);
         if (!text) return;
         if (!mayPost(st, ch)) return fail(ws, "You can't post in that channel.");
 
-        const until = timedOut(st.name);
-        if (until) {
-          const secs = Math.ceil((until - Date.now()) / 1000);
-          return fail(ws, `You're timed out for another ${secs}s.`);
-        }
+        const mute = muteOf(st);
+        if (mute) return fail(ws, `You're timed out ${untilText(mute.until)}.`);
         if (rateLimited(st)) return fail(ws, "Slow down a little — too many messages.");
+
+        // a reply must point at a live message in the same channel
+        let replyTo = null;
+        if (d.replyTo) {
+          const parent = getMessage(Number(d.replyTo));
+          if (parent && parent.channel === ch) replyTo = parent.id;
+        }
 
         if (st.typing) {
           broadcast({ type: "typing", name: st.name, channel: st.typing, on: false });
           st.typing = null;
         }
-        const saved = saveMessage({ username: st.name, account: st.account, text, channel: ch });
+        const saved = saveMessage({ username: st.name, account: st.account, text, channel: ch, replyTo });
         broadcast({ type: "msg", ...saved }, ch);
+        return;
+      }
+
+      case "edit": {
+        const m = getMessage(Number(d.id));
+        if (!m) return;
+        if (m.username !== st.name) return fail(ws, "You can only edit your own messages.");
+        if (!mayRead(st, m.channel)) return;
+        const text = clean(d.text);
+        if (!text) return fail(ws, "A message can't be empty. Delete it instead.");
+        if (text === m.text) return;
+        if (muteOf(st)) return fail(ws, "You can't edit while timed out.");
+        if (rateLimited(st)) return fail(ws, "Slow down a little — too many messages.");
+        broadcast({ type: "edited", message: editMessage(m.id, text) }, m.channel);
+        return;
+      }
+
+      case "react": {
+        const m = getMessage(Number(d.id));
+        const emoji = String(d.emoji || "");
+        if (!m || !isEmoji(emoji)) return;
+        if (!mayRead(st, m.channel)) return;
+        if (muteOf(st)) return fail(ws, "You can't react while timed out.");
+        if (rateLimited(st)) return fail(ws, "Slow down a little.");
+        const reactions = toggleReaction(m.id, st.name, emoji);
+        if (!reactions) return fail(ws, "That message has too many different reactions.");
+        broadcast({ type: "reactions", id: m.id, channel: m.channel, reactions, by: st.name, emoji }, m.channel);
         return;
       }
 
@@ -268,20 +329,39 @@ wss.on("connection", (ws, _req, session) => {
         if (!can(st, "moderate")) return fail(ws, "You can't time people out.");
         const target = String(d.name || "");
         const mins = Math.min(Math.max(Number(d.minutes) || 5, 1), 1440);
-        const targetState = [...clients.values()].find((c) => c.name === target);
-        const targetRole = targetState ? roleOf(targetState) : getUser(target)?.role || "guest";
-        if (rankOf(targetRole) >= rankOf(roleOf(st))) {
+        if (!target || !outranks(st, target)) {
           return fail(ws, "You can't moderate someone at or above your own role.");
         }
-        timeouts.set(target, Date.now() + mins * 60_000);
+        muteUser(target, { minutes: mins, reason: d.reason, by: st.name });
         broadcast({ type: "system", channel: d.channel, text: `${target} was timed out for ${mins}m by ${st.name}.` });
         return;
       }
 
       case "untimeout": {
         if (!can(st, "moderate")) return;
-        timeouts.delete(String(d.name || ""));
-        send(ws, { type: "error", text: `Timeout lifted for ${d.name}.` });
+        const target = String(d.name || "");
+        liftSanction(target, "mute");
+        send(ws, { type: "system", text: `Timeout lifted for ${target}.` });
+        return;
+      }
+
+      case "ban": {
+        if (!can(st, "ban")) return fail(ws, "Only admins can ban.");
+        const target = String(d.name || "");
+        if (!target || target === st.name || !outranks(st, target)) {
+          return fail(ws, "You can't ban someone at or above your own role.");
+        }
+        const hours = d.hours == null ? null : Math.min(Math.max(Number(d.hours) || 24, 1), 24 * 365);
+        banUser(target, { hours, reason: d.reason, by: st.name });
+        broadcast({ type: "system", text: `${target} was banned ${hours ? `for ${hours}h` : "permanently"} by ${st.name}.` });
+        return;
+      }
+
+      case "unban": {
+        if (!can(st, "ban")) return;
+        const target = String(d.name || "");
+        liftSanction(target, "ban");
+        send(ws, { type: "system", text: `${target} was unbanned.` });
         return;
       }
 
@@ -398,6 +478,77 @@ wss.on("connection", (ws, _req, session) => {
   });
 });
 
+function clean(text) {
+  return String(text || "").replace(/[ \t]+/g, " ").trim().slice(0, MAX_LEN);
+}
+
+/* ---- used by the admin dashboard and account routes ---- */
+
+/* Close every socket a name holds. */
+export function kickUser(username, code = 4004, reason = "kicked") {
+  let n = 0;
+  for (const [ws, st] of clients) {
+    if (st.name !== username) continue;
+    try {
+      ws.close(code, reason);
+    } catch (_) {}
+    n++;
+  }
+  return n;
+}
+
+function ipOf(username) {
+  return [...clients.values()].find((c) => c.name === username && !c.account)?.ip || null;
+}
+
+export function muteUser(username, { minutes = 5, reason = "", by }) {
+  sanction({
+    username,
+    kind: "mute",
+    until: Date.now() + minutes * 60_000,
+    reason,
+    by,
+    ip: ipOf(username),
+  });
+}
+
+export function banUser(username, { hours = null, reason = "", by }) {
+  // a guest's ban also follows their address, or a fresh guest id walks around it
+  const ip = ipOf(username);
+  sanction({ username, kind: "ban", until: hours ? Date.now() + hours * 3_600_000 : null, reason, by, ip });
+  for (const [ws, st] of clients) {
+    if (st.name === username || (ip && !st.account && st.ip === ip)) {
+      send(ws, { type: "banned", until: hours ? Date.now() + hours * 3_600_000 : null, reason });
+      try {
+        ws.close(4003, "banned");
+      } catch (_) {}
+    }
+  }
+}
+
+/* A pinned-style notice shown to everyone connected. */
+export function announce(text, by) {
+  const t = clean(text).slice(0, 500);
+  if (!t) return false;
+  broadcast({ type: "announce", text: t, by, at: Date.now() });
+  return true;
+}
+
+/* Roles or profiles changed outside the socket (admin dashboard). */
+export function refreshMembers() {
+  broadcast({ type: "members", members: roster(), profiles: allProfiles() });
+}
+
+export function onlineList() {
+  return [...clients.values()].map((st) => ({
+    name: st.name,
+    account: st.account,
+    role: roleOf(st),
+    since: st.since,
+    ip: st.account ? null : st.ip,
+  }));
+}
+
 /* Drop connections that stopped answering, so presence stays honest. */
 const heartbeat = setInterval(() => {
   for (const ws of clients.keys()) {
@@ -413,9 +564,9 @@ const heartbeat = setInterval(() => {
 }, 30_000);
 heartbeat.unref?.();
 
-export function handleChatUpgrade(req, socket, head, session) {
+export function handleChatUpgrade(req, socket, head, session, ip) {
   wss.handleUpgrade(req, socket, head, (ws) => {
-    wss.emit("connection", ws, req, session);
+    wss.emit("connection", ws, req, session, ip);
   });
 }
 

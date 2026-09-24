@@ -50,6 +50,27 @@ db.exec(`
     created_at  INTEGER NOT NULL
   );
 
+  CREATE TABLE IF NOT EXISTS reactions (
+    message_id  INTEGER NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+    username    TEXT NOT NULL,
+    emoji       TEXT NOT NULL,
+    created_at  INTEGER NOT NULL,
+    PRIMARY KEY (message_id, username, emoji)
+  );
+
+  -- mutes (can read, can't post) and bans (can't use chat at all).
+  -- until is NULL for permanent. ip lets a guest ban stick past a new guest id.
+  CREATE TABLE IF NOT EXISTS sanctions (
+    username    TEXT NOT NULL,
+    kind        TEXT NOT NULL,
+    until       INTEGER,
+    reason      TEXT NOT NULL DEFAULT '',
+    by          TEXT NOT NULL,
+    ip          TEXT,
+    created_at  INTEGER NOT NULL,
+    PRIMARY KEY (username, kind)
+  );
+
   CREATE INDEX IF NOT EXISTS idx_messages_created ON messages(created_at);
 `);
 
@@ -69,8 +90,14 @@ addColumn("users", "color", "TEXT");
 addColumn("users", "bio", "TEXT NOT NULL DEFAULT ''");
 addColumn("messages", "channel", "TEXT NOT NULL DEFAULT 'general'");
 addColumn("messages", "deleted", "INTEGER NOT NULL DEFAULT 0");
+addColumn("messages", "reply_to", "INTEGER");
+addColumn("messages", "edited_at", "INTEGER");
+// bumped to invalidate every token issued before (password change, sign out everywhere)
+addColumn("users", "token_version", "INTEGER NOT NULL DEFAULT 0");
 
 db.exec("CREATE INDEX IF NOT EXISTS idx_messages_channel ON messages(channel, id)");
+db.exec("CREATE INDEX IF NOT EXISTS idx_reactions_message ON reactions(message_id)");
+db.exec("CREATE INDEX IF NOT EXISTS idx_sanctions_ip ON sanctions(ip)");
 
 /* ---- default channels ---- */
 const DEFAULT_CHANNELS = [
@@ -109,17 +136,31 @@ const q = {
   allUsers: db.prepare(
     "SELECT username, role, display_name, color, bio, last_seen FROM users ORDER BY username"
   ),
+  adminUsers: db.prepare(
+    "SELECT username, role, display_name, created_at, last_seen FROM users ORDER BY last_seen DESC"
+  ),
+  setPassword: db.prepare(
+    "UPDATE users SET password_hash = ?, token_version = token_version + 1 WHERE username = ?"
+  ),
+  bumpTokens: db.prepare("UPDATE users SET token_version = token_version + 1 WHERE username = ?"),
+  deleteUser: db.prepare("DELETE FROM users WHERE username = ?"),
+  deleteUserMessages: db.prepare("DELETE FROM messages WHERE username = ?"),
+  deleteUserReactions: db.prepare("DELETE FROM reactions WHERE username = ?"),
+  deleteUserSanctions: db.prepare("DELETE FROM sanctions WHERE username = ?"),
+  allDMChannels: db.prepare("SELECT DISTINCT channel FROM messages WHERE channel LIKE 'dm:%'"),
+  messageCount: db.prepare("SELECT COUNT(*) AS n FROM messages WHERE deleted = 0"),
 
   addMessage: db.prepare(
-    "INSERT INTO messages (username, account, text, created_at, channel) VALUES (?, ?, ?, ?, ?)"
+    "INSERT INTO messages (username, account, text, created_at, channel, reply_to) VALUES (?, ?, ?, ?, ?, ?)"
   ),
+  editMessage: db.prepare("UPDATE messages SET text = ?, edited_at = ? WHERE id = ?"),
   getMessage: db.prepare("SELECT * FROM messages WHERE id = ?"),
   channelMessages: db.prepare(
-    "SELECT id, username, account, text, created_at, channel FROM messages" +
+    "SELECT id, username, account, text, created_at, channel, reply_to, edited_at, deleted FROM messages" +
       " WHERE channel = ? AND deleted = 0 ORDER BY id DESC LIMIT ?"
   ),
   olderMessages: db.prepare(
-    "SELECT id, username, account, text, created_at, channel FROM messages" +
+    "SELECT id, username, account, text, created_at, channel, reply_to, edited_at, deleted FROM messages" +
       " WHERE channel = ? AND deleted = 0 AND id < ? ORDER BY id DESC LIMIT ?"
   ),
   softDelete: db.prepare("UPDATE messages SET deleted = 1 WHERE id = ?"),
@@ -140,6 +181,33 @@ const q = {
   updateChannel: db.prepare("UPDATE channels SET name = ?, topic = ?, locked = ? WHERE id = ?"),
   deleteChannel: db.prepare("DELETE FROM channels WHERE id = ?"),
   maxPosition: db.prepare("SELECT COALESCE(MAX(position), 0) AS p FROM channels"),
+
+  reactionsFor: db.prepare(
+    "SELECT emoji, username FROM reactions WHERE message_id = ? ORDER BY created_at"
+  ),
+  hasReaction: db.prepare(
+    "SELECT 1 FROM reactions WHERE message_id = ? AND username = ? AND emoji = ?"
+  ),
+  addReaction: db.prepare(
+    "INSERT OR IGNORE INTO reactions (message_id, username, emoji, created_at) VALUES (?, ?, ?, ?)"
+  ),
+  removeReaction: db.prepare(
+    "DELETE FROM reactions WHERE message_id = ? AND username = ? AND emoji = ?"
+  ),
+  reactionKinds: db.prepare(
+    "SELECT COUNT(DISTINCT emoji) AS n FROM reactions WHERE message_id = ?"
+  ),
+
+  upsertSanction: db.prepare(
+    "INSERT INTO sanctions (username, kind, until, reason, by, ip, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)" +
+      " ON CONFLICT(username, kind) DO UPDATE SET until = excluded.until, reason = excluded.reason," +
+      " by = excluded.by, ip = excluded.ip, created_at = excluded.created_at"
+  ),
+  getSanction: db.prepare("SELECT * FROM sanctions WHERE username = ? AND kind = ?"),
+  ipSanction: db.prepare("SELECT * FROM sanctions WHERE ip = ? AND kind = ?"),
+  liftSanction: db.prepare("DELETE FROM sanctions WHERE username = ? AND kind = ?"),
+  expireSanctions: db.prepare("DELETE FROM sanctions WHERE until IS NOT NULL AND until <= ?"),
+  allSanctions: db.prepare("SELECT * FROM sanctions ORDER BY created_at DESC"),
 };
 
 for (const c of DEFAULT_CHANNELS) {
@@ -178,6 +246,53 @@ export function setRole(username, role) {
   if (!q.getUser.get(username)) return false;
   q.setRole.run(role, username);
   return true;
+}
+
+export function tokenVersion(username) {
+  return q.getUser.get(username)?.token_version ?? null;
+}
+
+export function setPassword(username, passwordHash) {
+  q.setPassword.run(passwordHash, username);
+}
+
+export function bumpTokenVersion(username) {
+  q.bumpTokens.run(username);
+}
+
+/* Remove an account and everything that is only theirs. */
+export function deleteUser(username) {
+  if (username === OWNER) return false;
+  db.exec("BEGIN");
+  try {
+    // matched in JS, not LIKE: "_" in a username is a LIKE wildcard
+    for (const { channel } of q.allDMChannels.all()) {
+      if ((dmMembers(channel) || []).includes(username)) q.purgeChannel.run(channel);
+    }
+    q.deleteUserMessages.run(username);
+    q.deleteUserReactions.run(username);
+    q.deleteUserSanctions.run(username);
+    q.deleteUser.run(username);
+    db.exec("COMMIT");
+  } catch (err) {
+    db.exec("ROLLBACK");
+    throw err;
+  }
+  return true;
+}
+
+export function adminUsers() {
+  return q.adminUsers.all().map((u) => ({
+    username: u.username,
+    role: u.role || "member",
+    displayName: u.display_name || u.username,
+    createdAt: u.created_at,
+    lastSeen: u.last_seen,
+  }));
+}
+
+export function messageCount() {
+  return q.messageCount.get().n;
 }
 
 export function setProfile(username, { displayName, color, bio }) {
@@ -294,12 +409,29 @@ export function dmsFor(username) {
 
 /* ---- messages ---- */
 
-export function saveMessage({ username, account, text, channel }) {
+export function saveMessage({ username, account, text, channel, replyTo = null }) {
   const createdAt = Date.now();
-  const info = q.addMessage.run(username, account ? 1 : 0, text, createdAt, channel);
+  const info = q.addMessage.run(username, account ? 1 : 0, text, createdAt, channel, replyTo);
   const id = Number(info.lastInsertRowid);
   if (id % 50 === 0) q.trimChannel.run(channel, channel);
-  return { id, username, account: Boolean(account), text, createdAt, channel };
+  return shape(q.getMessage.get(id));
+}
+
+/* A short preview of the message being replied to, or a stub if it is gone. */
+function replyPreview(id) {
+  if (!id) return null;
+  const p = q.getMessage.get(id);
+  if (!p || p.deleted) return { id, missing: true };
+  return { id: p.id, username: p.username, text: p.text.slice(0, 140) };
+}
+
+export function reactionsOf(id) {
+  const byEmoji = new Map();
+  for (const r of q.reactionsFor.all(id)) {
+    if (!byEmoji.has(r.emoji)) byEmoji.set(r.emoji, []);
+    byEmoji.get(r.emoji).push(r.username);
+  }
+  return [...byEmoji].map(([emoji, users]) => ({ emoji, users }));
 }
 
 const shape = (m) => ({
@@ -309,6 +441,9 @@ const shape = (m) => ({
   text: m.text,
   createdAt: m.created_at,
   channel: m.channel,
+  editedAt: m.edited_at || null,
+  replyTo: replyPreview(m.reply_to),
+  reactions: reactionsOf(m.id),
 });
 
 export function channelMessages(channel, limit = 60) {
@@ -321,11 +456,62 @@ export function olderMessages(channel, beforeId, limit = 40) {
 
 export function getMessage(id) {
   const m = q.getMessage.get(id);
-  return m ? shape(m) : null;
+  return m && !m.deleted ? shape(m) : null;
+}
+
+export function editMessage(id, text) {
+  q.editMessage.run(text, Date.now(), id);
+  return getMessage(id);
 }
 
 export function deleteMessage(id) {
   q.softDelete.run(id);
+}
+
+/* Toggle one user's emoji on a message. Returns the new reaction list. */
+export const MAX_REACTION_KINDS = 20;
+export function toggleReaction(id, username, emoji) {
+  if (q.hasReaction.get(id, username, emoji)) {
+    q.removeReaction.run(id, username, emoji);
+  } else {
+    const kinds = q.reactionKinds.get(id).n;
+    const exists = reactionsOf(id).some((r) => r.emoji === emoji);
+    if (!exists && kinds >= MAX_REACTION_KINDS) return null;
+    q.addReaction.run(id, username, emoji, Date.now());
+  }
+  return reactionsOf(id);
+}
+
+/* ---- mutes and bans ---- */
+
+const liveSanction = (row) => (row && (row.until == null || row.until > Date.now()) ? row : null);
+
+export function sanction({ username, kind, until = null, reason = "", by, ip = null }) {
+  q.upsertSanction.run(username, kind, until, String(reason).slice(0, 200), by, ip, Date.now());
+}
+
+export function liftSanction(username, kind) {
+  return q.liftSanction.run(username, kind).changes > 0;
+}
+
+/* The active mute/ban for a name, or for the address a guest connects from. */
+export function activeSanction(username, kind, ip = null) {
+  const byName = liveSanction(q.getSanction.get(username, kind));
+  if (byName) return byName;
+  if (ip) return liveSanction(q.ipSanction.get(ip, kind));
+  return null;
+}
+
+export function listSanctions() {
+  q.expireSanctions.run(Date.now());
+  return q.allSanctions.all().map((s) => ({
+    username: s.username,
+    kind: s.kind,
+    until: s.until,
+    reason: s.reason,
+    by: s.by,
+    createdAt: s.created_at,
+  }));
 }
 
 export default db;

@@ -18,6 +18,11 @@ services:
     #   sizeGB: 1
 
     envVars:
+      # Marks session cookies Secure (https only). The server also detects
+      # Render on its own, but set it anyway for clarity.
+      - key: NODE_ENV
+        value: production
+
       - key: XENV_API_KEY
         sync: false
 

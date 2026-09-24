@@ -16,15 +16,50 @@ import jwt from "jsonwebtoken";
 import { scramjetPath } from "@mercuryworkshop/scramjet/path";
 import { server as wisp } from "@mercuryworkshop/wisp-js/server";
 import { Sandbox } from "@e2b/desktop";
-import { getUser, createUser, touchUser, userCount } from "./db.js";
-import { handleChatUpgrade, onlineCount } from "./chat.js";
-import { handleRemoteUpgrade, authorizeRemote, remoteStatus } from "./remote.js";
+import {
+  getUser,
+  createUser,
+  touchUser,
+  userCount,
+  tokenVersion,
+  setPassword,
+  bumpTokenVersion,
+  deleteUser,
+  adminUsers,
+  messageCount,
+  setRole,
+  ROLES,
+  listSanctions,
+  liftSanction,
+} from "./db.js";
+import {
+  handleChatUpgrade,
+  onlineCount,
+  onlineList,
+  kickUser,
+  muteUser,
+  banUser,
+  announce,
+  refreshMembers,
+} from "./chat.js";
+import {
+  handleRemoteUpgrade,
+  authorizeRemote,
+  remoteStatus,
+  remoteDetail,
+  cleanAgentName,
+} from "./remote.js";
+import { clientIp, createLimiter, limitByIp, formatWait } from "./security.js";
 
 const require = createRequire(import.meta.url);
 const dirOf = (specifier) => path.dirname(require.resolve(specifier));
 
 const app = express();
 const server = http.createServer(app);
+
+// Render terminates TLS in front of us: trust its one proxy hop, so req.ip
+// is the visitor and req.secure reflects the original https request.
+app.set("trust proxy", 1);
 
 const PORT = process.env.PORT || 3000;
 const XENV_API_KEY = process.env.XENV_API_KEY;
@@ -34,6 +69,10 @@ const AUTH_SECRET = process.env.AUTH_SECRET;
 const XENV = "https://loremgroup.org";
 const GUEST_VM_TIMEOUT_MS = 30 * 60 * 1000;
 const ACCOUNT_VM_TIMEOUT_MS = 60 * 60 * 1000;
+// Render sets RENDER=true on every service, so cookies are Secure there even
+// if NODE_ENV was never configured.
+const IS_PROD = process.env.NODE_ENV === "production" || Boolean(process.env.RENDER);
+const STARTED_AT = Date.now();
 
 if (!AUTH_SECRET) {
   throw new Error("AUTH_SECRET is not configured.");
@@ -55,33 +94,48 @@ server.on("upgrade", (req, socket, head) => {
 
   if (upgradePath === "/chat/") {
     const session = getSessionFromCookieHeader(req.headers.cookie);
-    if (!session) {
-      socket.write("HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n");
-      socket.destroy();
-      return;
-    }
-    handleChatUpgrade(req, socket, head, session);
+    if (!session) return refuseUpgrade(socket, 401, "Unauthorized");
+    handleChatUpgrade(req, socket, head, session, clientIp(req));
     return;
   }
 
   if (upgradePath === "/remote/") {
     const q = new URL(req.url ?? "/", "http://localhost").searchParams;
+    const ip = clientIp(req);
     const role = authorizeRemote({
       role: q.get("role"),
-      key: q.get("key") || "",
       session: getSessionFromCookieHeader(req.headers.cookie),
+      authHeader: req.headers.authorization,
+      ip,
     });
-    if (!role) {
-      socket.write("HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n");
-      socket.destroy();
-      return;
-    }
-    handleRemoteUpgrade(req, socket, head, role);
+    if (typeof role !== "string") return refuseUpgrade(socket, role.status, role.error);
+    const name = role === "agent" ? cleanAgentName(q.get("name")) : null;
+    if (role === "agent") logEvent("remote", `PC "${name}" connected`);
+    handleRemoteUpgrade(req, socket, head, { role, name, ip });
     return;
   }
 
   socket.end();
 });
+
+function refuseUpgrade(socket, status, reason) {
+  socket.write(`HTTP/1.1 ${status} ${String(reason).replace(/[\r\n]/g, " ")}\r\nConnection: close\r\n\r\n`);
+  socket.destroy();
+}
+
+/*
+|--------------------------------------------------------------------------
+| Activity log
+|
+| A short in-memory feed for the owner's dashboard: sign-ups, logins, VM
+| launches, moderation. Nothing sensitive (no passwords, no keys).
+|--------------------------------------------------------------------------
+*/
+const activity = [];
+function logEvent(kind, text) {
+  activity.push({ at: Date.now(), kind, text });
+  if (activity.length > 300) activity.splice(0, activity.length - 300);
+}
 
 /*
 |--------------------------------------------------------------------------
@@ -297,13 +351,13 @@ app.get("/cloud/app/:file?", async (req, res) => {
 
 app.use(express.static(publicDir));
 
-const guestSessions = new Map();
-const e2bSandboxes = new Map();
+const e2bSandboxes = new Map(); // sandboxId -> { sandbox, owner, startedAt, expiresAt }
+const xenvVMs = new Map(); // container id -> { owner, startedAt, expiresAt }
 
 function cookieOptions() {
   return {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    secure: IS_PROD,
     sameSite: "lax",
     maxAge: 7 * 24 * 60 * 60 * 1000,
   };
@@ -313,14 +367,28 @@ function createToken(payload) {
   return jwt.sign(payload, AUTH_SECRET, { expiresIn: "7d" });
 }
 
-function getSession(req) {
-  const token = req.cookies.vm_session;
-  if (!token) return null;
+/* Account tokens carry the user's token version: bumping it signs out everywhere. */
+function accountToken(username) {
+  return createToken({ type: "account", username, tv: tokenVersion(username) ?? 0 });
+}
+
+function verifyToken(token) {
+  let payload;
   try {
-    return jwt.verify(token, AUTH_SECRET);
+    payload = jwt.verify(token, AUTH_SECRET);
   } catch (_) {
     return null;
   }
+  if (payload.type === "account") {
+    const tv = tokenVersion(payload.username);
+    if (tv == null || (payload.tv ?? 0) !== tv) return null; // deleted, or signed out
+  }
+  return payload;
+}
+
+function getSession(req) {
+  const token = req.cookies.vm_session;
+  return token ? verifyToken(token) : null;
 }
 
 function getSessionFromCookieHeader(header) {
@@ -328,10 +396,15 @@ function getSessionFromCookieHeader(header) {
   const match = /(?:^|;\s*)vm_session=([^;]+)/.exec(header);
   if (!match) return null;
   try {
-    return jwt.verify(decodeURIComponent(match[1]), AUTH_SECRET);
+    return verifyToken(decodeURIComponent(match[1]));
   } catch (_) {
     return null;
   }
+}
+
+function sessionLabel(session) {
+  if (!session) return "unknown";
+  return session.type === "account" ? session.username : `guest-${String(session.guestId || "").slice(0, 6)}`;
 }
 
 function requireSession(req, res, next) {
@@ -341,6 +414,23 @@ function requireSession(req, res, next) {
       error: "Please create an account, log in, or continue as a guest.",
     });
   }
+  req.vmSession = session;
+  next();
+}
+
+function requireAccount(req, res, next) {
+  const session = getSession(req);
+  if (!session || session.type !== "account") {
+    return res.status(401).json({ error: "Sign in to an account first." });
+  }
+  req.vmSession = session;
+  next();
+}
+
+function requireOwner(req, res, next) {
+  const session = getSession(req);
+  const user = session?.type === "account" ? getUser(session.username) : null;
+  if (!user || user.role !== "owner") return res.status(403).json({ error: "Owner only." });
   req.vmSession = session;
   next();
 }
@@ -361,7 +451,24 @@ function getVmSeconds(req) {
 |--------------------------------------------------------------------------
 */
 
-app.post("/api/auth/register", async (req, res) => {
+/*
+ * Brute-force protection. Per address for everything, plus per username for
+ * failed passwords, so spreading guesses across addresses does not help.
+ */
+const registerLimiter = createLimiter({ windowMs: 60 * 60_000, max: 5 });
+const loginIpLimiter = createLimiter({ windowMs: 15 * 60_000, max: 20 });
+const passwordFailLimiter = createLimiter({ windowMs: 15 * 60_000, max: 8 });
+const guestLimiter = createLimiter({ windowMs: 60 * 60_000, max: 30 });
+
+function passwordLocked(username, res) {
+  const wait = passwordFailLimiter.peek(username);
+  if (!wait) return false;
+  res.set("Retry-After", String(wait));
+  res.status(429).json({ error: `Too many wrong passwords for this account. Try again in ${formatWait(wait)}.` });
+  return true;
+}
+
+app.post("/api/auth/register", limitByIp(registerLimiter, "Too many new accounts from your network."), async (req, res) => {
   const username = String(req.body?.username || "").trim().toLowerCase();
   const password = String(req.body?.password || "");
 
@@ -379,16 +486,20 @@ app.post("/api/auth/register", async (req, res) => {
   }
 
   const passwordHash = await bcrypt.hash(password, 12);
-  createUser(username, passwordHash);
+  if (getUser(username)) {
+    return res.status(409).json({ error: "That username is already taken." });
+  }
+  const created = createUser(username, passwordHash);
+  logEvent("account", `${username} signed up`);
 
-  const token = createToken({ type: "account", username });
-  res.cookie("vm_session", token, cookieOptions());
-  return res.json({ ok: true, account: true, username, vmMinutes: 60 });
+  res.cookie("vm_session", accountToken(username), cookieOptions());
+  return res.json({ ok: true, account: true, username, role: created.role, vmMinutes: 60 });
 });
 
-app.post("/api/auth/login", async (req, res) => {
+app.post("/api/auth/login", limitByIp(loginIpLimiter, "Too many sign-in attempts from your network."), async (req, res) => {
   const username = String(req.body?.username || "").trim().toLowerCase();
   const password = String(req.body?.password || "");
+  if (passwordLocked(username, res)) return;
   const user = getUser(username);
 
   if (!user) {
@@ -397,38 +508,238 @@ app.post("/api/auth/login", async (req, res) => {
 
   const valid = await bcrypt.compare(password, user.password_hash);
   if (!valid) {
+    passwordFailLimiter.hit(username);
     return res.status(401).json({ error: "Invalid username or password." });
   }
 
+  passwordFailLimiter.reset(username);
   touchUser(username);
+  logEvent("login", `${username} signed in`);
 
-  const token = createToken({ type: "account", username });
-  res.cookie("vm_session", token, cookieOptions());
-  return res.json({ ok: true, account: true, username, vmMinutes: 60 });
+  res.cookie("vm_session", accountToken(username), cookieOptions());
+  return res.json({ ok: true, account: true, username, role: getUser(username).role, vmMinutes: 60 });
 });
 
-app.post("/api/auth/guest", (req, res) => {
+app.post("/api/auth/guest", limitByIp(guestLimiter, "Too many guest sessions from your network."), (req, res) => {
   const guestId = crypto.randomUUID();
-  guestSessions.set(guestId, { createdAt: Date.now() });
   const token = createToken({ type: "guest", guestId });
   res.cookie("vm_session", token, { ...cookieOptions(), maxAge: GUEST_VM_TIMEOUT_MS });
-  return res.json({ ok: true, account: false, username: "Guest", vmMinutes: 30 });
+  return res.json({ ok: true, account: false, username: "Guest", role: "guest", vmMinutes: 30 });
 });
 
 app.get("/api/auth/me", (req, res) => {
   const session = getSession(req);
   if (!session) return res.json({ loggedIn: false });
+  const account = session.type === "account";
   return res.json({
     loggedIn: true,
-    account: session.type === "account",
-    username: session.type === "account" ? session.username : "Guest",
-    vmMinutes: session.type === "account" ? 60 : 30,
+    account,
+    username: account ? session.username : "Guest",
+    role: account ? getUser(session.username)?.role || "member" : "guest",
+    vmMinutes: account ? 60 : 30,
   });
 });
 
 app.post("/api/auth/logout", (req, res) => {
   res.clearCookie("vm_session", cookieOptions());
   return res.json({ ok: true });
+});
+
+/*
+|--------------------------------------------------------------------------
+| Account management
+|--------------------------------------------------------------------------
+*/
+
+async function checkPassword(req, res) {
+  const username = req.vmSession.username;
+  if (passwordLocked(username, res)) return false;
+  const user = getUser(username);
+  const ok = user && (await bcrypt.compare(String(req.body?.password || ""), user.password_hash));
+  if (!ok) {
+    passwordFailLimiter.hit(username);
+    res.status(401).json({ error: "That password isn't right." });
+    return false;
+  }
+  passwordFailLimiter.reset(username);
+  return true;
+}
+
+app.post("/api/account/password", requireAccount, async (req, res) => {
+  const next = String(req.body?.newPassword || "");
+  if (next.length < 8) return res.status(400).json({ error: "New password must be at least 8 characters." });
+  if (next.length > 200) return res.status(400).json({ error: "That password is too long." });
+  if (!(await checkPassword(req, res))) return;
+
+  const username = req.vmSession.username;
+  setPassword(username, await bcrypt.hash(next, 12)); // also signs out every other session
+  kickUser(username, 4005, "signed out");
+  logEvent("account", `${username} changed their password`);
+  res.cookie("vm_session", accountToken(username), cookieOptions());
+  res.json({ ok: true });
+});
+
+app.post("/api/account/signout-others", requireAccount, (req, res) => {
+  const username = req.vmSession.username;
+  bumpTokenVersion(username);
+  kickUser(username, 4005, "signed out"); // this tab reconnects with its fresh cookie
+  logEvent("account", `${username} signed out other devices`);
+  res.cookie("vm_session", accountToken(username), cookieOptions());
+  res.json({ ok: true });
+});
+
+app.post("/api/account/delete", requireAccount, async (req, res) => {
+  const username = req.vmSession.username;
+  if (getUser(username)?.role === "owner") {
+    return res.status(400).json({ error: "The owner account can't be deleted." });
+  }
+  if (String(req.body?.confirm || "") !== username) {
+    return res.status(400).json({ error: "Type your username to confirm." });
+  }
+  if (!(await checkPassword(req, res))) return;
+
+  kickUser(username, 4005, "deleted");
+  deleteUser(username);
+  logEvent("account", `${username} deleted their account`);
+  res.clearCookie("vm_session", cookieOptions());
+  res.json({ ok: true });
+});
+
+/*
+|--------------------------------------------------------------------------
+| Owner dashboard
+|--------------------------------------------------------------------------
+*/
+
+function vmList() {
+  const now = Date.now();
+  const e2b = [...e2bSandboxes].map(([id, v]) => ({
+    id, kind: "e2b", owner: v.owner, startedAt: v.startedAt, expiresAt: v.expiresAt,
+  }));
+  const gpu = [...xenvVMs].map(([id, v]) => ({
+    id, kind: "gpu", owner: v.owner, startedAt: v.startedAt, expiresAt: v.expiresAt,
+  }));
+  return [...e2b, ...gpu].filter((v) => !v.expiresAt || v.expiresAt > now);
+}
+
+app.get("/api/admin/overview", requireOwner, (_req, res) => {
+  const mem = process.memoryUsage();
+  const vms = vmList();
+  res.json({
+    server: {
+      startedAt: STARTED_AT,
+      uptime: Math.floor(process.uptime()),
+      node: process.version,
+      rssMb: Math.round(mem.rss / 1048576),
+      heapMb: Math.round(mem.heapUsed / 1048576),
+      e2bConfigured: Boolean(E2B_API_KEY),
+      xenvConfigured: Boolean(XENV_API_KEY),
+    },
+    counts: {
+      accounts: userCount(),
+      online: onlineCount(),
+      messages: messageCount(),
+      vms: vms.length,
+    },
+    vms,
+    online: onlineList(),
+    users: adminUsers(),
+    sanctions: listSanctions(),
+    remote: remoteDetail(),
+    activity: activity.slice(-120).reverse(),
+  });
+});
+
+app.post("/api/admin/vms/:id/kill", requireOwner, async (req, res) => {
+  const id = req.params.id;
+  if (e2bSandboxes.has(id)) {
+    await killE2B(id);
+  } else if (xenvVMs.has(id)) {
+    if (XENV_API_KEY) {
+      await fetch(`${XENV}/api/delete/${encodeURIComponent(id)}`, {
+        headers: { "X-API-Key": XENV_API_KEY },
+      }).catch(() => {});
+    }
+    xenvVMs.delete(id);
+  } else {
+    return res.status(404).json({ error: "No such VM." });
+  }
+  logEvent("admin", `${req.vmSession.username} stopped VM ${id.slice(0, 10)}`);
+  res.json({ ok: true });
+});
+
+function targetName(req) {
+  return String(req.params.name || "").trim().toLowerCase();
+}
+
+app.post("/api/admin/users/:name/role", requireOwner, (req, res) => {
+  const name = targetName(req);
+  const role = String(req.body?.role || "");
+  if (!ROLES.includes(role) || role === "owner") return res.status(400).json({ error: "Pick admin, mod or member." });
+  if (!setRole(name, role)) return res.status(400).json({ error: "Can't change that account's role." });
+  refreshMembers();
+  logEvent("admin", `${name} is now ${role}`);
+  res.json({ ok: true });
+});
+
+app.post("/api/admin/users/:name/signout", requireOwner, (req, res) => {
+  const name = targetName(req);
+  if (!getUser(name)) return res.status(404).json({ error: "No such account." });
+  if (name === req.vmSession.username) return res.status(400).json({ error: "Use Account settings for yourself." });
+  bumpTokenVersion(name);
+  kickUser(name, 4005, "signed out");
+  logEvent("admin", `${name} was signed out everywhere`);
+  res.json({ ok: true });
+});
+
+app.post("/api/admin/users/:name/kick", requireOwner, (req, res) => {
+  const name = String(req.params.name || "");
+  const n = kickUser(name);
+  if (n) logEvent("admin", `${name} was kicked from chat`);
+  res.json({ ok: true, closed: n });
+});
+
+app.post("/api/admin/users/:name/mute", requireOwner, (req, res) => {
+  const name = String(req.params.name || "");
+  if (name === req.vmSession.username) return res.status(400).json({ error: "You can't mute yourself." });
+  const minutes = Math.min(Math.max(Number(req.body?.minutes) || 10, 1), 7 * 24 * 60);
+  muteUser(name, { minutes, reason: req.body?.reason, by: req.vmSession.username });
+  logEvent("admin", `${name} was muted for ${minutes}m`);
+  res.json({ ok: true });
+});
+
+app.post("/api/admin/users/:name/ban", requireOwner, (req, res) => {
+  const name = String(req.params.name || "");
+  if (name === req.vmSession.username) return res.status(400).json({ error: "You can't ban yourself." });
+  const hours = req.body?.hours == null ? null : Math.min(Math.max(Number(req.body.hours) || 24, 1), 24 * 365);
+  banUser(name, { hours, reason: req.body?.reason, by: req.vmSession.username });
+  logEvent("admin", `${name} was banned ${hours ? `for ${hours}h` : "permanently"}`);
+  res.json({ ok: true });
+});
+
+app.delete("/api/admin/sanctions/:name/:kind", requireOwner, (req, res) => {
+  const kind = req.params.kind === "ban" ? "ban" : "mute";
+  liftSanction(String(req.params.name || ""), kind);
+  logEvent("admin", `${req.params.name}'s ${kind} was lifted`);
+  res.json({ ok: true });
+});
+
+app.delete("/api/admin/users/:name", requireOwner, (req, res) => {
+  const name = targetName(req);
+  const user = getUser(name);
+  if (!user) return res.status(404).json({ error: "No such account." });
+  if (user.role === "owner") return res.status(400).json({ error: "The owner account can't be deleted." });
+  kickUser(name, 4005, "deleted");
+  deleteUser(name);
+  refreshMembers();
+  logEvent("admin", `${name}'s account was deleted`);
+  res.json({ ok: true });
+});
+
+app.post("/api/admin/announce", requireOwner, (req, res) => {
+  if (!announce(req.body?.text, req.vmSession.username)) return res.status(400).json({ error: "Write something first." });
+  logEvent("admin", `announcement: ${String(req.body.text).slice(0, 60)}`);
+  res.json({ ok: true });
 });
 
 /*
@@ -477,12 +788,20 @@ app.get("/api/launch", requireSession, async (req, res) => {
     );
     const data = await response.json();
     if (!response.ok) return res.status(response.status).json(data);
+    if (data.status === "success" && data.container_id) trackXenv(data.container_id, req.vmSession, deleteAfter);
     res.json(data);
   } catch (err) {
     console.error("XENV launch error:", err);
     res.status(500).json({ error: err.message || "XENV launch failed." });
   }
 });
+
+function trackXenv(id, session, seconds) {
+  const owner = sessionLabel(session);
+  xenvVMs.set(id, { owner, startedAt: Date.now(), expiresAt: Date.now() + seconds * 1000 });
+  setTimeout(() => xenvVMs.delete(id), seconds * 1000).unref?.();
+  logEvent("vm", `${owner} started a GPU VM`);
+}
 
 /*
 |--------------------------------------------------------------------------
@@ -502,6 +821,10 @@ app.get("/api/queue", async (req, res) => {
     );
     const data = await response.json();
     if (!response.ok) return res.status(response.status).json(data);
+    if (data.status === "allocated" && data.container_id && !xenvVMs.has(data.container_id)) {
+      const session = getSession(req);
+      trackXenv(data.container_id, session, Math.floor((session?.type === "account" ? ACCOUNT_VM_TIMEOUT_MS : GUEST_VM_TIMEOUT_MS) / 1000));
+    }
     res.json(data);
   } catch (err) {
     console.error("Queue error:", err);
@@ -538,7 +861,11 @@ app.post("/api/e2b/start", requireSession, async (req, res) => {
     const streamUrl = sandbox.stream.getUrl({ authKey, autoConnect: true, resize: "scale", viewOnly: false });
     if (!streamUrl) throw new Error("E2B did not return a stream URL.");
 
-    e2bSandboxes.set(sandboxId, sandbox);
+    const owner = sessionLabel(req.vmSession);
+    e2bSandboxes.set(sandboxId, { sandbox, owner, startedAt: Date.now(), expiresAt: Date.now() + timeoutMs });
+    // E2B kills it on its own at the timeout; forget it then too
+    setTimeout(() => e2bSandboxes.delete(sandboxId), timeoutMs).unref?.();
+    logEvent("vm", `${owner} started a desktop VM`);
     return res.json({
       status: "success",
       sandboxId,
@@ -561,19 +888,21 @@ app.post("/api/e2b/start", requireSession, async (req, res) => {
 |--------------------------------------------------------------------------
 */
 
+async function killE2B(sandboxId) {
+  const entry = e2bSandboxes.get(sandboxId);
+  if (!entry) return;
+  e2bSandboxes.delete(sandboxId);
+  try { await entry.sandbox.stream.stop(); } catch (_) {}
+  try { await entry.sandbox.kill(); } catch (_) {}
+  console.log(`E2B sandbox killed: ${sandboxId}`);
+}
+
 app.delete("/api/e2b/:id", async (req, res) => {
-  const sandboxId = req.params.id;
   try {
-    const sandbox = e2bSandboxes.get(sandboxId);
-    if (!sandbox) return res.json({ ok: true });
-    try { await sandbox.stream.stop(); } catch (_) {}
-    try { await sandbox.kill(); } catch (_) {}
-    e2bSandboxes.delete(sandboxId);
-    console.log(`E2B sandbox killed: ${sandboxId}`);
+    await killE2B(req.params.id);
     return res.json({ ok: true });
   } catch (err) {
     console.error("E2B delete error:", err);
-    e2bSandboxes.delete(sandboxId);
     return res.status(500).json({ error: err.message || "Failed to delete E2B sandbox." });
   }
 });
@@ -590,6 +919,7 @@ app.delete("/api/vm/:id", async (req, res) => {
     await fetch(`${XENV}/api/delete/${encodeURIComponent(req.params.id)}`, {
       headers: { "X-API-Key": XENV_API_KEY },
     });
+    xenvVMs.delete(req.params.id);
     return res.json({ ok: true });
   } catch (err) {
     console.error("XENV delete error:", err);
@@ -605,12 +935,9 @@ app.delete("/api/vm/:id", async (req, res) => {
 
 async function cleanupE2BSandboxes() {
   console.log("Cleaning up E2B sandboxes...");
-  for (const [sandboxId, sandbox] of e2bSandboxes) {
-    try { await sandbox.stream.stop(); } catch (_) {}
-    try { await sandbox.kill(); } catch (_) {}
-    console.log(`Cleaned up E2B sandbox: ${sandboxId}`);
+  for (const sandboxId of [...e2bSandboxes.keys()]) {
+    await killE2B(sandboxId);
   }
-  e2bSandboxes.clear();
 }
 
 process.on("SIGTERM", async () => { await cleanupE2BSandboxes(); process.exit(0); });
