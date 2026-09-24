@@ -35,10 +35,23 @@ services:
       - key: AUTH_SECRET
         sync: false
 
-      # The account that holds the owner role. Register this username on the
-      # site and it gets owner automatically, now and on every later login.
+      # The account that holds the owner role.
       - key: OWNER_USERNAME
         value: william
+
+      # Locks the owner account. Whenever the database comes up without it
+      # (on the free plan: every deploy and every spin-down), the server
+      # creates OWNER_USERNAME with this password before it accepts any
+      # traffic, so nobody else can register the name first. At least 8
+      # characters. A password you change on the site lasts until the next
+      # wipe, then this one is back.
+      - key: OWNER_PASSWORD
+        sync: false
+
+      # Most VMs the whole site runs at once (default 20). The owner is
+      # exempt, as from the per-person limits.
+      # - key: MAX_LIVE_VMS
+      #   value: "20"
 
       # Secret that gates remote desktop control. Set the SAME value here and
       # when you run the agent on your PC. Leave it unset to keep the feature

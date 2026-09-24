@@ -31,6 +31,7 @@ import {
   ROLES,
   listSanctions,
   liftSanction,
+  ownerName,
 } from "./db.js";
 import {
   handleChatUpgrade,
@@ -351,8 +352,8 @@ app.get("/cloud/app/:file?", async (req, res) => {
 
 app.use(express.static(publicDir));
 
-const e2bSandboxes = new Map(); // sandboxId -> { sandbox, owner, startedAt, expiresAt }
-const xenvVMs = new Map(); // container id -> { owner, startedAt, expiresAt }
+const e2bSandboxes = new Map(); // sandboxId -> { sandbox, owner, who, startedAt, expiresAt }
+const xenvVMs = new Map(); // container id -> { owner, who, startedAt, expiresAt }
 
 function cookieOptions() {
   return {
@@ -427,10 +428,13 @@ function requireAccount(req, res, next) {
   next();
 }
 
+function isOwnerSession(session) {
+  return session?.type === "account" && getUser(session.username)?.role === "owner";
+}
+
 function requireOwner(req, res, next) {
   const session = getSession(req);
-  const user = session?.type === "account" ? getUser(session.username) : null;
-  if (!user || user.role !== "owner") return res.status(403).json({ error: "Owner only." });
+  if (!isOwnerSession(session)) return res.status(403).json({ error: "Owner only." });
   req.vmSession = session;
   next();
 }
@@ -468,6 +472,27 @@ function passwordLocked(username, res) {
   res.set("Retry-After", String(wait));
   res.status(429).json({ error: `Too many wrong passwords for this account. Try again in ${formatWait(wait)}.` });
   return true;
+}
+
+/*
+ * Owner lock. On Render's free plan the database starts empty after every
+ * deploy and every spin-down, and whoever registered OWNER_USERNAME first
+ * would become owner. With OWNER_PASSWORD set, the server creates that
+ * account itself on boot, so the name is never up for grabs. An account that
+ * already exists is left alone, so a password changed on the site sticks
+ * until the next wipe.
+ */
+async function ensureOwnerAccount() {
+  const name = ownerName();
+  const password = process.env.OWNER_PASSWORD || "";
+  if (!password) {
+    if (!getUser(name)) console.warn(`OWNER_PASSWORD is not set: whoever registers "${name}" first becomes owner.`);
+    return;
+  }
+  if (password.length < 8) throw new Error("OWNER_PASSWORD must be at least 8 characters.");
+  if (getUser(name)) return;
+  createUser(name, await bcrypt.hash(password, 12));
+  console.log(`Owner account "${name}" created from OWNER_PASSWORD.`);
 }
 
 app.post("/api/auth/register", limitByIp(registerLimiter, "Too many new accounts from your network."), async (req, res) => {
@@ -657,12 +682,7 @@ app.post("/api/admin/vms/:id/kill", requireOwner, async (req, res) => {
   if (e2bSandboxes.has(id)) {
     await killE2B(id);
   } else if (xenvVMs.has(id)) {
-    if (XENV_API_KEY) {
-      await fetch(`${XENV}/api/delete/${encodeURIComponent(id)}`, {
-        headers: { "X-API-Key": XENV_API_KEY },
-      }).catch(() => {});
-    }
-    xenvVMs.delete(id);
+    await killXenv(id).catch(() => xenvVMs.delete(id));
   } else {
     return res.status(404).json({ error: "No such VM." });
   }
@@ -770,11 +790,99 @@ app.get("/api/health", (req, res) => {
 
 /*
 |--------------------------------------------------------------------------
+| VM limits
+|
+| Every VM spends real E2B credits or XENV capacity, so starting one is
+| capped three ways: how many one person can run at once, how often a person
+| and a network can start them, and how many the whole site runs at once.
+| Guests cost nothing to mint, which is why the per-network limit exists.
+| The owner is exempt from all of it.
+|--------------------------------------------------------------------------
+*/
+
+const VM_LIVE_LIMIT = { guest: 1, account: 2 };
+const MAX_LIVE_VMS = Math.max(1, Number(process.env.MAX_LIVE_VMS) || 20);
+const vmStartLimiter = createLimiter({ windowMs: 60 * 60_000, max: 6 }); // per person
+const vmStartIpLimiter = createLimiter({ windowMs: 60 * 60_000, max: 20 }); // per network
+const PENDING_STALE_MS = 2 * 60_000;
+
+// VMs that are still starting, or waiting in the XENV queue, count as running,
+// so a double click or a second tab can't slip past the limit.
+const vmPending = new Map(); // key -> { who, seenAt }
+
+/* Stable per-person key: the full guest id, not the 6-character label. */
+function vmWho(session) {
+  return session.type === "account" ? `u:${session.username}` : `g:${session.guestId}`;
+}
+
+function liveVMs() {
+  const now = Date.now();
+  for (const [k, p] of vmPending) if (now - p.seenAt > PENDING_STALE_MS) vmPending.delete(k);
+  return [...e2bSandboxes.values(), ...xenvVMs.values(), ...vmPending.values()];
+}
+
+function vmStartRefusal(req) {
+  const session = req.vmSession;
+  if (isOwnerSession(session)) return null;
+
+  const who = vmWho(session);
+  const live = liveVMs();
+  const account = session.type === "account";
+  if (live.filter((v) => v.who === who).length >= VM_LIVE_LIMIT[account ? "account" : "guest"]) {
+    return {
+      status: 409,
+      error: account
+        ? `You already have ${VM_LIVE_LIMIT.account} VMs running. Close one first.`
+        : "Guests can run one VM at a time. Close yours first, or make an account to run two.",
+    };
+  }
+  if (live.length >= MAX_LIVE_VMS) {
+    return { status: 503, error: "Every VM slot is in use right now. Try again in a few minutes." };
+  }
+
+  const ip = clientIp(req);
+  let wait = vmStartLimiter.peek(who);
+  if (wait) return { status: 429, wait, error: `You're starting VMs too fast. Try again in ${formatWait(wait)}.` };
+  wait = vmStartIpLimiter.peek(ip);
+  if (wait) return { status: 429, wait, error: `Too many VMs started from your network. Try again in ${formatWait(wait)}.` };
+  vmStartLimiter.hit(who);
+  vmStartIpLimiter.hit(ip);
+  return null;
+}
+
+function vmStartGate(req, res, next) {
+  const refusal = vmStartRefusal(req);
+  if (!refusal) {
+    // a guest pass lasts 30 minutes from sign-in; stretch it over this VM, or
+    // stopping the VM near its end would find the guest signed out
+    if (req.vmSession.type === "guest") {
+      res.cookie("vm_session", req.cookies.vm_session, { ...cookieOptions(), maxAge: GUEST_VM_TIMEOUT_MS });
+    }
+    return next();
+  }
+  if (refusal.wait) res.set("Retry-After", String(refusal.wait));
+  res.status(refusal.status).json({ error: refusal.error });
+}
+
+function reserveVM(req, key = crypto.randomUUID()) {
+  vmPending.set(key, { who: vmWho(req.vmSession), seenAt: Date.now() });
+  return key;
+}
+
+/* Only whoever started a VM, or the owner, may stop it. */
+function ownVM(req, map) {
+  const entry = map.get(req.params.id);
+  if (!entry) return null;
+  return entry.who === vmWho(req.vmSession) || isOwnerSession(req.vmSession) ? entry : null;
+}
+
+/*
+|--------------------------------------------------------------------------
 | XENV GPU VM
 |--------------------------------------------------------------------------
 */
 
-app.get("/api/launch", requireSession, async (req, res) => {
+app.get("/api/launch", requireSession, vmStartGate, async (req, res) => {
   const gpu = req.query.gpu ?? "true";
   const siteLimit = 5;
   const deleteAfter = getVmSeconds(req);
@@ -783,6 +891,7 @@ app.get("/api/launch", requireSession, async (req, res) => {
     return res.status(500).json({ error: "XENV_API_KEY is not configured." });
   }
 
+  const reservation = reserveVM(req);
   try {
     const response = await fetch(
       `${XENV}/api/create?site_limit=${siteLimit}&delete_after=${deleteAfter}&gpu=${encodeURIComponent(gpu)}&developer_id=${encodeURIComponent(DEV_ID)}`,
@@ -791,18 +900,31 @@ app.get("/api/launch", requireSession, async (req, res) => {
     const data = await response.json();
     if (!response.ok) return res.status(response.status).json(data);
     if (data.status === "success" && data.container_id) trackXenv(data.container_id, req.vmSession, deleteAfter);
+    // a queued launch keeps its slot for as long as the page keeps polling
+    if (data.status === "queued" && data.token) reserveVM(req, `q:${data.token}`);
     res.json(data);
   } catch (err) {
     console.error("XENV launch error:", err);
     res.status(500).json({ error: err.message || "XENV launch failed." });
+  } finally {
+    vmPending.delete(reservation);
   }
 });
 
 function trackXenv(id, session, seconds) {
   const owner = sessionLabel(session);
-  xenvVMs.set(id, { owner, startedAt: Date.now(), expiresAt: Date.now() + seconds * 1000 });
+  xenvVMs.set(id, { owner, who: vmWho(session), startedAt: Date.now(), expiresAt: Date.now() + seconds * 1000 });
   setTimeout(() => xenvVMs.delete(id), seconds * 1000).unref?.();
   logEvent("vm", `${owner} started a GPU VM`);
+}
+
+async function killXenv(id) {
+  if (XENV_API_KEY) {
+    await fetch(`${XENV}/api/delete/${encodeURIComponent(id)}`, {
+      headers: { "X-API-Key": XENV_API_KEY },
+    });
+  }
+  xenvVMs.delete(id);
 }
 
 /*
@@ -811,10 +933,12 @@ function trackXenv(id, session, seconds) {
 |--------------------------------------------------------------------------
 */
 
-app.get("/api/queue", async (req, res) => {
-  const { token } = req.query;
+app.get("/api/queue", requireSession, async (req, res) => {
+  const token = String(req.query.token || "");
   if (!token) return res.status(400).json({ error: "Missing queue token." });
   if (!XENV_API_KEY) return res.status(500).json({ error: "XENV_API_KEY is not configured." });
+  const pendingKey = `q:${token}`;
+  if (vmPending.get(pendingKey)?.who === vmWho(req.vmSession)) vmPending.get(pendingKey).seenAt = Date.now();
 
   try {
     const response = await fetch(
@@ -823,9 +947,9 @@ app.get("/api/queue", async (req, res) => {
     );
     const data = await response.json();
     if (!response.ok) return res.status(response.status).json(data);
+    if (data.status === "allocated" || data.status === "failed") vmPending.delete(pendingKey);
     if (data.status === "allocated" && data.container_id && !xenvVMs.has(data.container_id)) {
-      const session = getSession(req);
-      trackXenv(data.container_id, session, Math.floor((session?.type === "account" ? ACCOUNT_VM_TIMEOUT_MS : GUEST_VM_TIMEOUT_MS) / 1000));
+      trackXenv(data.container_id, req.vmSession, getVmSeconds(req));
     }
     res.json(data);
   } catch (err) {
@@ -840,13 +964,14 @@ app.get("/api/queue", async (req, res) => {
 |--------------------------------------------------------------------------
 */
 
-app.post("/api/e2b/start", requireSession, async (req, res) => {
+app.post("/api/e2b/start", requireSession, vmStartGate, async (req, res) => {
   if (!E2B_API_KEY) {
     console.error("E2B_API_KEY is missing.");
     return res.status(500).json({ error: "E2B_API_KEY is not configured on the server." });
   }
 
   let sandbox = null;
+  const reservation = reserveVM(req);
   try {
     console.log("Creating E2B Desktop sandbox...");
     const timeoutMs = getVmTimeout(req);
@@ -864,7 +989,9 @@ app.post("/api/e2b/start", requireSession, async (req, res) => {
     if (!streamUrl) throw new Error("E2B did not return a stream URL.");
 
     const owner = sessionLabel(req.vmSession);
-    e2bSandboxes.set(sandboxId, { sandbox, owner, startedAt: Date.now(), expiresAt: Date.now() + timeoutMs });
+    e2bSandboxes.set(sandboxId, {
+      sandbox, owner, who: vmWho(req.vmSession), startedAt: Date.now(), expiresAt: Date.now() + timeoutMs,
+    });
     // E2B kills it on its own at the timeout; forget it then too
     setTimeout(() => e2bSandboxes.delete(sandboxId), timeoutMs).unref?.();
     logEvent("vm", `${owner} started a desktop VM`);
@@ -881,6 +1008,8 @@ app.post("/api/e2b/start", requireSession, async (req, res) => {
       try { await sandbox.kill(); } catch (_) {}
     }
     return res.status(500).json({ status: "error", error: err?.message || "Failed to start E2B Desktop VM." });
+  } finally {
+    vmPending.delete(reservation);
   }
 });
 
@@ -899,7 +1028,8 @@ async function killE2B(sandboxId) {
   console.log(`E2B sandbox killed: ${sandboxId}`);
 }
 
-app.delete("/api/e2b/:id", async (req, res) => {
+app.delete("/api/e2b/:id", requireSession, async (req, res) => {
+  if (!ownVM(req, e2bSandboxes)) return res.status(404).json({ error: "You have no VM with that id." });
   try {
     await killE2B(req.params.id);
     return res.json({ ok: true });
@@ -915,13 +1045,10 @@ app.delete("/api/e2b/:id", async (req, res) => {
 |--------------------------------------------------------------------------
 */
 
-app.delete("/api/vm/:id", async (req, res) => {
-  if (!XENV_API_KEY) return res.status(500).json({ error: "XENV_API_KEY is not configured." });
+app.delete("/api/vm/:id", requireSession, async (req, res) => {
+  if (!ownVM(req, xenvVMs)) return res.status(404).json({ error: "You have no VM with that id." });
   try {
-    await fetch(`${XENV}/api/delete/${encodeURIComponent(req.params.id)}`, {
-      headers: { "X-API-Key": XENV_API_KEY },
-    });
-    xenvVMs.delete(req.params.id);
+    await killXenv(req.params.id);
     return res.json({ ok: true });
   } catch (err) {
     console.error("XENV delete error:", err);
@@ -950,6 +1077,8 @@ process.on("SIGINT", async () => { await cleanupE2BSandboxes(); process.exit(0);
 | Start
 |--------------------------------------------------------------------------
 */
+await ensureOwnerAccount(); // before listening, so nobody can register the name first
+
 server.listen(PORT, () => {
   console.log(`Willie Games VM running on port ${PORT}`);
   console.log(`E2B configured: ${Boolean(E2B_API_KEY)}`);

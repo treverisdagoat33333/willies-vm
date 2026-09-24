@@ -32,7 +32,7 @@ node --check server.js             # quick syntax check for any file
 - Node >= 22.5 is required (`node:sqlite`); `.node-version` pins 24. On Node 22 you'll see an "SQLite is experimental" warning, which is harmless.
 - There is no build step, bundler, linter or test suite. The front end is served as-is from `public/`.
 - To verify a change, run the server against a throwaway database (`DATA_DIR=/tmp/wvm-test`) and drive the HTTP and WebSocket endpoints from a script (`ws` is in `node_modules`), or load the page in Chromium.
-- Useful env vars: `DATA_DIR` (SQLite location, default `./data`, gitignored), `OWNER_USERNAME` (default `william`), `REMOTE_KEY` (enables Remote PC; unset means it's off), `E2B_API_KEY`, `XENV_API_KEY`. `render.yaml` is the deploy config. On Render's free plan `DATA_DIR` is ephemeral, so the database is wiped on every redeploy.
+- Useful env vars: `DATA_DIR` (SQLite location, default `./data`, gitignored), `OWNER_USERNAME` (default `william`), `OWNER_PASSWORD` (see below), `REMOTE_KEY` (enables Remote PC; unset means it's off), `MAX_LIVE_VMS` (site-wide VM cap, default 20), `E2B_API_KEY`, `XENV_API_KEY`. `render.yaml` is the deploy config. On Render's free plan `DATA_DIR` is ephemeral, so the database is wiped on every redeploy.
 - No lockfile is committed; Render runs `npm install`. The Scramjet packages are pinned to GitHub release tarballs in `package.json`.
 
 The remote-control agent is a separate package and runs on **Windows only**:
@@ -58,6 +58,7 @@ Every response carries COOP `same-origin` and COEP `require-corp`, because the W
 - Account tokens carry `tv`, the user's `token_version`. `verifyToken` compares it with the database on **every** request and socket upgrade. Bumping the version (password change, "sign out other devices", admin sign-out) kills every existing session. Also call `kickUser()` from `chat.js` to drop live sockets.
 - Role ranks live in `db.js` (`owner > admin > mod > member > guest`). You can only act on someone ranked strictly below you (`can()` and `outranks()` in `chat.js`).
 - The account named `OWNER_USERNAME` gets the owner role on register and login.
+- **Owner lock:** with `OWNER_PASSWORD` set, `ensureOwnerAccount()` creates the owner account on boot (before `listen`) whenever it's missing, so after a free-plan wipe nobody can register the name first. An existing account is left alone. Without it the server logs a warning, and whoever registers the name first becomes owner.
 - Owner-only HTTP routes use `requireOwner`. The front end hides owner-only UI with `html[data-owner]`, but the server is the real gate.
 - Rate limiters in `security.js` are in-memory and reset on restart. `app.set('trust proxy', 1)` makes `req.ip` the visitor's address behind Render; `clientIp()` does the same for raw upgrade requests.
 
@@ -114,6 +115,11 @@ Several things live only in memory:
 - the rate-limit buckets
 
 VM lifetimes are 30 minutes for guests and 60 for accounts, enforced by the providers (E2B, and XENV at `loremgroup.org`).
+
+VM limits (the "VM limits" section of `server.js`, via the `vmStartGate` middleware; the owner is exempt):
+- Running at once: 1 per guest, 2 per account, `MAX_LIVE_VMS` site-wide. VMs still starting or waiting in the XENV queue count too (`vmPending`); a queued one keeps its slot only while the page keeps polling.
+- Starts: 6 an hour per person, 20 an hour per network.
+- Stopping a VM needs a session, and only whoever started it (matched by `vmWho()`, the full guest id or username) or the owner may stop it.
 
 ### Front end (`public/`)
 No framework and no modules.
