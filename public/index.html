@@ -521,8 +521,10 @@
 <div id="cloud-wrap">
   <div id="cloud-toolbar">
     <span class="lb"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg> <span id="cloud-title">Cloud gaming</span></span>
-    <small>CloudMoon &middot; served from jsDelivr</small>
     <span class="sp"></span>
+    <label class="cm-server" title="Which CloudMoon servers to play on. Pick the closest.">Server
+      <select class="field" id="cm-server"><option value="23">US East</option><option value="22">US West</option><option value="21">South America</option><option value="4">Europe</option><option value="3">Asia</option></select></label>
+    <button class="btn sm cm-acct" id="cm-acct">Sign in to CloudMoon</button>
     <button class="btn sm" id="cloud-back">&larr; All games</button>
     <button class="btn sm" id="cloud-reload">Reload</button>
     <button class="btn sm" id="cloud-fs">Fullscreen</button>

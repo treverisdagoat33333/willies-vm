@@ -203,6 +203,42 @@ const CM_NAME = /^[A-Za-z0-9._-]+\.html$/;
 const CM_TTL = 10 * 60 * 1000;
 const cmCache = new Map();
 
+/*
+ * The all-in-one client (game list, sign-in, queue and stream in one page)
+ * is main-<date>.html, and CloudMoon publishes a new date every few weeks.
+ * /cloud/app/main.html always serves the newest one, found from jsDelivr's
+ * file listing. The date is YYMMDD, sometimes with HHMM after it, so it's
+ * compared on the first six digits first.
+ */
+const CM_MAIN_FALLBACK = process.env.CLOUDMOON_MAIN || "main-260909.html";
+let cmMain = { at: 0, name: "" };
+
+async function latestCloudMoonMain() {
+  if (process.env.CLOUDMOON_MAIN) return process.env.CLOUDMOON_MAIN;
+  if (cmMain.name && Date.now() - cmMain.at < 60 * 60 * 1000) return cmMain.name;
+  try {
+    const r = await fetch("https://data.jsdelivr.com/v1/packages/gh/CloudMoonApp/web@main?structure=flat", {
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!r.ok) throw new Error(`listing returned ${r.status}`);
+    const names = [...new Set((await r.text()).match(/main-\d{6,10}\.html/g) || [])];
+    const key = (n) => {
+      const d = n.match(/\d+/)[0];
+      return [Number(d.slice(0, 6)), Number(d.slice(6) || 0)];
+    };
+    names.sort((a, b) => {
+      const [a1, a2] = key(a);
+      const [b1, b2] = key(b);
+      return b1 - a1 || b2 - a2;
+    });
+    cmMain = { at: Date.now(), name: names[0] || CM_MAIN_FALLBACK };
+  } catch (err) {
+    console.error("CloudMoon listing failed:", err.message);
+    cmMain = { at: Date.now() - 50 * 60 * 1000, name: cmMain.name || CM_MAIN_FALLBACK }; // retry in 10 min
+  }
+  return cmMain.name;
+}
+
 async function cloudMoonPage(file) {
   const hit = cmCache.get(file);
   if (hit && Date.now() - hit.at < CM_TTL) return hit.html;
@@ -223,9 +259,9 @@ async function cloudMoonPage(file) {
 |
 | The guest catalogue needs no account, so the desktop can render its own
 | grid instead of framing CloudMoon's. Cached server-side so 200-odd games
-| are not refetched per visitor. Playing still happens in their client:
-| the play page wants a signed-in session (sid + token), which we do not
-| have and will not ask people for.
+| are not refetched per visitor. Signing in and playing happen in the
+| browser, straight against CloudMoon's API (see CLOUD GAMING in app.js):
+| passwords never pass through this server.
 |--------------------------------------------------------------------------
 */
 const CM_API = process.env.CLOUDMOON_API || "https://api.prod.geometry.today";
@@ -267,6 +303,7 @@ async function cloudMoonCatalog() {
         cats: g.categories || [],
         beta: Boolean(g.is_beta),
         vip: g.min_vip_level > 1,
+        minVip: g.min_vip_level || 0,
         pc: Boolean(g.is_pc),
       })),
   };
@@ -327,7 +364,8 @@ app.get("/cloud/:file([A-Za-z0-9._-]+\.html)", (req, res) =>
 );
 
 app.get("/cloud/app/:file?", async (req, res) => {
-  const file = req.params.file || CM_ENTRY;
+  let file = req.params.file || CM_ENTRY;
+  if (file === "main.html") file = await latestCloudMoonMain();
   if (!CM_NAME.test(file)) return res.status(400).send("Bad file name.");
   try {
     /*

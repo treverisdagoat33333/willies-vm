@@ -821,7 +821,7 @@ window.addEventListener('keyup',e=>{
    it run inside the desktop: a cross-origin frame can never load in an
    isolated document, but a same-origin one carrying COEP can.
    ═══════════════════════════════════════════════════════════ */
-let cloudLoaded=false,cloudGames=[],cloudCats=[],cloudCat='all',cloudQuery='';
+let cloudGames=[],cloudCats=[],cloudCat='all',cloudQuery='';
 
 function openCloud(){
   const w=$('#cloud-wrap');
@@ -833,6 +833,7 @@ function openCloud(){
   w.classList.remove('closing');
   $('#tb-cloud').classList.add('active');
   if(!cloudGames.length)loadCloudGames();
+  cmLoadStats();
 }
 
 /* catalogue ------------------------------------------------- */
@@ -927,25 +928,144 @@ function renderCloudGames(){
   grid.replaceChildren(frag);
 }
 
-/* playing ---------------------------------------------------
-   The play page wants a signed-in CloudMoon session (sid + token), which
-   only their client can mint, so launching hands off to it. The frame is
-   loaded once and kept, so a sign-in survives going back to the grid. */
-function playCloudGame(g){
-  const w=$('#cloud-wrap'),f=$('#cloud-frame');
-  w.classList.add('playing');
-  $('#cloud-title').textContent=g.name;
-  if(!cloudLoaded){
-    w.classList.add('loading');
-    f.onload=()=>w.classList.remove('loading');
-    f.src='/cloud/app';
-    cloudLoaded=true;
-  }
-  toast(`Opening ${g.name} — sign in to CloudMoon to start the stream`);
+/* CloudMoon account ------------------------------------------
+   Sign-in happens here, straight against CloudMoon's API from this browser,
+   so the password never touches our server. Their client in the frame is
+   served from our origin and so shares our localStorage: saving the token
+   under their own key (cm_auth_token) signs the frame in as well. */
+const CM_APIS=['https://api.cloudmoon.cloudbatata.com','https://api.prod.cloudmoonapp.com','https://api.prod.geometry.today'];
+const CM_BACKUP=['https://hrz5zfjq02.execute-api.us-east-1.amazonaws.com','https://api.prod.viewoncloud.com'];
+let cmHost=null,cmHostP=null,cmStats=null,cmStatsAt=0,cmCurrent=null,cmLaunchSeq=0;
+const lsGet=k=>{try{return localStorage.getItem(k)}catch(_){return null}};
+const lsSet=(k,v)=>{try{v==null?localStorage.removeItem(k):localStorage.setItem(k,v)}catch(_){}};
+const cmToken=()=>lsGet('cm_auth_token');
+const cmApp=()=>{try{return $('#cloud-frame').contentWindow?.App||null}catch(_){return null}};
+function cmDevice(){let d=lsGet('cm_device_id');if(!d){d=crypto.randomUUID();lsSet('cm_device_id',d)}return d}
+/* same as their client: race a /_ping to each API host, first answer wins */
+function cmRace(list){
+  const ctl=list.map(()=>new AbortController());
+  return new Promise(res=>{
+    let fails=0,won=false;
+    list.forEach((h,i)=>{
+      const t=setTimeout(()=>ctl[i].abort(),4000);
+      fetch(h+'/_ping',{signal:ctl[i].signal}).then(r=>{
+        clearTimeout(t);if(!r.ok||won)throw 0;
+        won=true;ctl.forEach((c,j)=>j!==i&&c.abort());res(h);
+      }).catch(()=>{clearTimeout(t);if(++fails===list.length&&!won)res(null)});
+    });
+  });
 }
+function cmApiHost(){
+  if(cmHost)return Promise.resolve(cmHost);
+  return cmHostP||=(async()=>{const h=await cmRace(CM_APIS)||await cmRace(CM_BACKUP);cmHostP=null;if(h)cmHost=h;return h})();
+}
+async function cmFetch(path,body){
+  const host=await cmApiHost();
+  if(!host)throw new Error("Can't reach CloudMoon. It may be blocked on this network.");
+  const u=new URL(host+path);
+  for(const [k,v] of [['device_type','web'],['query_uuid',crypto.randomUUID()],['site','cm'],['device_id',cmDevice()]])u.searchParams.set(k,v);
+  const lang=(navigator.language||'en').split('-');
+  const headers={'Content-Type':'application/json','X-User-Language':lsGet('cm_lang')||lang[0]||'en','X-User-Locale':(lang[1]||lang[0]).toUpperCase()};
+  if(cmToken())headers['X-User-Token']=cmToken();
+  let r;
+  try{r=await fetch(u,{method:body?'POST':'GET',headers,body:body?JSON.stringify(body):undefined})}
+  catch(_){cmHost=null;throw new Error("Can't reach CloudMoon right now.")}
+  const d=await r.json().catch(()=>({}));
+  if(String(d.code)==='40001'){cmForget();throw new Error('Your CloudMoon sign-in expired. Sign in again.')}
+  if(!r.ok)throw new Error(d.message||d.msg||`CloudMoon answered ${r.status}`);
+  return d;
+}
+function cmForget(){lsSet('cm_auth_token',null);cmStats=null;const A=cmApp();if(A)A.token=null;cmRenderAccount()}
+function cmRenderAccount(){
+  const b=$('#cm-acct'),signed=!!cmToken();
+  b.classList.toggle('on',signed);
+  if(!signed){b.textContent='Sign in to CloudMoon';b.title='Sign in with your CloudMoon email and password';return}
+  const who=lsGet('cm_email')||'CloudMoon';
+  const bits=[who.split('@')[0]];
+  if(cmStats){if(cmStats.level>1)bits.push('VIP '+cmStats.level);if(cmStats.timeLeft)bits.push(cmStats.timeLeft+' left')}
+  b.textContent=bits.join(' · ');b.title=`Signed in to CloudMoon as ${who}. Click to sign out.`;
+}
+async function cmLoadStats(force){
+  if(!cmToken()||(!force&&Date.now()-cmStatsAt<60000))return;
+  cmStatsAt=Date.now();
+  try{
+    const d=await cmFetch('/phone/list');
+    const list=d.data?.list||[];
+    cmStats={level:Math.max(0,...list.map(x=>x.level||0)),timeLeft:list[0]?.time_left||''};
+  }catch(_){}
+  cmRenderAccount();
+}
+function cmSignIn(then){
+  dcModal({title:'Sign in to CloudMoon',okLabel:'Sign in',
+    sub:"Use your CloudMoon email and password. Signed up with Google? Set a password once: sign in at web.cloudmoonapp.com, click your avatar, pick a password. From then on you sign in right here.",
+    fields:[{key:'email',label:'Email',type:'email',value:lsGet('cm_email')||'',placeholder:'you@example.com'},
+            {key:'password',label:'Password',type:'password'}],
+    onOk:async v=>{
+      const email=v.email.trim();
+      if(!email||!v.password)throw new Error('Enter your email and password.');
+      const d=await cmFetch('/login/pwd',{email,password:v.password});
+      if(d.code!==0||!d.data?.token)throw new Error(d.message||d.msg||'Wrong email or password.');
+      lsSet('cm_auth_token',d.data.token);lsSet('cm_email',email);
+      const A=cmApp();if(A){A.token=d.data.token;A.loadUserLevel?.()}
+      cmRenderAccount();cmLoadStats(true);
+      toast('Signed in to CloudMoon','ok');
+      if(then)setTimeout(then,50);
+    }});
+}
+$('#cm-acct').onclick=()=>{
+  click();
+  if(!cmToken())return cmSignIn();
+  if(!confirm(`Sign out of CloudMoon (${lsGet('cm_email')||'this account'})?`))return;
+  const A=cmApp();if(A?.isPlaying)A.cleanConnection();
+  cmForget();cloudBrowse();toast('Signed out of CloudMoon');
+};
+$('#cm-server').value=lsGet('selectedServer')||'23';
+$('#cm-server').onchange=e=>{lsSet('selectedServer',e.target.value);cmApp()?.handleServerChange?.(e.target.value);toast('Server: '+e.target.selectedOptions[0].textContent)};
+cmRenderAccount();
+
+/* playing ---------------------------------------------------
+   CloudMoon's all-in-one client (/cloud/app/main.html) takes ?game=<pkg>,
+   selects that game once its list loads, and exposes itself as window.App.
+   It's same-origin, so we press its Play button for you: startGameInAio()
+   claims a cloud phone, queues if they're busy, and streams in the frame. */
+async function playCloudGame(g){
+  if(!cmToken()){cmSignIn(()=>playCloudGame(g));return}
+  if(g.minVip>1&&cmStats&&cmStats.level<g.minVip){toast(`${g.name} needs CloudMoon VIP ${g.minVip}.`,'err');return}
+  const w=$('#cloud-wrap'),f=$('#cloud-frame'),seq=++cmLaunchSeq;
+  cmCurrent=g;
+  w.classList.add('playing');$('#cloud-title').textContent=g.name;
+  const A=cmApp();
+  if(A&&A.rawGames?.length){
+    // the client is already open: switch games without reloading it
+    if(A.isPlaying)await A.cleanConnection();
+    A.token=cmToken();
+    const game=A.rawGames.find(x=>x.pkg===g.pkg);
+    if(game){A.selectGame(game);return cmStart(seq)}
+  }
+  w.classList.add('loading');
+  f.onload=()=>{w.classList.remove('loading');cmStart(seq)};
+  f.src='/cloud/app/main.html?game='+encodeURIComponent(g.pkg);
+}
+async function cmStart(seq){
+  for(let i=0;i<80;i++){ // up to 20 s for their game list to load
+    if(seq!==cmLaunchSeq)return;
+    const A=cmApp(),pkg=cmCurrent?.pkg;
+    if(A&&A.selectedGame?.pkg===pkg){A.token=cmToken();A.startGameInAio();cmLoadStats(true);return}
+    if(A&&A.rawGames?.length&&!A.isLoading){
+      const gm=A.rawGames.find(x=>x.pkg===pkg);
+      if(!gm||gm.status!=1){toast(`${cmCurrent.name} is under maintenance on CloudMoon right now.`,'err');cloudBrowse();return}
+    }
+    await new Promise(r=>setTimeout(r,250));
+  }
+  toast(`${cmCurrent?.name||'The game'} didn't start by itself. Press Play in the window.`,'err');
+}
+/* leaving a game ends it: a hidden stream would keep eating CloudMoon time */
+function cmEndGame(){const A=cmApp();if(A?.isPlaying){A.cleanConnection();return true}return false}
 
 function cloudBrowse(){
-  $('#cloud-wrap').classList.remove('playing');
+  cmLaunchSeq++;
+  if(cmEndGame())toast('Game ended');
+  $('#cloud-wrap').classList.remove('playing','loading');
   $('#cloud-title').textContent='Cloud gaming';
 }
 $('#cloud-back').onclick=()=>{click();cloudBrowse()};
@@ -964,12 +1084,12 @@ function toggleCloud(){
   if(w.style.display==='flex')closeCloud();else openCloud();
 }
 $('#cloud-close').onclick=closeCloud;
-$('#cloud-reload').onclick=()=>{
-  const w=$('#cloud-wrap'),f=$('#cloud-frame');
+$('#cloud-reload').onclick=async()=>{
+  const w=$('#cloud-wrap');
   if(!w.classList.contains('playing')){cloudGames=[];loadCloudGames();return}
-  w.classList.add('loading');
-  f.onload=()=>w.classList.remove('loading');
-  f.src='/cloud/app?t='+Date.now();
+  const A=cmApp();if(A?.isPlaying)await A.cleanConnection();
+  $('#cloud-frame').src='about:blank';
+  if(cmCurrent)setTimeout(()=>playCloudGame(cmCurrent),60);
 };
 $('#cloud-fs').onclick=()=>{
   if(document.fullscreenElement)document.exitFullscreen().catch(()=>{});
