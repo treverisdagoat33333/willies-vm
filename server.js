@@ -666,6 +666,23 @@ app.put("/api/account/settings", requireAccount, (req, res) => {
 });
 
 /*
+ * ICE servers for voice calls. STUN finds a direct path, which works on most
+ * networks. Strict networks (many schools) block that, and only a TURN relay
+ * gets through: set TURN_URL (comma-separated), TURN_USERNAME, TURN_CREDENTIAL.
+ */
+app.get("/api/calls/ice", requireAccount, (_req, res) => {
+  const iceServers = [{ urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] }];
+  if (process.env.TURN_URL) {
+    iceServers.push({
+      urls: process.env.TURN_URL.split(",").map((u) => u.trim()).filter(Boolean),
+      username: process.env.TURN_USERNAME || "",
+      credential: process.env.TURN_CREDENTIAL || "",
+    });
+  }
+  res.json({ iceServers });
+});
+
+/*
 |--------------------------------------------------------------------------
 | Music (see music.js)
 |--------------------------------------------------------------------------

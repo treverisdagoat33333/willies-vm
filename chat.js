@@ -64,6 +64,31 @@ function fail(ws, text) {
   send(ws, { type: "error", text });
 }
 
+/*
+ * Voice calls, 1:1 between accounts. The server only relays the WebRTC
+ * handshake; audio and screen share go peer to peer. A call rings every
+ * tab the callee has open and binds to the one that answers.
+ */
+const calls = new Map(); // callId -> { from, to, fromWs, toWs, state, timer }
+const CALL_RING_MS = 35_000;
+const CALL_ID_RE = /^[A-Za-z0-9-]{8,64}$/;
+
+function socketsOf(name) {
+  return [...clients].filter(([, st]) => st.name === name && st.account).map(([ws]) => ws);
+}
+function inCall(name) {
+  for (const c of calls.values()) if (c.from === name || c.to === name) return true;
+  return false;
+}
+function endCall(id, reason, except) {
+  const c = calls.get(id);
+  if (!c) return;
+  calls.delete(id);
+  clearTimeout(c.timer);
+  const targets = new Set([c.fromWs, ...(c.toWs ? [c.toWs] : socketsOf(c.to))]);
+  for (const ws of targets) if (ws !== except) send(ws, { type: "call.ended", callId: id, reason });
+}
+
 /* Broadcast to everyone, or only to the members of a DM. */
 function broadcast(payload, channel) {
   const members = channel && channel.startsWith("dm:") ? dmMembers(channel) : null;
@@ -457,6 +482,63 @@ wss.on("connection", (ws, _req, session, ip) => {
         return;
       }
 
+      /* ---- voice calls ---- */
+      case "call.invite": {
+        const callId = String(d.callId || "");
+        const to = String(d.to || "").toLowerCase();
+        if (!st.account) return fail(ws, "Make an account to make calls.");
+        if (!CALL_ID_RE.test(callId) || calls.has(callId)) return;
+        if (to === st.name) return fail(ws, "You can't call yourself.");
+        if (muteOf(st)) return fail(ws, "You're muted, so you can't call anyone right now.");
+        const now = Date.now();
+        st.callStamps = (st.callStamps || []).filter((t) => now - t < 60_000);
+        if (st.callStamps.length >= 5) return fail(ws, "Slow down: that's a lot of calls in a minute.");
+        st.callStamps.push(now);
+        const targets = socketsOf(to);
+        if (!targets.length) return send(ws, { type: "call.ended", callId, reason: "offline" });
+        if (inCall(to) || inCall(st.name)) return send(ws, { type: "call.ended", callId, reason: "busy" });
+        const c = { from: st.name, to, fromWs: ws, toWs: null, state: "ringing" };
+        c.timer = setTimeout(() => endCall(callId, "no answer"), CALL_RING_MS);
+        calls.set(callId, c);
+        for (const t of targets) send(t, { type: "call.invite", callId, from: st.name });
+        return;
+      }
+
+      case "call.accept": {
+        const callId = String(d.callId || "");
+        const c = calls.get(callId);
+        if (!c || c.to !== st.name || c.state !== "ringing") return send(ws, { type: "call.ended", callId, reason: "gone" });
+        c.state = "active";
+        c.toWs = ws;
+        clearTimeout(c.timer);
+        send(c.fromWs, { type: "call.accepted", callId });
+        for (const t of socketsOf(c.to)) if (t !== ws) send(t, { type: "call.ended", callId, reason: "answered elsewhere" });
+        return;
+      }
+
+      case "call.decline": {
+        const callId = String(d.callId || "");
+        const c = calls.get(callId);
+        if (c && c.to === st.name && c.state === "ringing") endCall(callId, "declined");
+        return;
+      }
+
+      case "call.end": {
+        const callId = String(d.callId || "");
+        const c = calls.get(callId);
+        if (c && (c.fromWs === ws || c.toWs === ws)) endCall(callId, "hangup", ws);
+        return;
+      }
+
+      case "call.signal": {
+        const callId = String(d.callId || "");
+        const c = calls.get(callId);
+        if (!c || c.state !== "active" || !d.data || typeof d.data !== "object") return;
+        const other = ws === c.fromWs ? c.toWs : ws === c.toWs ? c.fromWs : null;
+        if (other) send(other, { type: "call.signal", callId, data: d.data });
+        return;
+      }
+
       default:
         return;
     }
@@ -465,6 +547,10 @@ wss.on("connection", (ws, _req, session, ip) => {
   ws.on("close", () => {
     const st = clients.get(ws);
     clients.delete(ws);
+    for (const [id, c] of calls) {
+      if (c.fromWs === ws || c.toWs === ws) endCall(id, "disconnected", ws);
+      else if (c.state === "ringing" && st && c.to === st.name && !socketsOf(c.to).length) endCall(id, "offline");
+    }
     if (st) {
       if (st.typing) broadcast({ type: "typing", name: st.name, channel: st.typing, on: false });
       broadcast({ type: "leave", name: st.name, at: Date.now() });

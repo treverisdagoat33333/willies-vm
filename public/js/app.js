@@ -1402,6 +1402,7 @@ function dcHandle(d){
     case 'join': case 'leave': break;
     case 'system': toast(d.text);break;
     case 'error': toast(d.text,'err');break;
+    default: if(typeof d.type==='string'&&d.type.startsWith('call.'))window.calls?.onMessage(d);
   }
 }
 
@@ -1501,6 +1502,7 @@ function dcRenderHeader(){
   $('#dc-top-name').textContent=dm?nameOf(partner||''):(ch?ch.name:dcActive);
   $('#dc-top-topic').textContent=dm?'Direct message':(ch?ch.topic:'');
   $('#dc-edit-channel').hidden=dm||rank(chatMeRole)<3;
+  $('#dc-call').hidden=!dm||!chatMeAccount;$('#dc-call').dataset.to=partner||'';
   $('#dc-del-channel').hidden=dm||rank(chatMeRole)<3||dcChannels.length<=1;
   const label=dm?'@'+nameOf(partner||''):'#'+(ch?ch.name:dcActive);
   $('#dc-input').placeholder='Message '+label;
@@ -1822,6 +1824,7 @@ function dcUserMenu(name,anchor){
 
   if(!me&&!name.startsWith('guest-')){
     item(chatMeAccount?'Message':'Message (account needed)',()=>dcSend({type:'dm.open',name}),false,!chatMeAccount);
+    item(chatMeAccount?'Voice call':'Voice call (account needed)',()=>window.calls?.start(name),false,!chatMeAccount);
   }
 
   const canRole=myRank>=3&&theirRank<myRank&&name!==chatOwner&&!name.startsWith('guest-');
