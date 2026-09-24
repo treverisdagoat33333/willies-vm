@@ -32,6 +32,8 @@ import {
   listSanctions,
   liftSanction,
   ownerName,
+  getSettings,
+  saveSettings,
 } from "./db.js";
 import {
   handleChatUpgrade,
@@ -630,6 +632,36 @@ app.post("/api/account/delete", requireAccount, async (req, res) => {
   logEvent("account", `${username} deleted their account`);
   res.clearCookie("vm_session", cookieOptions());
   res.json({ ok: true });
+});
+
+/*
+ * Settings sync. The page owns the shape of the data; the server only checks
+ * that it's a small JSON object, so one account can't fill the disk. The
+ * global JSON parser already refuses bodies over 100 KB.
+ */
+const SETTINGS_MAX_BYTES = 96 * 1024;
+const settingsLimiter = createLimiter({ windowMs: 10 * 60_000, max: 120 });
+
+app.get("/api/account/settings", requireAccount, (req, res) => {
+  res.json(getSettings(req.vmSession.username) || { data: null, updatedAt: 0 });
+});
+
+app.put("/api/account/settings", requireAccount, (req, res) => {
+  const username = req.vmSession.username;
+  const wait = settingsLimiter.hit(username);
+  if (wait) {
+    res.set("Retry-After", String(wait));
+    return res.status(429).json({ error: `Saving too often. Try again in ${formatWait(wait)}.` });
+  }
+  const data = req.body?.data;
+  if (!data || typeof data !== "object" || Array.isArray(data)) {
+    return res.status(400).json({ error: "Settings must be an object." });
+  }
+  const json = JSON.stringify(data);
+  if (Buffer.byteLength(json) > SETTINGS_MAX_BYTES) {
+    return res.status(413).json({ error: "Your settings are too big to sync." });
+  }
+  res.json({ ok: true, updatedAt: saveSettings(username, json) });
 });
 
 /*

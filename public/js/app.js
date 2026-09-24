@@ -19,7 +19,7 @@ const DEFAULTS={
   cloak:'none',cloakTitle:'',cloakIcon:'',cloakAuto:false,cloakRandom:false,
   panic:false,panicKey:'`',panicUrl:'https://classroom.google.com',panicAction:'redirect',panicWipe:false,
   blurunfocus:false,blurAmt:24,lock:false,lockMins:'5',
-  perf:false,motion:false,bouncy:true,wallimg:true,preload:false,sound:false,soundpack:'soft',volume:0.5,chatsound:true,fps:false
+  perf:false,motion:false,bouncy:true,wallimg:true,preload:false,sound:false,soundpack:'soft',volume:0.5,chatsound:true,fps:false,notify:false,sync:true
 };
 const KEY='wvm.settings.v1';
 let S=(()=>{
@@ -36,9 +36,14 @@ let S=(()=>{
   if(g('wallpaper')){m.wallpaper='custom';m.wallpaperUrl=g('wallpaper')}
   return m;
 })();
-const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){toast('Could not save settings (storage full?)','err')}};
+/* settings sync state; the logic lives in SETTINGS SYNC further down */
+const SYNC_LOCAL_ONLY=['perf','wallimg','preload','fps','sync']; // speed settings belong to the device
+const SYNC_KEYS=['bookmarks','favGames','music']; // localStorage keys that travel with the account
+let syncOn=false,syncApplying=false,syncT=null,syncPulledAt=0;
+let syncMeta=(()=>{try{return JSON.parse(localStorage.getItem('wvm.sync')||'null')}catch(_){return null}})()||{user:'',server:0,dirty:false};
+const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){toast('Could not save settings (storage full?)','err')}syncTouch()};
 const store=(k,d)=>{try{return JSON.parse(localStorage.getItem(k)||JSON.stringify(d))}catch(_){return d}};
-const put=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(_){}};
+const put=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(_){}if(SYNC_KEYS.includes(k))syncTouch()};
 let bookmarks=store('bookmarks',[]),historyData=store('history',[]),recentGames=store('recentGames',[]),favGames=store('favGames',[]);
 
 const WALLS=[
@@ -287,6 +292,27 @@ function chatPing(mention){if(!S.chatsound)return;try{
     o.connect(g).connect(audioCtx.destination);o.start(t+at);o.stop(t+at+.18);
   });
 }catch(_){}}
+/* Desktop notifications: only while the page is out of sight, and never with
+   the real site name while the tab is cloaked. */
+function notify(title,body,{tag,onclick}={}){
+  if(!S.notify||!('Notification' in window)||Notification.permission!=='granted')return;
+  if(document.visibilityState==='visible'&&document.hasFocus())return;
+  const cloaked=S.cloak&&S.cloak!=='none';
+  try{
+    const n=new Notification(cloaked?'New message':title,{body:cloaked?'':String(body||'').slice(0,160),tag,icon:cloaked?undefined:'/icons/icon-192.png'});
+    n.onclick=()=>{window.focus();n.close();onclick?.()};
+  }catch(_){} // Android Chrome only allows notifications from a service worker
+}
+/* turning the switch on asks the browser; a refusal flips it back off */
+document.addEventListener('click',async e=>{
+  if(!e.target.closest('.switch[data-setting="notify"]')||!S.notify)return;
+  if(!('Notification' in window)){set('notify',false);toast("This browser can't show notifications.",'err');return}
+  if(Notification.permission==='granted'){toast('Notifications on','ok');return}
+  const p=await Notification.requestPermission().catch(()=>'denied');
+  if(p==='granted'){toast('Notifications on','ok');return}
+  set('notify',false);
+  toast(p==='denied'?"Notifications are blocked for this site. Allow them in the browser's site settings, then try again.":'Notifications stay off.','err');
+});
 function toast(msg,type=''){const box=$('#toasts'),t=document.createElement('div');t.className='toast '+type;t.innerHTML=`<span class="dot"></span><span></span>`;t.lastChild.textContent=msg;box.appendChild(t);while(box.children.length>4)box.firstChild.remove();setTimeout(()=>{t.classList.add('out');setTimeout(()=>t.remove(),260)},3800)}
 function setStatus(msg,busy=false){const el=$('#status');el.textContent=msg;el.className=(/^(error|failed)/i.test(msg)?'error':'')+(busy?' busy':'')}
 function setLaunching(on){$$('.vm-btn').forEach(b=>b.disabled=on)}
@@ -959,6 +985,7 @@ function acceptAuth(d,fresh){
   root.dataset.account=d.account?'on':'off';
   root.dataset.owner=currentRole==='owner'?'on':'off';
   $('#auth-wrap').classList.add('hidden');setUser();connectChat();
+  if(d.account)syncStart(currentUsername);
   toast(`Welcome, ${currentUsername}! ${d.vmMinutes||30} min of VM time.`,'ok');
   if(fresh)window.motion?.celebrate();
 }
@@ -969,6 +996,78 @@ $('#guest-button').onclick=async()=>{try{const r=await fetch('/api/auth/guest',{
 $('#login-button').onclick=()=>setAuthMode(authMode==='login'?'register':'login');
 function logoutUser(){fetch('/api/auth/logout',{method:'POST'}).catch(()=>{});location.reload()}
 $('#logout-btn').onclick=logoutUser;
+
+/* ═══════════════════════════════════════════════════════════
+   SETTINGS SYNC
+   Accounts keep settings, bookmarks, favourite games and the music library
+   on the server. syncMeta.server is the server copy this device last synced
+   with; dirty means something changed here since. When both sides changed,
+   the newer one wins.
+   ═══════════════════════════════════════════════════════════ */
+function syncSaveMeta(){try{localStorage.setItem('wvm.sync',JSON.stringify(syncMeta))}catch(_){}}
+function syncTouch(){
+  if(syncApplying)return;
+  syncMeta.dirty=true;syncMeta.localAt=Date.now();syncSaveMeta();
+  if(syncOn&&S.sync){clearTimeout(syncT);syncT=setTimeout(syncPush,2500)}
+}
+function syncSnapshot(){
+  const settings={};
+  for(const [k,v] of Object.entries(S)){
+    if(SYNC_LOCAL_ONLY.includes(k))continue;
+    if(k==='wallpaperUrl'&&String(v).startsWith('data:'))continue; // an uploaded image is too big to sync
+    settings[k]=v;
+  }
+  const data={v:1,settings};
+  for(const k of SYNC_KEYS)data[k]=store(k,null);
+  return data;
+}
+function syncApply(data){
+  syncApplying=true;
+  try{
+    if(data.settings&&typeof data.settings==='object'){
+      const keep={};SYNC_LOCAL_ONLY.forEach(k=>keep[k]=S[k]);
+      if(S.wallpaperUrl.startsWith('data:')&&!data.settings.wallpaperUrl)keep.wallpaperUrl=S.wallpaperUrl;
+      S={...DEFAULTS,...data.settings,...keep};
+      save();applyAll();syncControls();
+    }
+    if(Array.isArray(data.bookmarks)){bookmarks=data.bookmarks;put('bookmarks',bookmarks);renderBookmarks()}
+    if(Array.isArray(data.favGames)){favGames=data.favGames;put('favGames',favGames)}
+    if(data.music&&typeof data.music==='object'){put('music',data.music);window.music?.reload()}
+  }finally{syncApplying=false}
+}
+function syncStatus(text){const el=$('#sync-status');if(el)el.textContent=text}
+async function syncPush(){
+  if(!syncOn||!S.sync)return;
+  clearTimeout(syncT);
+  try{
+    const d=await postJSON('/api/account/settings',{data:syncSnapshot()},'PUT');
+    syncMeta.server=d.updatedAt;syncMeta.dirty=false;syncSaveMeta();
+    syncStatus('Synced just now.');
+  }catch(e){syncStatus('Not synced: '+e.message)}
+}
+async function syncPull(){
+  if(!syncOn||!S.sync)return;
+  syncPulledAt=Date.now();
+  let d;
+  try{const r=await fetch('/api/account/settings',{cache:'no-store'});if(!r.ok)throw 0;d=await r.json()}
+  catch(_){syncStatus("Couldn't reach the server to sync.");return}
+  if(!d.data)return syncPush(); // first device on this account, or the server was reset
+  if(d.updatedAt===syncMeta.server){if(syncMeta.dirty)syncPush();else syncStatus('Up to date.');return}
+  // another device saved since. Keep ours only if we changed after it did.
+  if(syncMeta.dirty&&(syncMeta.localAt||0)>d.updatedAt)return syncPush();
+  syncApply(d.data);
+  syncMeta.server=d.updatedAt;syncMeta.dirty=false;syncSaveMeta();
+  syncStatus('Updated from your other devices.');
+}
+function syncStart(username){
+  syncOn=true;
+  // a different account on this device: its server copy wins over what's here
+  if(syncMeta.user!==username){syncMeta={user:username,server:0,dirty:false};syncSaveMeta()}
+  syncPull();
+}
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&syncOn&&Date.now()-syncPulledAt>30000)syncPull()});
+$('#sync-now').onclick=async()=>{click();syncStatus('Syncing…');await syncPull();if(syncMeta.dirty)await syncPush()};
+document.addEventListener('click',e=>{if(e.target.closest('.switch[data-setting="sync"]')&&S.sync&&syncOn)syncPull()});
 
 /* account security ------------------------------------------------ */
 $('#pw-btn').onclick=()=>dcModal({
@@ -1337,6 +1436,8 @@ function dcOnMessage(m){
     const open=$('#chat-window').classList.contains('show');
     if(!open)bumpBadge();
     if(mention&&(!open||m.channel!==dcActive))toast(`${nameOf(m.username)} mentioned you: ${m.text.slice(0,80)}`,'ok');
+    const dm=m.channel.startsWith('dm:');
+    if(dm||mention)notify(dm?nameOf(m.username):`${nameOf(m.username)} mentioned you`,m.text,{tag:m.channel,onclick:()=>{openChat();if(m.channel!==dcActive)dcOpen(m.channel)}});
   }
 }
 
@@ -2135,6 +2236,33 @@ $('#ad-announce').addEventListener('submit',async e=>{
   e.preventDefault();const i=$('#ad-announce-text'),t=i.value.trim();if(!t)return;
   try{await postJSON('/api/admin/announce',{text:t});i.value='';toast('Announcement sent','ok');adRefresh()}catch(err){toast(err.message,'err')}
 });
+
+/* install as an app (PWA). Chrome hands us the prompt once it decides the
+   site is installable; other browsers get instructions instead. */
+let installPrompt=null;
+const installed=()=>matchMedia('(display-mode: standalone)').matches||matchMedia('(display-mode: window-controls-overlay)').matches||navigator.standalone===true;
+function renderInstall(){
+  const b=$('#install-btn'),sub=$('#install-sub');if(!b)return;
+  if(installed()){b.textContent='Installed';b.disabled=true;sub.textContent="You're using the app right now.";return}
+  b.disabled=false;b.textContent='Install';
+}
+window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();installPrompt=e;renderInstall()});
+window.addEventListener('appinstalled',()=>{installPrompt=null;toast('Installed! Open it from your shelf or home screen.','ok');window.motion?.celebrate();renderInstall()});
+$('#install-btn').onclick=async()=>{
+  if(installPrompt){
+    installPrompt.prompt();
+    const {outcome}=await installPrompt.userChoice.catch(()=>({}));
+    installPrompt=null;
+    if(outcome!=='accepted')toast('No worries, you can install it later.');
+    renderInstall();return;
+  }
+  const ios=/iphone|ipad|ipod/i.test(navigator.userAgent);
+  dcModal({title:'Install william\'s vm',okLabel:'Got it',
+    sub:ios?'In Safari, tap the Share button, then “Add to Home Screen”.'
+       :'Open the browser menu (⋮) and pick “Install william\'s vm” (or “Cast, save and share” → “Install page as app”). If you don\'t see it, the browser may already have it installed, or it doesn\'t support installing sites.',
+    fields:[],onOk:()=>{}});
+};
+renderInstall();
 
 /* settings open */
 function openSettings(){openPanel('settings-panel');syncControls();$('#tb-settings').classList.add('active')}

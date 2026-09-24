@@ -15,6 +15,12 @@
 <meta name="color-scheme" content="dark">
 <meta name="theme-color" content="#0b0d12">
 <title>william's vm</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="willie's vm">
 <link id="favicon" rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23f2f2f2' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='2' y='4' width='20' height='13' rx='2'/%3E%3Cline x1='8' y1='21' x2='16' y2='21'/%3E%3Cline x1='12' y1='17' x2='12' y2='21'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="/css/app.css">
 <link rel="stylesheet" href="/css/features.css">
@@ -231,6 +237,11 @@
           <div class="row"><div class="lab"><b>Greeting</b><small>Shows “Good morning, name” on the launcher instead of the usual line.</small></div><div class="ctl"><button class="switch" role="switch" data-setting="greeting"></button></div></div>
           <div class="row"><div class="lab"><b>Auto-open on load</b><small>Jump straight into an app when the page opens.</small></div><div class="ctl"><select class="field" data-setting="startapp"><option value="none">Nothing</option><option value="browser">Browser</option><option value="games">Games</option><option value="links">Links</option><option value="chat">Server</option><option value="cloud">Cloud gaming</option><option value="vm">Default VM</option></select></div></div>
         </div>
+        <div class="card">
+          <h3>Notifications &amp; app</h3>
+          <div class="row"><div class="lab"><b>Desktop notifications</b><small>A pop-up for DMs, @mentions and calls while you're in another tab or app. When the tab is cloaked they just say “New message”.</small></div><div class="ctl"><button class="switch" role="switch" data-setting="notify"></button></div></div>
+          <div class="row"><div class="lab"><b>Install as an app</b><small id="install-sub">Adds william's vm to your Chromebook shelf, dock or home screen. It opens in its own window with no browser bar.</small></div><div class="ctl"><button class="btn sm primary" id="install-btn">Install</button></div></div>
+        </div>
       </section>
 
       <section class="spage" data-page="browser">
@@ -342,6 +353,8 @@
         </div>
         <div class="card">
           <h3>Your settings</h3>
+          <div class="row acct-only"><div class="lab"><b>Sync across devices</b><small id="sync-status">Settings, bookmarks, favourite games and your music library follow your account. Speed settings stay on each device.</small></div><div class="ctl"><button class="btn sm" id="sync-now">Sync now</button><button class="switch" role="switch" data-setting="sync"></button></div></div>
+          <div class="row guest-only"><div class="lab"><b>Sync across devices</b><small>Make an account and your settings, bookmarks and music follow you to every device.</small></div></div>
           <div class="row"><div class="lab"><b>Export settings</b><small>Download a JSON backup (settings, bookmarks, favorites).</small></div><div class="ctl"><button class="btn sm" id="export-btn">Export</button></div></div>
           <div class="row"><div class="lab"><b>Import settings</b></div><div class="ctl"><input type="file" id="import-file" accept="application/json" hidden><button class="btn sm" id="import-btn">Import…</button></div></div>
           <div class="row"><div class="lab"><b>Reset settings</b><small>Back to defaults. Keeps bookmarks and history.</small></div><div class="ctl"><button class="btn sm danger" id="reset-btn">Reset</button></div></div>

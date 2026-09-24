@@ -71,6 +71,14 @@ db.exec(`
     PRIMARY KEY (username, kind)
   );
 
+  -- settings, bookmarks and music library, synced between a user's devices.
+  -- data is the JSON the page sends; the page owns its shape.
+  CREATE TABLE IF NOT EXISTS user_settings (
+    username    TEXT PRIMARY KEY,
+    data        TEXT NOT NULL,
+    updated_at  INTEGER NOT NULL
+  );
+
   CREATE INDEX IF NOT EXISTS idx_messages_created ON messages(created_at);
 `);
 
@@ -147,6 +155,12 @@ const q = {
   deleteUserMessages: db.prepare("DELETE FROM messages WHERE username = ?"),
   deleteUserReactions: db.prepare("DELETE FROM reactions WHERE username = ?"),
   deleteUserSanctions: db.prepare("DELETE FROM sanctions WHERE username = ?"),
+  deleteUserSettings: db.prepare("DELETE FROM user_settings WHERE username = ?"),
+  getSettings: db.prepare("SELECT data, updated_at FROM user_settings WHERE username = ?"),
+  putSettings: db.prepare(
+    "INSERT INTO user_settings (username, data, updated_at) VALUES (?, ?, ?)" +
+      " ON CONFLICT(username) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at"
+  ),
   allDMChannels: db.prepare("SELECT DISTINCT channel FROM messages WHERE channel LIKE 'dm:%'"),
   messageCount: db.prepare("SELECT COUNT(*) AS n FROM messages WHERE deleted = 0"),
 
@@ -272,6 +286,7 @@ export function deleteUser(username) {
     q.deleteUserMessages.run(username);
     q.deleteUserReactions.run(username);
     q.deleteUserSanctions.run(username);
+    q.deleteUserSettings.run(username);
     q.deleteUser.run(username);
     db.exec("COMMIT");
   } catch (err) {
@@ -279,6 +294,25 @@ export function deleteUser(username) {
     throw err;
   }
   return true;
+}
+
+/* ---- synced settings ---- */
+
+export function getSettings(username) {
+  const row = q.getSettings.get(username);
+  if (!row) return null;
+  try {
+    return { data: JSON.parse(row.data), updatedAt: row.updated_at };
+  } catch (_) {
+    return null;
+  }
+}
+
+/* `json` is already validated and stringified by the caller. Returns the new timestamp. */
+export function saveSettings(username, json) {
+  const now = Date.now();
+  q.putSettings.run(username, json, now);
+  return now;
 }
 
 export function adminUsers() {
