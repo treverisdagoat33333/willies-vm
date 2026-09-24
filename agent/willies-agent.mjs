@@ -8,9 +8,10 @@
  * WebSocket. Nothing here is a public service: it only connects out to the
  * relay you point it at, using the REMOTE_KEY secret only you hold.
  *
- *   node willies-agent.mjs --url wss://willies-vm.onrender.com --key YOURKEY
+ *   node willies-agent.mjs --url wss://willies-vm.onrender.com --key YOURKEY --name "Gaming PC"
  *
- * or set WVM_URL / REMOTE_KEY in the environment.
+ * or set WVM_URL / REMOTE_KEY / WVM_NAME in the environment. The name is how
+ * this PC shows up in the Remote PC picker when you run agents on several.
  */
 import { WebSocket } from "ws";
 import { spawn } from "node:child_process";
@@ -31,10 +32,15 @@ if (!KEY) {
   console.error("No key. Pass --key YOURKEY or set REMOTE_KEY. It must match the server's REMOTE_KEY.");
   process.exit(1);
 }
+const NAME = String(args.name || process.env.WVM_NAME || os.hostname() || "PC")
+  .replace(/[^A-Za-z0-9 ._-]/g, "")
+  .trim()
+  .slice(0, 32) || "PC";
+// the key goes in a header, never the URL, so it stays out of proxy logs
 const WS_URL =
   URL_IN.replace(/^http/i, "ws").replace(/\/+$/, "") +
-  "/remote/?role=agent&key=" +
-  encodeURIComponent(KEY);
+  "/remote/?role=agent&name=" +
+  encodeURIComponent(NAME);
 
 /* -------- the screen capture + input host (PowerShell + C#) -------- */
 const PS1 = String.raw`
@@ -51,12 +57,55 @@ public class Cap {
   [DllImport("user32.dll")] static extern bool SetCursorPos(int X, int Y);
   [DllImport("user32.dll")] static extern void mouse_event(uint f, uint dx, uint dy, uint d, IntPtr e);
   [DllImport("user32.dll")] static extern void keybd_event(byte vk, byte scan, uint f, IntPtr e);
-  [DllImport("user32.dll")] static extern int GetSystemMetrics(int n);
+  [StructLayout(LayoutKind.Sequential)] public struct RECT { public int L, T, R, B; }
+  [StructLayout(LayoutKind.Sequential)] public struct MONITORINFO { public int cbSize; public RECT rcMonitor; public RECT rcWork; public uint dwFlags; }
+  delegate bool MonitorEnumProc(IntPtr hMon, IntPtr hdc, ref RECT r, IntPtr data);
+  [DllImport("user32.dll")] static extern bool EnumDisplayMonitors(IntPtr hdc, IntPtr clip, MonitorEnumProc cb, IntPtr data);
+  [DllImport("user32.dll")] static extern bool GetMonitorInfo(IntPtr hMon, ref MONITORINFO mi);
 
   static volatile int q = 45;
   static volatile int fps = 12;
   static volatile int scale = 100;
+  static volatile int mon = 0;
   static volatile bool run = true;
+  static Rectangle[] screens = new Rectangle[0];
+  static bool[] primary = new bool[0];
+
+  /* every monitor, primary first, re-read so plugging one in just works */
+  static void ReadScreens() {
+    var rects = new System.Collections.Generic.List<Rectangle>();
+    var prim = new System.Collections.Generic.List<bool>();
+    EnumDisplayMonitors(IntPtr.Zero, IntPtr.Zero, (IntPtr h, IntPtr dc, ref RECT r, IntPtr d) => {
+      var mi = new MONITORINFO(); mi.cbSize = Marshal.SizeOf(typeof(MONITORINFO));
+      if (GetMonitorInfo(h, ref mi)) {
+        var rc = mi.rcMonitor;
+        bool p = (mi.dwFlags & 1) != 0;
+        var box = new Rectangle(rc.L, rc.T, rc.R - rc.L, rc.B - rc.T);
+        if (p) { rects.Insert(0, box); prim.Insert(0, true); } else { rects.Add(box); prim.Add(false); }
+      }
+      return true;
+    }, IntPtr.Zero);
+    if (rects.Count == 0) { rects.Add(new Rectangle(0, 0, GetSystemMetrics(0), GetSystemMetrics(1))); prim.Add(true); }
+    screens = rects.ToArray(); primary = prim.ToArray();
+  }
+
+  static Rectangle Current() {
+    var s = screens;
+    int i = mon; if (i < 0 || i >= s.Length) i = 0;
+    return s.Length > 0 ? s[i] : new Rectangle(0, 0, GetSystemMetrics(0), GetSystemMetrics(1));
+  }
+
+  static string Describe() {
+    var sb = new System.Text.StringBuilder();
+    for (int i = 0; i < screens.Length; i++) {
+      if (i > 0) sb.Append('|');
+      var r = screens[i];
+      sb.Append(r.X).Append(',').Append(r.Y).Append(',').Append(r.Width).Append(',').Append(r.Height).Append(',').Append(primary[i] ? 1 : 0);
+    }
+    return sb.ToString();
+  }
+
+  [DllImport("user32.dll")] static extern int GetSystemMetrics(int n);
 
   public static void Main() {
     var t = new Thread(ReadCommands); t.IsBackground = true; t.Start();
@@ -67,20 +116,29 @@ public class Cap {
     var ep = new EncoderParameters(1);
     var magic = new byte[] { 0x57, 0x56, 0x4D, 0x31 };
 
-    int lastW = 0, lastH = 0;
+    int lastW = 0, lastH = 0, lastMon = -1;
+    string lastLayout = "";
     long lastHash = -1;
     var idle = System.Diagnostics.Stopwatch.StartNew();
+    var rescan = System.Diagnostics.Stopwatch.StartNew();
+    ReadScreens();
 
     while (run) {
       var sw = System.Diagnostics.Stopwatch.StartNew();
-      int W = GetSystemMetrics(0), H = GetSystemMetrics(1);
+      if (rescan.ElapsedMilliseconds > 2000) { ReadScreens(); rescan.Restart(); }
+      var box = Current();
+      int W = box.Width, H = box.Height;
       if (W < 1 || H < 1) { Thread.Sleep(200); continue; }
 
       using (var bmp = new Bitmap(W, H, PixelFormat.Format24bppRgb))
       using (var g = Graphics.FromImage(bmp)) {
-        try { g.CopyFromScreen(0, 0, 0, 0, new Size(W, H)); } catch { Thread.Sleep(200); continue; }
+        try { g.CopyFromScreen(box.X, box.Y, 0, 0, new Size(W, H)); } catch { Thread.Sleep(200); continue; }
 
-        if (W != lastW || H != lastH) { lastW = W; lastH = H; Console.Error.WriteLine("META " + W + " " + H); }
+        string layout = Describe();
+        if (W != lastW || H != lastH || mon != lastMon || layout != lastLayout) {
+          lastW = W; lastH = H; lastMon = mon; lastLayout = layout; lastHash = -1;
+          Console.Error.WriteLine("META " + W + " " + H + " " + mon + " " + layout);
+        }
 
         long h = Hash(bmp);
         bool changed = h != lastHash;
@@ -153,11 +211,12 @@ public class Cap {
         case "q": q = Clamp(int.Parse(p[1]), 5, 95); break;
         case "f": fps = Clamp(int.Parse(p[1]), 1, 30); break;
         case "s": scale = Clamp(int.Parse(p[1]), 25, 100); break;
+        case "mon": { int i = int.Parse(p[1]); if (i >= 0 && i < screens.Length) mon = i; break; }
         case "m": {
-          int W = GetSystemMetrics(0), H = GetSystemMetrics(1);
+          var b = Current();
           long nx = long.Parse(p[1]), ny = long.Parse(p[2]);
-          int x = (int)(nx * (long)(W - 1) / 10000);
-          int y = (int)(ny * (long)(H - 1) / 10000);
+          int x = b.X + (int)(nx * (long)(b.Width - 1) / 10000);
+          int y = b.Y + (int)(ny * (long)(b.Height - 1) / 10000);
           SetCursorPos(x, y);
           break;
         }
@@ -224,13 +283,25 @@ function startChild() {
       const line = errline.slice(0, i).trim();
       errline = errline.slice(i + 1);
       if (line.startsWith("META ")) {
-        const [, w, h] = line.split(" ");
-        screenMeta = { t: "meta", w: +w, h: +h };
+        const [, w, h, mon, layout = ""] = line.split(" ");
+        const monitors = layout
+          .split("|")
+          .filter(Boolean)
+          .map((s) => {
+            const [x, y, mw, mh, p] = s.split(",").map(Number);
+            return { x, y, w: mw, h: mh, primary: p === 1 };
+          });
+        screenMeta = { t: "meta", w: +w, h: +h, monitor: +mon || 0, monitors, name: NAME };
         if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(screenMeta));
       } else if (line) {
         console.error("[capture]", line);
       }
     }
+  });
+
+  child.on("error", (e) => {
+    console.error("Could not start PowerShell (" + e.message + "). This agent runs on Windows only.");
+    process.exit(1);
   });
 
   child.on("exit", (code) => {
@@ -243,14 +314,69 @@ function toChild(line) {
   if (child && child.stdin.writable) child.stdin.write(line + "\n");
 }
 
+/* -------- clipboard (PowerShell's own cmdlets, UTF-8 both ways) -------- */
+const CLIP_MAX = 256 * 1024;
+
+function runPS(script, input) {
+  return new Promise((resolve, reject) => {
+    const p = spawn("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", script], {
+      stdio: ["pipe", "pipe", "pipe"],
+      windowsHide: true,
+    });
+    let out = "";
+    p.stdout.setEncoding("utf8");
+    p.stdout.on("data", (d) => {
+      if (out.length < CLIP_MAX * 2) out += d;
+    });
+    p.on("error", reject);
+    p.on("exit", (code) => (code === 0 ? resolve(out) : reject(new Error("powershell exited " + code))));
+    p.stdin.end(input ?? "", "utf8");
+  });
+}
+
+function setClipboard(text) {
+  if (!text) return Promise.resolve();
+  return runPS(
+    "[Console]::InputEncoding=[Text.Encoding]::UTF8; Set-Clipboard -Value ([Console]::In.ReadToEnd())",
+    String(text).slice(0, CLIP_MAX)
+  );
+}
+
+async function getClipboard() {
+  const out = await runPS("[Console]::OutputEncoding=[Text.Encoding]::UTF8; Get-Clipboard -Raw");
+  return out.replace(/\r?\n$/, "").slice(0, CLIP_MAX);
+}
+
 /* -------- the relay connection -------- */
 let ws = null;
 let screenMeta = null;
 let retry = 0;
 
 function connect() {
-  console.log("Connecting to relay:", WS_URL.replace(/key=[^&]+/, "key=***"));
-  ws = new WebSocket(WS_URL);
+  console.log(`Connecting to relay as "${NAME}":`, WS_URL);
+  ws = new WebSocket(WS_URL, { headers: { Authorization: "Bearer " + KEY } });
+
+  // the relay refuses the upgrade itself on a bad key, before any socket exists
+  // (handling this event means ws emits no "close", so it retries or quits here)
+  ws.on("unexpected-response", (req, res) => {
+    req.destroy();
+    if (res.statusCode === 401 || res.statusCode === 403) {
+      console.error("Relay rejected the key. Check that REMOTE_KEY matches the server's.");
+      return quit(1);
+    }
+    if (res.statusCode === 404) {
+      console.error("Remote control is off on the server (REMOTE_KEY is not set there).");
+      return quit(1);
+    }
+    if (res.statusCode === 429) {
+      console.error("Too many wrong keys from this network. Waiting 5 minutes before retrying…");
+      return setTimeout(connect, 5 * 60_000);
+    }
+    retry++;
+    const wait = Math.min(1000 * Math.pow(1.5, retry), 15000);
+    console.error("Relay answered HTTP " + res.statusCode + ". Retrying in " + Math.round(wait / 1000) + "s…");
+    setTimeout(connect, wait);
+  });
 
   ws.on("open", () => {
     retry = 0;
@@ -276,6 +402,17 @@ function connect() {
         if (m.quality != null) toChild("q " + (m.quality | 0));
         if (m.fps != null) toChild("f " + (m.fps | 0));
         if (m.scale != null) toChild("s " + (m.scale | 0));
+        if (m.monitor != null) toChild("mon " + (m.monitor | 0));
+        break;
+      case "clip.set":
+        setClipboard(String(m.text ?? ""))
+          .then(() => ws.send(JSON.stringify({ t: "clip.ok" })))
+          .catch((e) => ws.send(JSON.stringify({ t: "clip.err", error: e.message })));
+        break;
+      case "clip.get":
+        getClipboard()
+          .then((text) => ws.send(JSON.stringify({ t: "clip", text })))
+          .catch((e) => ws.send(JSON.stringify({ t: "clip.err", error: e.message })));
         break;
       case "ping":
         ws.send(JSON.stringify({ t: "pong", ts: m.ts }));
@@ -287,9 +424,9 @@ function connect() {
   });
 
   ws.on("close", (code) => {
-    if (code === 1008 || code === 4001) {
-      console.error("Relay rejected the connection (bad key or not authorized). Check REMOTE_KEY.");
-      return;
+    if (code === 4002) {
+      console.error(`Another agent connected as "${NAME}" and replaced this one. Use --name to run both.`);
+      return quit(1);
     }
     retry++;
     const wait = Math.min(1000 * Math.pow(1.5, retry), 15000);
@@ -300,12 +437,16 @@ function connect() {
   ws.on("error", (e) => console.error("Relay error:", e.message));
 }
 
+function quit(code) {
+  try { toChild("stop"); } catch (_) {}
+  try { child && child.removeAllListeners("exit"); child && child.kill(); } catch (_) {}
+  try { fs.unlinkSync(ps1Path); } catch (_) {}
+  process.exit(code);
+}
+
 process.on("SIGINT", () => {
   console.log("\nStopping.");
-  try { toChild("stop"); } catch (_) {}
-  try { child && child.kill(); } catch (_) {}
-  try { fs.unlinkSync(ps1Path); } catch (_) {}
-  process.exit(0);
+  quit(0);
 });
 
 startChild();

@@ -15,13 +15,24 @@ Double-click **`run.cmd`**, paste your `REMOTE_KEY` when asked, leave it running
 Or from a terminal:
 
 ```
-node willies-agent.mjs --url wss://willies-vm.onrender.com --key YOUR_REMOTE_KEY
+node willies-agent.mjs --url wss://willies-vm.onrender.com --key YOUR_REMOTE_KEY --name "Gaming PC"
 ```
+
+`--name` is how this PC shows up in the Remote PC picker. It defaults to the
+computer's name, so running the agent on several PCs just works; each one
+appears in the **PC** dropdown in the Remote PC toolbar.
 
 Then open willies-vm in a browser, sign in as the **owner** account, open
 **Remote PC**, enter the same key, and you're driving this machine.
 
 Press **Ctrl+C** in the agent window to stop sharing.
+
+## Toolbar
+
+- **PC**: which of your connected PCs to drive.
+- **Screen**: which monitor to show, on a PC with more than one.
+- **Paste to PC**: sends your browser clipboard to the PC's clipboard.
+- **Copy from PC**: copies the PC's clipboard into your browser's.
 
 ## Notes
 
@@ -32,3 +43,6 @@ Press **Ctrl+C** in the agent window to stop sharing.
 - The agent only ever connects **out** to the relay you point it at. It is not a
   server and opens no ports. Without the matching `REMOTE_KEY` it is refused,
   and viewers must additionally be logged in as the owner account.
+- The key is sent in a request header, never in the URL, so it does not end up
+  in proxy or access logs. Update any older copy of this agent: the server no
+  longer accepts a key in the URL.
