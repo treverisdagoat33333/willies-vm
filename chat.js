@@ -35,6 +35,7 @@ import {
   liftSanction,
   activeSanction,
 } from "./db.js";
+import { censor } from "./profanity.js";
 
 /*
 |--------------------------------------------------------------------------
@@ -62,6 +63,20 @@ function send(ws, payload) {
 
 function fail(ws, text) {
   send(ws, { type: "error", text });
+}
+
+/*
+ * House rule: only the owner swears. Everyone else's words go through the
+ * filter, and the first time it stars something out they get told why.
+ */
+function tidy(ws, st, text) {
+  if (text == null || roleOf(st) === "owner") return text;
+  const r = censor(text);
+  if (r.hit && !st.langWarned) {
+    st.langWarned = true;
+    send(ws, { type: "system", text: `Only ${ownerName()} can swear in here 😅 Bad words get starred out.` });
+  }
+  return r.text;
 }
 
 /*
@@ -277,7 +292,7 @@ wss.on("connection", (ws, _req, session, ip) => {
       /* ---- posting ---- */
       case "msg": {
         const ch = String(d.channel || "");
-        const text = clean(d.text);
+        const text = tidy(ws, st, clean(d.text));
         if (!text) return;
         if (!mayPost(st, ch)) return fail(ws, "You can't post in that channel.");
 
@@ -306,7 +321,7 @@ wss.on("connection", (ws, _req, session, ip) => {
         if (!m) return;
         if (m.username !== st.name) return fail(ws, "You can only edit your own messages.");
         if (!mayRead(st, m.channel)) return;
-        const text = clean(d.text);
+        const text = tidy(ws, st, clean(d.text));
         if (!text) return fail(ws, "A message can't be empty. Delete it instead.");
         if (text === m.text) return;
         if (muteOf(st)) return fail(ws, "You can't edit while timed out.");
@@ -393,7 +408,7 @@ wss.on("connection", (ws, _req, session, ip) => {
       /* ---- channels ---- */
       case "channel.create": {
         if (!can(st, "manageChannels")) return fail(ws, "Only admins can add channels.");
-        const res = createChannel(String(d.name || ""), String(d.topic || ""));
+        const res = createChannel(tidy(ws, st, String(d.name || "")), tidy(ws, st, String(d.topic || "")));
         if (res.error) return fail(ws, res.error);
         broadcast({ type: "channels", channels: listChannels() });
         return;
@@ -402,8 +417,8 @@ wss.on("connection", (ws, _req, session, ip) => {
       case "channel.update": {
         if (!can(st, "manageChannels")) return fail(ws, "Only admins can edit channels.");
         const ch = updateChannel(String(d.channel || ""), {
-          name: d.name,
-          topic: d.topic,
+          name: d.name == null ? d.name : tidy(ws, st, String(d.name)),
+          topic: d.topic == null ? d.topic : tidy(ws, st, String(d.topic)),
           locked: d.locked,
         });
         if (!ch) return fail(ws, "No such channel.");
@@ -440,9 +455,9 @@ wss.on("connection", (ws, _req, session, ip) => {
       case "profile.set": {
         if (!st.account) return fail(ws, "Guests can't set a profile.");
         const p = setProfile(st.name, {
-          displayName: d.displayName ? String(d.displayName).slice(0, 24) : undefined,
+          displayName: d.displayName ? tidy(ws, st, String(d.displayName).slice(0, 24)) : undefined,
           color: d.color ? String(d.color).slice(0, 9) : undefined,
-          bio: d.bio != null ? String(d.bio).slice(0, 160) : undefined,
+          bio: d.bio != null ? tidy(ws, st, String(d.bio).slice(0, 160)) : undefined,
         });
         send(ws, { type: "profile", profile: p });
         broadcast({ type: "members", members: roster(), profiles: allProfiles() });

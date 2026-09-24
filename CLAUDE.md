@@ -184,6 +184,8 @@ Voice calls ride the same socket (`chat.js` relays; audio and screen go peer to 
 
 Close codes: `4003` banned, `4004` kicked, `4005` signed out.
 
+Only the owner swears. `tidy()` in `chat.js` runs everyone else's messages, edits, display names, bios and channel names through `censor()` from `profanity.js`, which stars the word out ("f***"). Sign-up refuses usernames with bad words. The word lists are `CONTAINS` (caught anywhere in a word), `PREFIX` and `EXACT` (whole word only, so "class" and "assess" survive), plus `ALLOW` for real words that collide. After changing them, check against a list of everyday words.
+
 ### Remote PC relay (`remote.js` + `agent/`)
 - **Agents** connect with `Authorization: Bearer <REMOTE_KEY>` and `?name=`. Several named PCs can be online; a new agent with the same name replaces the old one (close code `4002`).
 - **Viewers** must be the owner (checked from the cookie at upgrade) and send `{t:'auth', key}` as their first message. Close code `4001` means a bad key.

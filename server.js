@@ -54,6 +54,7 @@ import {
 } from "./remote.js";
 import { clientIp, createLimiter, limitByIp, formatWait } from "./security.js";
 import { musicRouter } from "./music.js";
+import { hasBadWords } from "./profanity.js";
 
 const require = createRequire(import.meta.url);
 const dirOf = (specifier) => path.dirname(require.resolve(specifier));
@@ -513,6 +514,10 @@ app.post("/api/auth/register", limitByIp(registerLimiter, "Too many new accounts
   }
   if (getUser(username)) {
     return res.status(409).json({ error: "That username is already taken." });
+  }
+  // only the owner swears here, and a username shows up everywhere
+  if (username !== ownerName() && hasBadWords(username)) {
+    return res.status(400).json({ error: "Pick a different username. That one has a bad word in it." });
   }
 
   const passwordHash = await bcrypt.hash(password, 12);
