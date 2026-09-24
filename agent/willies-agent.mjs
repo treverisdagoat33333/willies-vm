@@ -18,6 +18,7 @@ import { spawn } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { createFileService } from "./files.mjs";
 
 /* -------- config -------- */
 const args = Object.fromEntries(
@@ -244,8 +245,199 @@ public class Cap {
 [Cap]::Main()
 `;
 
+/* -------- PC sound: WASAPI loopback in its own PowerShell process -------- */
+// Separate from the capture host, so if sound can't start the screen keeps working.
+const AUDIO_PS1 = String.raw`
+$ErrorActionPreference = 'Stop'
+Add-Type -TypeDefinition @'
+using System;
+using System.IO;
+using System.Runtime.InteropServices;
+using System.Threading;
+
+// WASAPI loopback: whatever the PC's speakers are playing, as 16-bit PCM.
+[ComImport, Guid("BCDE0395-E52F-467C-8E3D-C4579291692E")]
+class WvmDeviceEnumerator {}
+
+[ComImport, Guid("A95664D2-9614-4F35-A746-DE8DB63617E6"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+interface IWvmDeviceEnumerator {
+  [PreserveSig] int EnumAudioEndpoints(int dataFlow, int stateMask, out IntPtr devices);
+  [PreserveSig] int GetDefaultAudioEndpoint(int dataFlow, int role, out IWvmDevice device);
+}
+
+[ComImport, Guid("D666063F-1587-4E43-81F1-B948E807363F"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+interface IWvmDevice {
+  [PreserveSig] int Activate(ref Guid iid, int clsCtx, IntPtr activationParams, [MarshalAs(UnmanagedType.IUnknown)] out object iface);
+}
+
+[ComImport, Guid("1CB9AD4C-DBFA-4c32-B178-C2F568A703B2"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+interface IWvmAudioClient {
+  [PreserveSig] int Initialize(int shareMode, int streamFlags, long bufferDuration, long periodicity, IntPtr format, IntPtr sessionGuid);
+  [PreserveSig] int GetBufferSize(out uint frames);
+  [PreserveSig] int GetStreamLatency(out long latency);
+  [PreserveSig] int GetCurrentPadding(out uint frames);
+  [PreserveSig] int IsFormatSupported(int shareMode, IntPtr format, out IntPtr closest);
+  [PreserveSig] int GetMixFormat(out IntPtr format);
+  [PreserveSig] int GetDevicePeriod(out long defaultPeriod, out long minPeriod);
+  [PreserveSig] int Start();
+  [PreserveSig] int Stop();
+  [PreserveSig] int Reset();
+  [PreserveSig] int SetEventHandle(IntPtr handle);
+  [PreserveSig] int GetService(ref Guid iid, [MarshalAs(UnmanagedType.IUnknown)] out object service);
+}
+
+[ComImport, Guid("C8ADBD64-E71E-48a0-A4DE-185C395CD317"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+interface IWvmCaptureClient {
+  [PreserveSig] int GetBuffer(out IntPtr data, out uint frames, out uint flags, out ulong devicePosition, out ulong qpcPosition);
+  [PreserveSig] int ReleaseBuffer(uint frames);
+  [PreserveSig] int GetNextPacketSize(out uint frames);
+}
+
+public static class WvmAudio {
+  const int AUDCLNT_STREAMFLAGS_LOOPBACK = 0x00020000;
+  const uint AUDCLNT_BUFFERFLAGS_SILENT = 0x2;
+  const int CLSCTX_ALL = 23;
+  static readonly Guid IID_IAudioClient = new Guid("1CB9AD4C-DBFA-4c32-B178-C2F568A703B2");
+  static readonly Guid IID_IAudioCaptureClient = new Guid("C8ADBD64-E71E-48a0-A4DE-185C395CD317");
+  static readonly Guid SUBTYPE_FLOAT = new Guid("00000003-0000-0010-8000-00aa00389b71");
+  static volatile bool run = true;
+
+  static void Check(int hr, string what) {
+    if (hr < 0) throw new Exception(what + " failed (0x" + hr.ToString("X8") + ")");
+  }
+
+  public static void Main() {
+    var reader = new Thread(WatchStdin);
+    reader.IsBackground = true;
+    reader.Start();
+    try { Capture(); }
+    catch (Exception e) { Console.Error.WriteLine("ERROR " + e.Message.Replace("\n", " ")); Environment.Exit(2); }
+  }
+
+  // the agent closes our stdin to stop us
+  static void WatchStdin() {
+    var ins = Console.OpenStandardInput();
+    var b = new byte[64];
+    try { while (ins.Read(b, 0, b.Length) > 0) {} } catch (Exception) {}
+    run = false;
+  }
+
+  static void Capture() {
+    var enumerator = (IWvmDeviceEnumerator)(new WvmDeviceEnumerator());
+    IWvmDevice device;
+    Check(enumerator.GetDefaultAudioEndpoint(0 /* render */, 0 /* console */, out device), "Finding the speakers");
+    object o;
+    Guid iid = IID_IAudioClient;
+    Check(device.Activate(ref iid, CLSCTX_ALL, IntPtr.Zero, out o), "Opening the speakers");
+    var client = (IWvmAudioClient)o;
+
+    IntPtr fmt;
+    Check(client.GetMixFormat(out fmt), "Reading the audio format");
+    int tag = (ushort)Marshal.ReadInt16(fmt, 0);
+    int channels = (ushort)Marshal.ReadInt16(fmt, 2);
+    int rate = Marshal.ReadInt32(fmt, 4);
+    int blockAlign = (ushort)Marshal.ReadInt16(fmt, 12);
+    int bits = (ushort)Marshal.ReadInt16(fmt, 14);
+    bool isFloat = tag == 3;
+    if (tag == 0xFFFE) {
+      var sub = new byte[16];
+      Marshal.Copy(new IntPtr(fmt.ToInt64() + 24), sub, 0, 16);
+      isFloat = new Guid(sub) == SUBTYPE_FLOAT;
+    }
+    if (!(isFloat && bits == 32) && bits != 16 && bits != 32)
+      throw new Exception("Unsupported speaker format (" + bits + "-bit)");
+
+    Check(client.Initialize(0 /* shared */, AUDCLNT_STREAMFLAGS_LOOPBACK, 10000000 /* 1 s */, 0, fmt, IntPtr.Zero), "Starting loopback capture");
+    object so;
+    Guid ciid = IID_IAudioCaptureClient;
+    Check(client.GetService(ref ciid, out so), "Getting the capture service");
+    var capture = (IWvmCaptureClient)so;
+
+    // halve 44.1/48 kHz to 22.05/24 kHz stereo: plenty for a remote session, a quarter of the bytes
+    int step = rate >= 44100 ? 2 : 1;
+    int outRate = rate / step;
+    int outCh = Math.Min(2, channels);
+    Console.Error.WriteLine("AUDIO " + outRate + " " + outCh);
+
+    var stdout = Console.OpenStandardOutput();
+    var pending = new MemoryStream();
+    int flushBytes = outRate * outCh * 2 / 25; // send about every 40 ms
+    byte[] raw = new byte[0];
+    float carry0 = 0, carry1 = 0;
+    bool haveCarry = false;
+
+    Check(client.Start(), "Starting capture");
+    try {
+      while (run) {
+        uint packet;
+        Check(capture.GetNextPacketSize(out packet), "Reading audio");
+        if (packet == 0) { Thread.Sleep(10); continue; }
+        while (packet > 0) {
+          IntPtr data; uint frames, flags; ulong devPos, qpc;
+          Check(capture.GetBuffer(out data, out frames, out flags, out devPos, out qpc), "Reading audio");
+          int n = (int)frames * blockAlign;
+          if (raw.Length < n) raw = new byte[n];
+          bool silent = (flags & AUDCLNT_BUFFERFLAGS_SILENT) != 0;
+          if (!silent) Marshal.Copy(data, raw, 0, n);
+          Check(capture.ReleaseBuffer(frames), "Reading audio");
+
+          for (int f = 0; f < frames; f++) {
+            float l = 0, r = 0;
+            if (!silent) {
+              int at = f * blockAlign;
+              l = Sample(raw, at, isFloat, bits);
+              r = channels > 1 ? Sample(raw, at + bits / 8, isFloat, bits) : l;
+            }
+            if (step == 2) {
+              // average each pair of frames: a cheap low-pass before dropping half
+              if (!haveCarry) { carry0 = l; carry1 = r; haveCarry = true; continue; }
+              l = (l + carry0) * 0.5f; r = (r + carry1) * 0.5f; haveCarry = false;
+            }
+            WritePcm(pending, l);
+            if (outCh == 2) WritePcm(pending, r);
+          }
+          if (pending.Length >= flushBytes) { Emit(stdout, pending); }
+          Check(capture.GetNextPacketSize(out packet), "Reading audio");
+        }
+      }
+    } finally {
+      client.Stop();
+    }
+  }
+
+  static float Sample(byte[] b, int at, bool isFloat, int bits) {
+    if (isFloat) return BitConverter.ToSingle(b, at);
+    if (bits == 16) return BitConverter.ToInt16(b, at) / 32768f;
+    return BitConverter.ToInt32(b, at) / 2147483648f;
+  }
+
+  static void WritePcm(MemoryStream s, float v) {
+    if (v > 1f) v = 1f; else if (v < -1f) v = -1f;
+    short x = (short)(v * 32767f);
+    s.WriteByte((byte)(x & 0xFF));
+    s.WriteByte((byte)((x >> 8) & 0xFF));
+  }
+
+  // "WVAU" + uint32 LE length + PCM
+  static void Emit(Stream o, MemoryStream pending) {
+    int len = (int)pending.Length;
+    var head = new byte[8];
+    head[0] = 0x57; head[1] = 0x56; head[2] = 0x41; head[3] = 0x55;
+    head[4] = (byte)len; head[5] = (byte)(len >> 8); head[6] = (byte)(len >> 16); head[7] = (byte)(len >> 24);
+    o.Write(head, 0, 8);
+    o.Write(pending.GetBuffer(), 0, len);
+    o.Flush();
+    pending.SetLength(0);
+  }
+}
+'@
+[WvmAudio]::Main()
+`;
+
 const ps1Path = path.join(os.tmpdir(), "wvm-cap-" + process.pid + ".ps1");
 fs.writeFileSync(ps1Path, PS1, "utf8");
+const audioPs1Path = path.join(os.tmpdir(), "wvm-audio-" + process.pid + ".ps1");
+fs.writeFileSync(audioPs1Path, AUDIO_PS1, "utf8");
 
 let child = null;
 function startChild() {
@@ -352,6 +544,87 @@ let ws = null;
 let screenMeta = null;
 let retry = 0;
 
+const open = () => ws && ws.readyState === WebSocket.OPEN;
+const sendJSON = (o) => open() && ws.send(JSON.stringify(o));
+
+const files = createFileService({
+  send: sendJSON,
+  sendBinary: (b) => open() && ws.send(b, { binary: true }),
+  bufferedAmount: () => (ws ? ws.bufferedAmount : 0),
+});
+
+let audio = null; // { child, rate, ch }
+function startAudio() {
+  if (audio) return sendJSON({ t: "audio.state", on: true });
+  if (process.platform !== "win32") return sendJSON({ t: "audio.state", on: false, error: "Sound only works when the agent runs on Windows." });
+  const child = spawn("powershell.exe", ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", audioPs1Path], {
+    stdio: ["pipe", "pipe", "pipe"],
+    windowsHide: true,
+  });
+  const a = { child, rate: 0, ch: 2, error: "" };
+  audio = a;
+  // reframe "WVAU" + len(4 LE) + PCM, and send it as "WVA1" + rate(4) + channels(2) + 0(2) + PCM
+  let buf = Buffer.alloc(0);
+  child.stdout.on("data", (chunk) => {
+    buf = buf.length ? Buffer.concat([buf, chunk]) : chunk;
+    for (;;) {
+      if (buf.length < 8) break;
+      if (buf[0] !== 0x57 || buf[1] !== 0x56 || buf[2] !== 0x41 || buf[3] !== 0x55) {
+        buf = buf.subarray(1);
+        continue;
+      }
+      const len = buf.readUInt32LE(4);
+      if (buf.length < 8 + len) break;
+      const pcm = buf.subarray(8, 8 + len);
+      buf = buf.subarray(8 + len);
+      // a congested link drops sound rather than letting it lag behind the picture
+      if (!open() || !a.rate || ws.bufferedAmount > 1024 * 1024) continue;
+      const head = Buffer.alloc(12);
+      head.write("WVA1", 0, "latin1");
+      head.writeUInt32LE(a.rate, 4);
+      head.writeUInt16LE(a.ch, 8);
+      ws.send(Buffer.concat([head, pcm]), { binary: true });
+    }
+  });
+  let errline = "";
+  child.stderr.on("data", (d) => {
+    errline += d.toString();
+    let i;
+    while ((i = errline.indexOf("\n")) >= 0) {
+      const line = errline.slice(0, i).trim();
+      errline = errline.slice(i + 1);
+      if (line.startsWith("AUDIO ")) {
+        const [, rate, ch] = line.split(" ");
+        a.rate = +rate;
+        a.ch = +ch || 2;
+        console.log("Sound on (" + a.rate + " Hz).");
+        sendJSON({ t: "audio.state", on: true });
+      } else if (line.startsWith("ERROR ")) {
+        a.error = line.slice(6);
+      } else if (line) {
+        console.error("[sound]", line);
+      }
+    }
+  });
+  child.on("error", (e) => {
+    a.error = e.message;
+  });
+  child.on("exit", () => {
+    if (audio !== a) return;
+    audio = null;
+    if (a.error) console.error("Sound stopped: " + a.error);
+    sendJSON({ t: "audio.state", on: false, error: a.error || undefined });
+  });
+}
+function stopAudio() {
+  if (!audio) return;
+  const { child } = audio;
+  audio = null;
+  try { child.stdin.end(); } catch (_) {}
+  setTimeout(() => { try { child.kill(); } catch (_) {} }, 1500);
+  sendJSON({ t: "audio.state", on: false });
+}
+
 function connect() {
   console.log(`Connecting to relay as "${NAME}":`, WS_URL);
   ws = new WebSocket(WS_URL, { headers: { Authorization: "Bearer " + KEY } });
@@ -385,13 +658,17 @@ function connect() {
   });
 
   ws.on("message", (data, isBinary) => {
-    if (isBinary) return;
+    if (isBinary) {
+      files.onBinary(data); // uploads are the only binary a viewer sends
+      return;
+    }
     let m;
     try {
       m = JSON.parse(data.toString());
     } catch (_) {
       return;
     }
+    if (files.handle(m)) return;
     switch (m.t) {
       case "m": toChild("m " + (m.x | 0) + " " + (m.y | 0)); break;
       case "d": toChild("d " + (m.b | 0)); break;
@@ -417,13 +694,23 @@ function connect() {
       case "ping":
         ws.send(JSON.stringify({ t: "pong", ts: m.ts }));
         break;
+      case "audio":
+        if (m.on) startAudio();
+        else stopAudio();
+        break;
       case "viewers":
         console.log(m.n > 0 ? m.n + " viewer(s) connected." : "No viewers.");
+        if (!m.n) {
+          files.cancelAll();
+          stopAudio();
+        }
         break;
     }
   });
 
   ws.on("close", (code) => {
+    files.cancelAll();
+    stopAudio();
     if (code === 4002) {
       console.error(`Another agent connected as "${NAME}" and replaced this one. Use --name to run both.`);
       return quit(1);
@@ -439,6 +726,8 @@ function connect() {
 
 function quit(code) {
   try { toChild("stop"); } catch (_) {}
+  stopAudio();
+  try { fs.unlinkSync(audioPs1Path); } catch (_) {}
   try { child && child.removeAllListeners("exit"); child && child.kill(); } catch (_) {}
   try { fs.unlinkSync(ps1Path); } catch (_) {}
   process.exit(code);

@@ -18,8 +18,8 @@ import { safeEqual, createLimiter, formatWait } from "./security.js";
 | in as a "viewer" and picks which PC to drive, and this relay pipes between
 | them:
 |
-|   agent  --(binary JPEG frames, JSON meta/clipboard)-->  its viewers
-|   viewer --(JSON input / quality / monitor / clipboard)--> chosen agent
+|   agent  --(binary JPEG frames, sound, file downloads; JSON meta)--> its viewers
+|   viewer --(JSON input / settings / clipboard / files; binary uploads)--> chosen agent
 |
 | The frame path is zero-copy: an incoming binary message is forwarded to
 | every viewer of that PC without being parsed.
@@ -43,6 +43,8 @@ const failures = createLimiter({ windowMs: 15 * 60_000, max: 10 });
 
 const agents = new Map(); // name -> { ws, meta, since }
 const viewers = new Set(); // browser sockets; ws.rv = { authed, want }
+
+const isFileChunk = (b) => b.length >= 8 && b[0] === 0x57 && b[1] === 0x56 && b[2] === 0x46 && b[3] === 0x31;
 
 function sendJSON(ws, obj) {
   if (ws && ws.readyState === ws.OPEN) ws.send(JSON.stringify(obj));
@@ -199,7 +201,13 @@ function onViewer(ws, ip) {
   };
 
   ws.on("message", (data, isBinary) => {
-    if (isBinary) return; // viewers never send frames
+    if (isBinary) {
+      // the only binary a viewer sends is a file upload chunk ("WVF1" + id + bytes)
+      if (!ws.rv.authed || !isFileChunk(data)) return;
+      const a = ws.rv.want && agents.get(ws.rv.want);
+      if (a && a.ws.readyState === a.ws.OPEN) a.ws.send(data, { binary: true });
+      return;
+    }
     const text = data.toString();
 
     if (!ws.rv.authed) {

@@ -48,6 +48,20 @@ services:
       - key: OWNER_PASSWORD
         sync: false
 
+      # Optional. Music search finds SoundCloud's public client id on its own;
+      # set this only if you register your own SoundCloud app.
+      # - key: SOUNDCLOUD_CLIENT_ID
+      #   sync: false
+
+      # Optional TURN relay for voice calls. Most networks connect directly,
+      # but strict ones (many schools) need a relay. Any TURN provider works.
+      # - key: TURN_URL
+      #   value: turn:your-turn-host:3478,turns:your-turn-host:5349
+      # - key: TURN_USERNAME
+      #   sync: false
+      # - key: TURN_CREDENTIAL
+      #   sync: false
+
       # Most VMs the whole site runs at once (default 20). The owner is
       # exempt, as from the per-person limits.
       # - key: MAX_LIVE_VMS

@@ -163,3 +163,53 @@ html[data-tbside="top"] #call[data-state="active"],html[data-tbhide="on"] #call[
 #cl-self{display:none;width:84px;aspect-ratio:16/9;border-radius:6px;background:#000;object-fit:cover;flex:0 0 auto}
 #call.self-video #cl-self{display:block}
 .dc-top #dc-call{color:#22c55e}
+
+/* ── remote PC: files + sound ─────────────── */
+#remote-toolbar .btn.on{background:rgba(var(--accent-rgb),.22);border-color:rgba(var(--accent-rgb),.6)}
+#remote-vol{width:90px}
+#rm-files{position:absolute;top:0;right:0;bottom:0;z-index:4;width:min(380px,100%);display:flex;flex-direction:column;background:var(--glass);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);border-left:1px solid var(--border-2);box-shadow:-20px 0 50px rgba(0,0,0,.45);animation:rfIn .28s var(--spring)}
+#rm-files[hidden]{display:none}
+@keyframes rfIn{from{translate:30px 0;opacity:0}to{translate:0 0;opacity:1}}
+.rf-head{display:flex;align-items:center;gap:8px;padding:12px 12px 8px}
+.rf-head b{font-size:1.02em}
+.rf-head small{color:var(--text-3);font-size:.8em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rf-head .sp{flex:1}
+.rf-ib{width:30px;height:30px;display:grid;place-items:center;border-radius:8px;color:var(--text-2);flex:0 0 auto}
+.rf-ib:hover{background:var(--glass-3);color:var(--text)}
+.rf-ib:disabled{opacity:.35;pointer-events:none}
+.rf-ib .i{width:16px;height:16px}
+.rf-path{display:flex;align-items:center;gap:4px;padding:0 12px 8px}
+.rf-path .field{flex:1;min-width:0;padding:6px 10px;font-size:.84em;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.rf-quick{display:flex;flex-wrap:wrap;gap:6px;padding:0 12px 8px}
+.rf-quick:empty{display:none}
+.rf-quick button{padding:4px 10px;border-radius:99px;background:var(--glass-2);border:1px solid var(--border);font-size:.78em;color:var(--text-2)}
+.rf-quick button:hover{color:var(--text);border-color:var(--border-2)}
+.rf-list{flex:1;min-height:0;overflow:auto;padding:0 6px 8px;scrollbar-width:thin;border-top:1px solid var(--border)}
+.rf-row{display:grid;grid-template-columns:22px minmax(0,1fr) auto auto;align-items:center;gap:10px;width:100%;padding:7px 8px;border-radius:var(--r-sm);text-align:left;font-size:.86em}
+.rf-row:hover{background:var(--glass-3)}
+.rf-row .ic{display:grid;place-items:center;color:var(--text-3)}
+.rf-row.dir .ic{color:#f5b301}
+.rf-row .ic .i{width:17px;height:17px}
+.rf-row .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rf-row small{color:var(--text-3);font-size:.86em;font-variant-numeric:tabular-nums;white-space:nowrap}
+.rf-row .dt{min-width:84px;text-align:right}
+.rf-empty{display:flex;align-items:center;justify-content:center;gap:10px;padding:26px 12px;text-align:center;color:var(--text-3);font-size:.86em}
+.rf-empty.err{color:#ff8a8a}
+.rf-xfers{flex:0 0 auto;max-height:40%;overflow:auto;border-top:1px solid var(--border)}
+.rf-xfers:empty{display:none}
+.rf-x{display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--border)}
+.rf-x .dir{font-weight:800;color:var(--accent);width:14px;text-align:center}
+.rf-x .t{flex:1;min-width:0}
+.rf-x b{display:block;font-size:.84em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rf-x small{display:block;font-size:.74em;color:var(--text-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rf-x .bar{height:4px;margin-top:5px;border-radius:4px;background:var(--border);overflow:hidden}
+.rf-x .bar i{display:block;height:100%;background:var(--accent);transition:width .2s}
+.rf-x.done .bar i{background:var(--ok)}
+.rf-x.error .bar i{background:var(--bad)}
+.rf-x.error small{color:#ff8a8a}
+#rm-drop{position:absolute;inset:12px;z-index:5;display:none;place-items:center;border:2px dashed rgba(var(--accent-rgb),.8);border-radius:var(--r-xl);background:rgba(var(--accent-rgb),.12);pointer-events:none;text-align:center}
+#rm-drop.show{display:grid}
+#rm-drop div{display:flex;flex-direction:column;align-items:center;gap:6px;color:#fff}
+#rm-drop .i{width:40px;height:40px}
+#rm-drop b{font-size:1.2em}
+#rm-drop small{color:var(--text-2);max-width:80%;overflow:hidden;text-overflow:ellipsis}

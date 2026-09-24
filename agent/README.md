@@ -33,6 +33,11 @@ Press **Ctrl+C** in the agent window to stop sharing.
 - **Screen**: which monitor to show, on a PC with more than one.
 - **Paste to PC**: sends your browser clipboard to the PC's clipboard.
 - **Copy from PC**: copies the PC's clipboard into your browser's.
+- **Files**: browse the PC's drives. Click a file to download it, or use
+  **Upload** (or drop files onto the screen) to put files in the open folder.
+  Files with the same name are never overwritten; the new one gets " (1)".
+- **Sound**: hear what the PC is playing (22-24 kHz stereo). Sound runs in its
+  own helper process, so if it can't start, the screen still works.
 
 ## Notes
 
@@ -43,6 +48,8 @@ Press **Ctrl+C** in the agent window to stop sharing.
 - The agent only ever connects **out** to the relay you point it at. It is not a
   server and opens no ports. Without the matching `REMOTE_KEY` it is refused,
   and viewers must additionally be logged in as the owner account.
+- Keep `files.mjs` next to `willies-agent.mjs`; the agent loads it for file
+  transfer.
 - The key is sent in a request header, never in the URL, so it does not end up
   in proxy or access logs. Update any older copy of this agent: the server no
   longer accepts a key in the URL.

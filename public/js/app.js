@@ -621,17 +621,22 @@ function rmConnect(key){
     clearInterval(rmStatT);rmStatT=setInterval(rmUpdateStat,1000);
   };
   ws.onmessage=(e)=>{
-    if(typeof e.data!=='string'){rmFrame(e.data);return}
+    if(typeof e.data!=='string'){
+      // "WVF1" file chunks and "WVA1" sound go to remote-extra.js; anything else is a JPEG frame
+      const b=e.data.byteLength>=4?new Uint8Array(e.data,0,4):null;
+      if(b&&b[0]===0x57&&b[1]===0x56&&(b[2]===0x46||b[2]===0x41)&&b[3]===0x31){window.rmx?.onBinary(e.data);return}
+      rmFrame(e.data);return;
+    }
     let m;try{m=JSON.parse(e.data)}catch(_){return}
     switch(m.t){
       case 'authed':$('#remote-stat').textContent='Waiting for a PC…';break;
       case 'agents':rmAgents=m.list||[];rmRenderPcs();break;
       case 'up':
-        rmPc=m.name;rmState('on');rmActive=true;rmRenderPcs();rmSendSettings();
+        rmPc=m.name;rmState('on');rmActive=true;rmRenderPcs();rmSendSettings();window.rmx?.onUp(m.name);
         try{localStorage.setItem(rmPcLS,m.name)}catch(_){}
         $('#remote-canvas').focus();break;
       case 'down':
-        rmActive=false;rmState('wait');rmMeta=null;rmRenderMonitors();
+        rmActive=false;rmState('wait');rmMeta=null;rmRenderMonitors();window.rmx?.onDown();
         $('#remote-stat').textContent=m.name?`${m.name} is offline`:rmAgents.length?'Pick a PC':'No PCs online. Run the agent on one.';
         break;
       case 'meta':rmMeta=m;rmRenderMonitors();break;
@@ -639,10 +644,11 @@ function rmConnect(key){
       case 'clip':rmGotClipboard(m.text||'');break;
       case 'clip.ok':toast('Sent to the PC clipboard','ok');window.motion?.pop($('#remote-clip-send'));break;
       case 'clip.err':toast('PC clipboard failed: '+(m.error||'unknown'),'err');break;
+      default:window.rmx?.onJSON(m);
     }
   };
   ws.onclose=(ev)=>{
-    clearInterval(rmPingT);clearInterval(rmStatT);rmActive=false;
+    clearInterval(rmPingT);clearInterval(rmStatT);rmActive=false;window.rmx?.onDown();
     if(ev.code===4001){
       rmState('off');
       rmHint('Wrong key. Too many wrong keys locks this network out for 15 minutes.');
@@ -671,7 +677,7 @@ function rmRenderPcs(){
 }
 $('#remote-pc').onchange=e=>{
   const name=e.target.value;if(!name)return;
-  rmPc=name;rmMeta=null;rmRenderMonitors();
+  rmPc=name;rmMeta=null;rmRenderMonitors();window.rmx?.onDown();
   rmSend({t:'select',name});
   const cv=$('#remote-canvas');cv.getContext('2d').clearRect(0,0,cv.width,cv.height);
   window.motion?.pop($('#remote-pc-wrap'));
@@ -793,6 +799,7 @@ function rmPos(e){
 function rmKeysActive(){
   if(!rmActive||!remoteVisible())return false;
   const a=document.activeElement;
+  if(a&&a.closest&&a.closest('#rm-files'))return false; // typing a path, not driving the PC
   return a===$('#remote-canvas')||$('#remote-wrap').contains(a);
 }
 window.addEventListener('keydown',e=>{

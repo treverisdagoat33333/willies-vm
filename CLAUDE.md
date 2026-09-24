@@ -32,8 +32,10 @@ node --check server.js             # quick syntax check for any file
 - Node >= 22.5 is required (`node:sqlite`); `.node-version` pins 24. On Node 22 you'll see an "SQLite is experimental" warning, which is harmless.
 - There is no build step, bundler, linter or test suite. The front end is served as-is from `public/`.
 - To verify a change, run the server against a throwaway database (`DATA_DIR=/tmp/wvm-test`) and drive the HTTP and WebSocket endpoints from a script (`ws` is in `node_modules`), or load the page in Chromium.
-- Useful env vars: `DATA_DIR` (SQLite location, default `./data`, gitignored), `OWNER_USERNAME` (default `william`), `OWNER_PASSWORD` (see below), `REMOTE_KEY` (enables Remote PC; unset means it's off), `MAX_LIVE_VMS` (site-wide VM cap, default 20), `E2B_API_KEY`, `XENV_API_KEY`. `render.yaml` is the deploy config. On Render's free plan `DATA_DIR` is ephemeral, so the database is wiped on every redeploy.
+- Useful env vars: `DATA_DIR` (SQLite location, default `./data`, gitignored), `OWNER_USERNAME` (default `william`), `OWNER_PASSWORD` (see below), `REMOTE_KEY` (enables Remote PC; unset means it's off), `MAX_LIVE_VMS` (site-wide VM cap, default 20), `E2B_API_KEY`, `XENV_API_KEY`, `SOUNDCLOUD_CLIENT_ID` (optional; music finds the public one itself), `TURN_URL`/`TURN_USERNAME`/`TURN_CREDENTIAL` (optional relay for voice calls). `render.yaml` is the deploy config. On Render's free plan `DATA_DIR` is ephemeral, so the database is wiped on every redeploy.
 - No lockfile is committed; Render runs `npm install`. The Scramjet packages are pinned to GitHub release tarballs in `package.json`.
+
+- The sandbox usually can't reach SoundCloud, Deezer, E2B or XENV. To test those paths, patch `globalThis.fetch` in a file loaded with `node --import` before `server.js`.
 
 The remote-control agent is a separate package and runs on **Windows only**:
 ```bash
@@ -44,6 +46,8 @@ node willies-agent.mjs --url ws://localhost:3000 --key $REMOTE_KEY --name "My PC
 ## Architecture
 
 ### One HTTP server, three WebSocket endpoints
+Other server modules: `music.js` (the `/api/music` router), `security.js` (rate limiters, `clientIp`, `safeEqual`).
+
 `server.js` owns the Express app and a single `http.Server`. Its `upgrade` handler dispatches by path:
 - `/wisp/`: the Wisp transport the Scramjet web proxy uses.
 - `/chat/`: `chat.js`.
@@ -91,6 +95,12 @@ Client to server:
 
 Server to client: `ready`, `history`, `msg`, `edited`, `reactions`, `deleted`, `presence`, `members`, `channels`, `typing`, `announce`, `banned`, `system`, `error`, plus `dm.opened`, `dms`, `profile`, `profile.view`, `directory`.
 
+Voice calls ride the same socket (`chat.js` relays; audio and screen go peer to peer over WebRTC, `public/js/calls.js`):
+- client: `call.invite {callId,to}`, `call.accept`, `call.decline`, `call.end`, `call.signal {callId,data}`
+- server: `call.invite {callId,from}`, `call.accepted`, `call.signal`, `call.ended {reason}`
+- Accounts only. A call rings every tab of the callee and binds to the one that answers. The server tracks calls in memory for busy, 35-second ring timeout, and disconnect handling.
+- The client uses perfect negotiation (the callee is polite), so screen share can start or stop mid-call. `/api/calls/ice` hands out STUN, plus TURN when it's configured.
+
 Close codes: `4003` banned, `4004` kicked, `4005` signed out.
 
 ### Remote PC relay (`remote.js` + `agent/`)
@@ -105,7 +115,15 @@ Close codes: `4003` banned, `4004` kicked, `4005` signed out.
   - **stdout:** frames, each `WVM1` + a uint32 LE length + JPEG bytes.
   - **stderr:** `META w h monitor layout` lines.
 - Clipboard is read and written through separate `powershell Get-Clipboard` / `Set-Clipboard` calls.
-- None of the Windows side can run on Linux.
+- **Binary frames are tagged.** Anything without a tag is a JPEG frame.
+  - `WVF1` + uint32 id + bytes: file chunks, in both directions. The relay forwards viewer binary only when it carries this tag.
+  - `WVA1` + uint32 rate + uint16 channels + 2 spare bytes + int16 PCM: PC sound.
+- **Files** live in `agent/files.mjs`, plain Node, so it runs and tests on Linux.
+  - JSON messages: `fs.list`, `file.get`, `file.put`, `file.put.end`, `file.ack`, `file.cancel`.
+  - Both sides ack every 1 MB and keep at most 4 MB in flight.
+  - The viewer side is `public/js/remote-extra.js`.
+- **Sound** is a second PowerShell process running C# WASAPI loopback (`AUDIO_PS1`). It starts on `{t:'audio',on}` and stops when no viewers are left.
+- None of the Windows side runs on Linux. You can still compile the embedded C# to catch errors: `mcs -langversion:5 -target:library` on the text between `@'` and `'@` (Windows PowerShell's `Add-Type` only accepts C# 5). Add `-r:System.Drawing.dll` for the capture host.
 
 ### In-memory state (lost on restart)
 Several things live only in memory:
@@ -127,11 +145,27 @@ No framework and no modules.
 - `index.html` holds all the markup.
 - `js/app.js` is one large classic script of global functions, written in a dense one-liner style, with `$`/`$$` query helpers.
 - `js/motion.js` loads first and exposes `window.motion` (`celebrate`, `pop`, `shake`, `countUp`, `emojiBurst`, and more).
-- The CSS is layered: `css/app.css` (base), `css/features.css` (admin, chat and remote additions), then `css/motion.css` (animations).
+- After `app.js` come three feature scripts. Each is an IIFE that uses `app.js` globals and exposes one object:
+  - `js/music.js` → `window.music`
+  - `js/calls.js` → `window.calls`
+  - `js/remote-extra.js` → `window.rmx`
+  - `app.js` calls into them through optional chaining (for example `window.calls?.onMessage(d)`).
+- **Music:**
+  - Plays in SoundCloud's official widget, in a `credentialless` iframe (the page's COEP would block it otherwise).
+  - `/api/music` covers search, the Deezer charts, `resolve` (chart song → full SoundCloud upload), `art` (host-locked image proxy) and `widget.js`.
+  - The library is localStorage `music`.
+- **Settings sync** (`SETTINGS SYNC` in `app.js`):
+  - Stores `S`, `bookmarks`, `favGames` and `music` per account in the `user_settings` table.
+  - `save()` and `put()` mark the local copy dirty; the newest copy wins.
+  - Keys in `SYNC_LOCAL_ONLY` stay on the device.
+- **Install / notifications:**
+  - `manifest.webmanifest` and `icons/` make the site installable.
+  - `notify()` shows desktop notifications, only while the page is hidden, and generic ones while the tab is cloaked.
+- The CSS is layered: `css/app.css` (base), `css/features.css` (admin, chat, calls and remote additions), `css/music.css`, then `css/motion.css` (animations).
 
 Patterns to follow:
 - **Settings:** stored in `localStorage` under `wvm.settings.v1`, as object `S` merged over `DEFAULTS`. `set(k, v)` saves them, and `applyAll()` mirrors many onto `html[data-*]` attributes that the CSS keys off. Controls bind declaratively with a `data-setting` attribute (`.switch`, `.seg`, range or input). Adding a setting means a `DEFAULTS` entry, a control with `data-setting`, and, if CSS needs it, a line in `applyAll()`.
-- **Apps and panels:** `data-app="x"` launches `APPS.x`. Panels open with `openPanel(id)`; any element with `data-close="<id>"` closes one. Add new panel ids to `closeAllPanels()`.
+- **Apps and panels:** `data-app="x"` launches `APPS.x`. Panels open with `openPanel(id)`; any element with `data-close="<id>"` closes one. Add new panel ids to `closeAllPanels()`. Full-screen apps (chat, browser, VM, cloud, remote, music) all sit at `z-index:60`. The music window hides itself when another one opens.
 - **Dialogs:** `dcModal({title, sub, fields, okLabel, onOk, danger})`. `onOk` may be async; throwing keeps the dialog open and shows the message.
 - **Chat rendering:** `dcRenderMessages()` rebuilds the whole list on every change. Only message ids in `dcFresh` get the entrance animation, so re-renders don't replay it.
 - **Animations** must stay off when `html[data-motion="off"]`, `[data-perf="on"]`, `[data-bouncy="off"]` or `prefers-reduced-motion` is set. `motion.js` writes only the individual `translate`/`rotate`/`scale` properties, never `transform`, so it stacks on the stylesheet's hover transforms. Keep it that way.
