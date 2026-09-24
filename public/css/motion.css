@@ -1,0 +1,170 @@
+/*!
+ * william's vm
+ * Copyright (c) 2026 William (github.com/treverisdagoat33333)
+ * All rights reserved. Proprietary and confidential. See LICENSE.
+ */
+/* ═══════════════════════════════════════════════════════════
+   MOTION — the springy layer.
+   Everything bouncy sits under html[data-bouncy="on"] and inside a
+   no-preference media query, so "Bouncy extras" off or the OS
+   reduced-motion setting turns it off. The existing "Reduce motion"
+   and "Performance" switches still override all of it.
+   ═══════════════════════════════════════════════════════════ */
+:root{
+  --boing:cubic-bezier(.34,1.8,.5,1);
+  --jelly:cubic-bezier(.2,1.6,.4,1);
+}
+
+/* particles spawned by motion.js (always present, only created when enabled) */
+.fx-confetti,.fx-emoji{position:fixed;z-index:9900;pointer-events:none;will-change:translate,rotate,opacity}
+.fx-confetti{border-radius:2px}
+.fx-emoji{font-size:22px;line-height:1}
+
+/* toasts count down their own life */
+.toast{position:relative;overflow:hidden}
+.toast::after{content:"";position:absolute;left:0;bottom:0;height:2px;width:100%;background:var(--accent);opacity:.7;transform-origin:left;animation:toastLife 3.8s linear forwards}
+.toast.ok::after{background:var(--ok)}.toast.err::after{background:var(--bad)}
+@keyframes toastLife{to{transform:scaleX(0)}}
+
+/* new chat rows fade in even without bouncy extras */
+.dc-m.new{animation:msgFade .25s var(--ease) both}
+@keyframes msgFade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+@media (prefers-reduced-motion: no-preference){
+
+  /* ── windows & panels (the launcher window already bounces in) ── */
+  html[data-bouncy="on"] #chat-window.show{animation:sheetIn .7s var(--boing)}
+  html[data-bouncy="on"] #chat-window.closing{animation:sheetOut .26s cubic-bezier(.5,0,.75,0) forwards}
+  @keyframes sheetIn{0%{opacity:0;translate:0 60px;scale:.96}60%{opacity:1;translate:0 -8px;scale:1.005}80%{translate:0 3px}100%{translate:0 0;scale:1}}
+  @keyframes sheetOut{to{opacity:0;translate:0 50px;scale:.97}}
+  html[data-bouncy="on"] #remote-wrap:not(.closing),html[data-bouncy="on"] #cloud-wrap:not(.closing),html[data-bouncy="on"] #vm-wrap:not(.closing),html[data-bouncy="on"] #browser-wrap:not(.closing){animation:sheetIn .65s var(--boing)}
+
+  /* settings pages, admin cards and stat tiles stagger in */
+  html[data-bouncy="on"] .spage.active{animation:pageIn .5s var(--boing)}
+  @keyframes pageIn{0%{opacity:0;translate:24px 0}60%{opacity:1;translate:-4px 0}100%{translate:0 0}}
+  html[data-bouncy="on"] .panel.show .ad-card,html[data-bouncy="on"] .panel.show .ad-stat{animation:cardIn .6s var(--boing) both}
+  html[data-bouncy="on"] .panel.show .ad-stat:nth-child(2){animation-delay:.05s}
+  html[data-bouncy="on"] .panel.show .ad-stat:nth-child(3){animation-delay:.1s}
+  html[data-bouncy="on"] .panel.show .ad-stat:nth-child(4){animation-delay:.15s}
+  html[data-bouncy="on"] .panel.show .ad-stat:nth-child(5){animation-delay:.2s}
+  html[data-bouncy="on"] .panel.show .ad-card:nth-child(2){animation-delay:.08s}
+  html[data-bouncy="on"] .panel.show .ad-card:nth-child(3){animation-delay:.12s}
+  html[data-bouncy="on"] .panel.show .ad-card:nth-child(4){animation-delay:.16s}
+  html[data-bouncy="on"] .panel.show .ad-card:nth-child(5){animation-delay:.2s}
+  html[data-bouncy="on"] .panel.show .ad-card:nth-child(n+6){animation-delay:.24s}
+  @keyframes cardIn{0%{opacity:0;translate:0 26px;scale:.94}60%{opacity:1;translate:0 -5px;scale:1.01}100%{translate:0 0;scale:1}}
+  html[data-bouncy="on"] .ad-live .pulse{animation:adPulse 1.6s ease-out infinite,beat 1.6s var(--boing) infinite}
+  @keyframes beat{0%,100%{scale:1}12%{scale:1.5}24%{scale:.9}36%{scale:1.15}}
+
+  /* ── desktop & taskbar ─────────────────────── */
+  html[data-bouncy="on"] #icons .dicon{animation:iconDrop .8s var(--boing) both;animation-delay:calc(var(--i,0)*55ms + .15s)}
+  @keyframes iconDrop{0%{opacity:0;translate:0 -40px;scale:.6}55%{opacity:1;translate:0 6px;scale:1.08 .92}75%{translate:0 -2px;scale:.97 1.03}100%{translate:0 0;scale:1}}
+  html[data-bouncy="on"] #tb-center .tbb{animation:tbIn .7s var(--boing) both;animation-delay:calc(var(--i,0)*40ms + .1s)}
+  @keyframes tbIn{0%{opacity:0;translate:0 30px;scale:.5}60%{opacity:1;translate:0 -6px;scale:1.1}100%{translate:0 0;scale:1}}
+  /* the dock drives these from JS; drop the stylesheet's own hover lift so they don't fight */
+  @media (hover:hover) and (pointer:fine){
+    html[data-bouncy="on"] #tb-center .tbb:hover .ic{transform:none}
+    html[data-bouncy="on"] #tb-center .tbb .ic{transition:none}
+  }
+  html[data-bouncy="on"] .tbb.active::after{animation:dotBounce .6s var(--boing)}
+  @keyframes dotBounce{0%{scale:0}60%{scale:1.6 1}100%{scale:1}}
+  html[data-bouncy="on"] #start.show .sgrid .dicon{animation:iconDrop .6s var(--boing) both}
+  html[data-bouncy="on"] #start.show .sgrid .dicon:nth-child(2){animation-delay:.03s}
+  html[data-bouncy="on"] #start.show .sgrid .dicon:nth-child(3){animation-delay:.06s}
+  html[data-bouncy="on"] #start.show .sgrid .dicon:nth-child(4){animation-delay:.09s}
+  html[data-bouncy="on"] #start.show .sgrid .dicon:nth-child(5){animation-delay:.12s}
+  html[data-bouncy="on"] #start.show .sgrid .dicon:nth-child(6){animation-delay:.15s}
+  html[data-bouncy="on"] #start.show .sgrid .dicon:nth-child(7){animation-delay:.18s}
+  html[data-bouncy="on"] #start.show .sgrid .dicon:nth-child(8){animation-delay:.21s}
+  html[data-bouncy="on"] #start.show .sgrid .dicon:nth-child(n+9){animation-delay:.24s}
+
+  /* ── tilting cards (JS sets --rx/--ry and the glare spot) ─ */
+  @media (hover:hover) and (pointer:fine){
+    html[data-bouncy="on"] #games-grid .gcard,html[data-bouncy="on"] .cg-card,html[data-bouncy="on"] .ad-stat{
+      transform:perspective(700px) rotateX(var(--rx,0deg)) rotateY(var(--ry,0deg));
+      transition:border-color .2s,box-shadow .25s,translate .35s var(--boing);
+      position:relative;
+    }
+    html[data-bouncy="on"] #games-grid .gcard:hover,html[data-bouncy="on"] .cg-card:hover{
+      transform:perspective(700px) rotateX(var(--rx,0deg)) rotateY(var(--ry,0deg));
+      translate:0 -8px;box-shadow:0 22px 40px rgba(0,0,0,.45),0 0 0 1px rgba(var(--accent-rgb),.35);
+    }
+    html[data-bouncy="on"] #games-grid .gcard::after,html[data-bouncy="on"] .cg-card::after{
+      content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;opacity:0;transition:opacity .25s;
+      background:radial-gradient(420px circle at var(--gx,50%) var(--gy,50%),rgba(255,255,255,.18),transparent 45%);
+    }
+    html[data-bouncy="on"] #games-grid .gcard:hover::after,html[data-bouncy="on"] .cg-card:hover::after{opacity:1}
+  }
+  html[data-bouncy="on"] #games-grid .gcard{animation:cardIn .6s var(--boing) both;animation-delay:calc(var(--i,0)*.03s)}
+
+  /* ── buttons & switches ────────────────────── */
+  html[data-bouncy="on"] .switch::after{transition:transform .5s var(--jelly),width .2s}
+  /* the knob stretches while pressed, like a real jelly toggle */
+  html[data-bouncy="on"] .switch:active::after{width:26px}
+  html[data-bouncy="on"] .switch[aria-checked="true"]:active::after{transform:translateX(10px)}
+  html[data-bouncy="on"] .btn:hover{transform:translateY(-2px) scale(1.04)}
+  html[data-bouncy="on"] .gcard .fav.on{animation:starPop .7s var(--boing)}
+  @keyframes starPop{0%{scale:.3;rotate:-60deg}50%{scale:1.5;rotate:15deg}75%{scale:.9;rotate:-5deg}100%{scale:1;rotate:0deg}}
+
+  /* ── toasts & banners ──────────────────────── */
+  html[data-bouncy="on"] .toast{animation:toastBoing .7s var(--boing),toastOut .3s ease 3.6s forwards!important}
+  html[data-bouncy="on"] .toast.out{animation:toastOut .25s var(--ease) forwards!important}
+  @keyframes toastBoing{0%{opacity:0;translate:90px 0;scale:.7 1.1}55%{opacity:1;translate:-10px 0;scale:1.04 .96}75%{translate:4px 0;scale:.99 1.01}100%{translate:0 0;scale:1}}
+  html[data-bouncy="on"] #announce.show{animation:announceIn .85s var(--boing)}
+  @keyframes announceIn{0%{opacity:0;translate:0 -120px;scale:.8 1.15}50%{opacity:1;translate:0 10px;scale:1.04 .95}72%{translate:0 -4px;scale:.99 1.02}100%{translate:0 0;scale:1}}
+  html[data-bouncy="on"] #announce.show .mega{animation:megaphone 1.2s ease-in-out .5s 2}
+  @keyframes megaphone{0%,100%{rotate:0deg}20%{rotate:-18deg;scale:1.2}40%{rotate:14deg}60%{rotate:-8deg}80%{rotate:4deg}}
+  html[data-bouncy="on"] #auth-card{animation:authIn .9s var(--boing)}
+  @keyframes authIn{0%{opacity:0;scale:.6;rotate:-4deg}55%{opacity:1;scale:1.05;rotate:1deg}75%{scale:.98;rotate:-.5deg}100%{scale:1;rotate:0deg}}
+  html[data-bouncy="on"] #auth-card .logo{animation:logoHop 2.8s var(--boing) 1s infinite}
+  @keyframes logoHop{0%,70%,100%{translate:0 0;scale:1}76%{translate:0 -10px;scale:.94 1.08}84%{translate:0 0;scale:1.1 .9}90%{scale:.97 1.03}}
+  html[data-bouncy="on"] #lock-screen.show .lt{animation:clockDrop .9s var(--boing)}
+  @keyframes clockDrop{0%{opacity:0;translate:0 -50px;scale:.8}60%{opacity:1;translate:0 6px;scale:1.03}100%{translate:0 0;scale:1}}
+
+  /* ── dialogs & popovers ────────────────────── */
+  html[data-bouncy="on"] .dc-modal.show .dc-card{animation:dialogIn .6s var(--boing)}
+  @keyframes dialogIn{0%{opacity:0;scale:.7;translate:0 30px}55%{opacity:1;scale:1.04;translate:0 -4px}75%{scale:.985}100%{scale:1;translate:0 0}}
+  html[data-bouncy="on"] .dc-pop.show,html[data-bouncy="on"] .dc-emoji.show,html[data-bouncy="on"] .dc-suggest.show{animation:popIn .45s var(--boing);transform-origin:bottom center}
+  @keyframes popIn{0%{opacity:0;scale:.6}60%{opacity:1;scale:1.06}100%{scale:1}}
+  html[data-bouncy="on"] .dc-emoji.show button{animation:emojiIn .5s var(--boing) both}
+  html[data-bouncy="on"] .dc-emoji.show button:nth-child(8n+2){animation-delay:.02s}
+  html[data-bouncy="on"] .dc-emoji.show button:nth-child(8n+3){animation-delay:.04s}
+  html[data-bouncy="on"] .dc-emoji.show button:nth-child(8n+4){animation-delay:.06s}
+  html[data-bouncy="on"] .dc-emoji.show button:nth-child(8n+5){animation-delay:.08s}
+  html[data-bouncy="on"] .dc-emoji.show button:nth-child(8n+6){animation-delay:.1s}
+  html[data-bouncy="on"] .dc-emoji.show button:nth-child(8n+7){animation-delay:.12s}
+  html[data-bouncy="on"] .dc-emoji.show button:nth-child(8n){animation-delay:.14s}
+  @keyframes emojiIn{0%{opacity:0;scale:.2;translate:0 10px}60%{opacity:1;scale:1.25}100%{scale:1;translate:0 0}}
+  html[data-bouncy="on"] .dc-emoji button{transition:scale .3s var(--boing)}
+  html[data-bouncy="on"] .dc-emoji button:hover{scale:1.35;background:transparent}
+
+  /* ── chat ──────────────────────────────────── */
+  html[data-bouncy="on"] .dc-m.new{animation:msgIn .6s var(--boing) both;transform-origin:left center}
+  html[data-bouncy="on"] .dc-m.new.own{animation-name:msgInOwn}
+  @keyframes msgIn{0%{opacity:0;translate:-26px 8px;scale:.94}55%{opacity:1;translate:4px 0;scale:1.01}78%{translate:-1px 0}100%{translate:0 0;scale:1}}
+  @keyframes msgInOwn{0%{opacity:0;translate:0 26px;scale:.94 1.05}55%{opacity:1;translate:0 -4px;scale:1.01 .99}78%{translate:0 1px}100%{translate:0 0;scale:1}}
+  html[data-bouncy="on"] .dc-m.mention.new{animation:msgIn .6s var(--boing) both,mentionGlow 1.6s ease .2s}
+  @keyframes mentionGlow{0%,100%{box-shadow:inset 3px 0 0 #f5b301}30%{box-shadow:inset 3px 0 0 #f5b301,0 0 0 2px rgba(245,179,1,.5),0 0 24px rgba(245,179,1,.35)}}
+  html[data-bouncy="on"] .dc-react{transition:background .15s,border-color .15s,scale .3s var(--boing)}
+  html[data-bouncy="on"] .dc-react:hover{scale:1.1}
+  html[data-bouncy="on"] .dc-react:hover .em{animation:emWiggle .5s var(--boing)}
+  @keyframes emWiggle{0%{rotate:0deg}30%{rotate:-18deg;scale:1.25}60%{rotate:10deg}100%{rotate:0deg;scale:1}}
+  html[data-bouncy="on"] .dc-react.bump{animation:reactBump .6s var(--boing)}
+  @keyframes reactBump{0%{scale:.4}50%{scale:1.3}75%{scale:.92}100%{scale:1}}
+  html[data-bouncy="on"] .dc-replybar.show{animation:barIn .5s var(--boing)}
+  @keyframes barIn{0%{opacity:0;translate:0 18px;scale:.97 .6}60%{opacity:1;translate:0 -3px;scale:1 1.05}100%{translate:0 0;scale:1}}
+  html[data-bouncy="on"] .dc-tools{animation:popIn .3s var(--boing);transform-origin:right bottom}
+  html[data-bouncy="on"] .dc-tools button{transition:scale .25s var(--boing),background .15s}
+  html[data-bouncy="on"] .dc-tools button:hover{scale:1.18}
+  html[data-bouncy="on"] .dc-typing.on .cdots i{animation:dotHop 1s var(--boing) infinite}
+  html[data-bouncy="on"] .dc-typing.on .cdots i:nth-child(2){animation-delay:.12s}
+  html[data-bouncy="on"] .dc-typing.on .cdots i:nth-child(3){animation-delay:.24s}
+  @keyframes dotHop{0%,60%,100%{translate:0 0}30%{translate:0 -5px}}
+  html[data-bouncy="on"] .dc-ch.unread .dot{animation:dotBounce .6s var(--boing)}
+  html[data-bouncy="on"] .dc-mention{transition:scale .25s var(--boing);display:inline-block}
+  html[data-bouncy="on"] .dc-mention:hover{scale:1.08}
+
+  /* ── remote ────────────────────────────────── */
+  html[data-bouncy="on"] #remote-overlay .rc-card{animation:dialogIn .7s var(--boing)}
+  html[data-bouncy="on"] #remote-overlay .rc-card .ic{animation:logoHop 2.8s var(--boing) 1s infinite}
+}

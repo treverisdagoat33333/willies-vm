@@ -17,6 +17,8 @@
 <title>william's vm</title>
 <link id="favicon" rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23f2f2f2' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='2' y='4' width='20' height='13' rx='2'/%3E%3Cline x1='8' y1='21' x2='16' y2='21'/%3E%3Cline x1='12' y1='17' x2='12' y2='21'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="/css/app.css">
+<link rel="stylesheet" href="/css/features.css">
+<link rel="stylesheet" href="/css/motion.css">
 </head>
 <body>
 
@@ -57,6 +59,7 @@
     <button class="dicon" data-app="remote"><div class="ic c7"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/><circle cx="12" cy="10" r="2.4"/></svg></div><span>Remote PC</span></button>
     <button class="dicon" data-app="cloud"><div class="ic c3"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg></div><span>Cloud</span></button>
   <button class="dicon" data-app="chat"><div class="ic c6"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div><span>Chat</span></button>
+    <button class="dicon owner-only" data-app="admin"><div class="ic c7"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg></div><span>Admin</span></button>
     <button class="dicon" data-app="settings"><div class="ic c5"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></div><span>Settings</span></button>
   </div>
 
@@ -83,6 +86,7 @@
         <button class="tile" data-app="remote"><div class="ic c7"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/><circle cx="12" cy="10" r="2.4"/></svg></div><div><b>Remote PC</b><small>Control your PC</small></div></button>
         <button class="tile" data-app="cloud"><div class="ic c3"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg></div><div><b>Cloud</b><small>Streamed games</small></div></button>
         <button class="tile" data-app="chat"><div class="ic c6"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div><div><b>Server</b><small>Channels &amp; DMs</small></div></button>
+        <button class="tile owner-only" data-app="admin"><div class="ic c7"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg></div><div><b>Admin</b><small>Owner dashboard</small></div></button>
       </div>
       <div class="statusbar">
         <div id="status">Ready.</div>
@@ -197,6 +201,7 @@
         </div>
         <div class="card">
           <h3>Cursor &amp; clicks</h3>
+          <div class="row"><div class="lab"><b>Bouncy extras</b><small>Springy squish on clicks, magnetic icons, a dock-style taskbar, tilting cards and windows, confetti.</small></div><div class="ctl"><button class="switch" role="switch" data-setting="bouncy"></button></div></div>
           <div class="row"><div class="lab"><b>Click ripple</b><small>A splash of accent color wherever you click.</small></div><div class="ctl"><button class="switch" role="switch" data-setting="ripple"></button></div></div>
           <div class="row"><div class="lab"><b>Cursor trail</b><small>Glowing dots that follow the pointer.</small></div><div class="ctl"><button class="switch" role="switch" data-setting="trail"></button></div></div>
         </div>
@@ -325,6 +330,16 @@
           <h3>Account</h3>
           <div class="row"><div class="lab" style="display:flex;align-items:center;gap:12px"><div class="avatar" id="acct-avatar">G</div><div><b id="settings-username">Guest</b><small id="settings-vmtime">30 min VM time</small></div></div><div class="ctl"><button class="btn sm" id="logout-btn">Log out</button></div></div>
         </div>
+        <div class="card acct-only">
+          <h3>Security</h3>
+          <div class="row"><div class="lab"><b>Change password</b><small>You stay signed in here; every other device is signed out.</small></div><div class="ctl"><button class="btn sm" id="pw-btn">Change…</button></div></div>
+          <div class="row"><div class="lab"><b>Sign out other devices</b><small>Logs out every other browser using this account, including any you forgot about.</small></div><div class="ctl"><button class="btn sm" id="signout-others-btn">Sign out others</button></div></div>
+          <div class="row"><div class="lab"><b>Delete account</b><small>Removes your account, messages, DMs and reactions for good.</small></div><div class="ctl"><button class="btn sm danger" id="delete-acct-btn">Delete…</button></div></div>
+        </div>
+        <div class="card guest-only">
+          <h3>Security</h3>
+          <div class="row"><div class="lab"><b>You're a guest</b><small>Make an account to get a password, DMs, a profile and an hour of VM time.</small></div><div class="ctl"><button class="btn sm primary" id="guest-upgrade-btn">Create account</button></div></div>
+        </div>
         <div class="card">
           <h3>Your settings</h3>
           <div class="row"><div class="lab"><b>Export settings</b><small>Download a JSON backup (settings, bookmarks, favorites).</small></div><div class="ctl"><button class="btn sm" id="export-btn">Export</button></div></div>
@@ -362,6 +377,36 @@
   </div>
 </div>
 
+<!-- ADMIN (owner only; the server enforces it, this just hides the door) -->
+<div id="admin-panel" class="panel">
+  <div class="phead">
+    <h2><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg> Admin</h2>
+    <span class="ad-live" id="ad-live"><span class="pulse"></span>Live</span>
+    <span class="sp"></span>
+    <button class="btn sm" id="admin-refresh">Refresh</button>
+    <button class="btn sm" data-close="admin-panel">Close</button>
+  </div>
+  <div class="pbody">
+    <div class="ad-stats" id="ad-stats"></div>
+    <div class="ad-grid">
+      <section class="ad-card ad-wide">
+        <h3>Announcement</h3>
+        <form class="ad-announce" id="ad-announce">
+          <input class="field" id="ad-announce-text" maxlength="500" placeholder="Tell everyone who's online something…" autocomplete="off">
+          <button class="btn sm primary" type="submit">Send</button>
+        </form>
+      </section>
+      <section class="ad-card"><h3>Live VMs <b id="ad-vms-n"></b></h3><div class="ad-list" id="ad-vms"></div></section>
+      <section class="ad-card"><h3>Online now <b id="ad-online-n"></b></h3><div class="ad-list" id="ad-online"></div></section>
+      <section class="ad-card"><h3>Accounts <b id="ad-users-n"></b></h3><input class="field ad-filter" id="ad-user-filter" placeholder="Filter accounts…" autocomplete="off"><div class="ad-list" id="ad-users"></div></section>
+      <section class="ad-card"><h3>Mutes &amp; bans <b id="ad-sanctions-n"></b></h3><div class="ad-list" id="ad-sanctions"></div></section>
+      <section class="ad-card"><h3>Remote PCs</h3><div class="ad-list" id="ad-remote"></div></section>
+      <section class="ad-card"><h3>Server</h3><div class="ad-kv" id="ad-server"></div></section>
+      <section class="ad-card ad-wide"><h3>Activity</h3><div class="ad-feed" id="ad-activity"></div></section>
+    </div>
+  </div>
+</div>
+
 <!-- CHAT -->
 <div id="chat-window">
   <aside class="dc-side">
@@ -394,6 +439,11 @@
     <div class="dc-typing" id="dc-typing"><span class="cdots"><i></i><i></i><i></i></span><span id="dc-typing-text"></span></div>
 
     <div class="dc-compose">
+      <div class="dc-replybar" id="dc-replybar">
+        <span class="lbl" id="dc-reply-label">Replying to</span><b id="dc-reply-name"></b><span class="snip" id="dc-reply-snip"></span>
+        <button id="dc-reply-cancel" title="Cancel (Esc)"><svg class="i i-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+      </div>
+      <div class="dc-suggest" id="dc-suggest" role="listbox"></div>
       <div class="box">
         <textarea id="dc-input" rows="1" placeholder="Message #general" maxlength="2000"></textarea>
         <button class="send" id="dc-send" title="Send"><svg class="i i-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg></button>
@@ -406,12 +456,14 @@
 </div>
 
 <div class="dc-pop" id="dc-user-pop"></div>
+<div class="dc-emoji" id="dc-emoji" role="dialog" aria-label="Pick a reaction"></div>
 
 <div class="dc-modal" id="dc-modal">
   <div class="dc-card">
     <h3 id="dc-modal-title">Title</h3>
     <p class="sub" id="dc-modal-sub"></p>
     <div class="fields" id="dc-modal-fields"></div>
+    <p class="err" id="dc-modal-err" role="alert"></p>
     <div class="foot">
       <button class="btn sm" id="dc-modal-cancel">Cancel</button>
       <button class="btn sm primary" id="dc-modal-ok">Save</button>
@@ -477,6 +529,12 @@
     <span class="rc-dot"></span>
     <small id="remote-stat">Not connected</small>
     <span class="sp"></span>
+    <label id="remote-pc-wrap">PC
+      <select class="field" id="remote-pc"><option value="">No PCs online</option></select></label>
+    <label id="remote-mon-wrap" hidden>Screen
+      <select class="field" id="remote-mon"></select></label>
+    <button class="btn sm" id="remote-clip-send" title="Send your clipboard to the PC's clipboard">Paste to PC</button>
+    <button class="btn sm" id="remote-clip-get" title="Copy the PC's clipboard into yours">Copy from PC</button>
     <label>Quality
       <select class="field" id="remote-quality">
         <option value="30">Low</option>
@@ -500,7 +558,7 @@
       <div class="rc-card">
         <div class="ic"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/><circle cx="12" cy="10" r="2.4"/></svg></div>
         <h3>Control your PC</h3>
-        <p>Run the agent on the PC you want to control (see the <b>agent</b> folder in the repo), then enter your <b>REMOTE_KEY</b> here — the same secret set on the server.</p>
+        <p>Run the agent on each PC you want to control (see the <b>agent</b> folder in the repo), then enter your <b>REMOTE_KEY</b> here: the same secret set on the server.</p>
         <input class="field" id="remote-key" type="password" placeholder="REMOTE_KEY" autocomplete="off" spellcheck="false">
         <div class="row"><button class="btn primary" id="remote-connect" style="flex:1">Connect</button></div>
         <p class="rc-hint" id="remote-hint"></p>
@@ -523,12 +581,14 @@
     <button class="tbb" data-app="remote" id="tb-remote" title="Remote PC"><div class="ic c7"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/><circle cx="12" cy="10" r="2.4"/></svg></div></button>
     <button class="tbb" data-app="cloud" id="tb-cloud" title="Cloud gaming"><div class="ic c3"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg></div></button>
     <button class="tbb" data-app="chat" id="tb-chat" title="Server (Alt+C)"><div class="ic c6"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div><span class="badge" id="chat-badge">0</span></button>
+    <button class="tbb owner-only" data-app="admin" id="tb-admin" title="Admin"><div class="ic c7"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg></div></button>
     <button class="tbb" data-app="settings" id="tb-settings" title="Settings (Alt+S)"><div class="ic c5"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></div></button>
   </div>
   <div id="tb-right"><div id="clock"><b id="tb-time">00:00</b><span id="tb-date">Mon, Jan 1</span></div></div>
 </div>
 
 <div id="toasts"></div>
+<div id="announce" role="status" aria-live="polite"></div>
 
 <script src="/scramjet/scramjet.js" defer></script>
 <script src="/controller/controller.api.js" defer></script>
@@ -536,6 +596,7 @@
 <script src="/register-sw.js" defer></script>
 <script src="/search.js" defer></script>
 
+<script src="/js/motion.js"></script>
 <script src="/js/app.js"></script>
 </body>
 </html>

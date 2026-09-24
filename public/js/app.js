@@ -19,7 +19,7 @@ const DEFAULTS={
   cloak:'none',cloakTitle:'',cloakIcon:'',cloakAuto:false,cloakRandom:false,
   panic:false,panicKey:'`',panicUrl:'https://classroom.google.com',panicAction:'redirect',panicWipe:false,
   blurunfocus:false,blurAmt:24,lock:false,lockMins:'5',
-  perf:false,motion:false,wallimg:true,preload:false,sound:false,soundpack:'soft',volume:0.5,chatsound:true,fps:false
+  perf:false,motion:false,bouncy:true,wallimg:true,preload:false,sound:false,soundpack:'soft',volume:0.5,chatsound:true,fps:false
 };
 const KEY='wvm.settings.v1';
 let S=(()=>{
@@ -87,7 +87,7 @@ const root=document.documentElement;
 function effectiveTheme(){return S.autotheme?((new Date().getHours()>=7&&new Date().getHours()<19)?'light':'dark'):S.theme}
 function applyAll(){
   const th=effectiveTheme();
-  root.dataset.theme=th;root.dataset.blur=S.blur?'on':'off';root.dataset.perf=S.perf?'on':'off';root.dataset.motion=S.motion?'off':'on';
+  root.dataset.theme=th;root.dataset.blur=S.blur?'on':'off';root.dataset.perf=S.perf?'on':'off';root.dataset.motion=S.motion?'off':'on';root.dataset.bouncy=S.bouncy?'on':'off';
   root.dataset.tbpos=S.tbpos;root.dataset.tbside=S.tbside;root.dataset.tbhide=S.tbhide?'on':'off';root.dataset.icons=S.icons?'on':'off';root.dataset.bgtext=S.bgtext?'on':'off';
   root.dataset.gsize=S.gsize;root.dataset.bmbar=S.bmbar?'on':'off';
   root.dataset.font=S.font;root.dataset.radius=S.radius;root.dataset.density=S.density;root.dataset.glow=S.glow?'on':'off';
@@ -273,12 +273,12 @@ function click(){if(!S.sound)return;try{
   g.gain.setValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(.0001,t+p.dur);
   o.connect(g).connect(audioCtx.destination);o.start();o.stop(t+p.dur);
 }catch(_){}}
-/* a soft two-note ping, distinct from the UI click */
-function chatPing(){if(!S.chatsound)return;try{
+/* a soft two-note ping, distinct from the UI click; @mentions get a third note */
+function chatPing(mention){if(!S.chatsound)return;try{
   const vol=(S.volume??.5)*.5;if(vol<=0)return;
   audioCtx=audioCtx||new (window.AudioContext||window.webkitAudioContext)();
   const t=audioCtx.currentTime;
-  [[880,0],[1320,.09]].forEach(([f,at])=>{
+  (mention?[[880,0],[1320,.09],[1760,.18]]:[[880,0],[1320,.09]]).forEach(([f,at])=>{
     const o=audioCtx.createOscillator(),g=audioCtx.createGain();
     o.type='sine';o.frequency.setValueAtTime(f,t+at);
     g.gain.setValueAtTime(0,t+at);
@@ -292,6 +292,12 @@ function setStatus(msg,busy=false){const el=$('#status');el.textContent=msg;el.c
 function setLaunching(on){$$('.vm-btn').forEach(b=>b.disabled=on)}
 function favicon(url,sz=32){try{const d=new URL(url).hostname;return d?`https://www.google.com/s2/favicons?domain=${d}&sz=${sz}`:''}catch(_){return''}}
 function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+async function postJSON(url,body,method='POST'){
+  const r=await fetch(url,{method,headers:{'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined});
+  let d={};try{d=await r.json()}catch(_){}
+  if(!r.ok)throw new Error(d.error||`HTTP ${r.status}`);
+  return d;
+}
 function typing(){const a=document.activeElement;return a&&(a.tagName==='INPUT'||a.tagName==='TEXTAREA'||a.isContentEditable)}
 
 function updateClock(){const n=new Date();let h=n.getHours(),suf='';if(!S.clock24){suf=h>=12?' PM':' AM';h=h%12||12}const p=v=>String(v).padStart(2,'0');$('#tb-time').textContent=(S.clock24?p(h):h)+':'+p(n.getMinutes())+(S.clocksec?':'+p(n.getSeconds()):'')+suf;$('#tb-date').textContent=n.toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'})}
@@ -462,12 +468,13 @@ function onCloseDone(el,done){
 }
 function closePanel(id){const p=$('#'+id);if(!p.classList.contains('show'))return;p.classList.add('closing');onCloseDone(p,()=>p.classList.remove('show','closing'))}
 document.addEventListener('click',e=>{const b=e.target.closest('[data-close]');if(b){click();closePanel(b.dataset.close)}});
-function closeAllPanels(){['links-panel','games-panel','settings-panel','history-panel'].forEach(closePanel);$('#start').classList.remove('show')}
+function closeAllPanels(){['links-panel','games-panel','settings-panel','history-panel','admin-panel'].forEach(closePanel);$('#start').classList.remove('show')}
 
 /* app launcher (delegated) */
 const APPS={
   browser:()=>openBrowser(),games:()=>openGames(),links:()=>openLinks(),chat:()=>toggleChat(),settings:()=>openSettings(),cloud:()=>toggleCloud(),remote:()=>toggleRemote(),
-  vm1:()=>launchE2BVM(),vm2:()=>launchGPUVM(),vm:()=>(S.defaultVM==='gpu'?launchGPUVM():launchE2BVM())
+  vm1:()=>launchE2BVM(),vm2:()=>launchGPUVM(),vm:()=>(S.defaultVM==='gpu'?launchGPUVM():launchE2BVM()),
+  admin:()=>openAdmin()
 };
 document.addEventListener('click',e=>{const b=e.target.closest('[data-app]');if(!b)return;click();const fn=APPS[b.dataset.app];if(fn)fn()});
 $$('.tile').forEach(t=>t.addEventListener('pointermove',e=>{const r=t.getBoundingClientRect();t.style.setProperty('--mx',(e.clientX-r.left)+'px');t.style.setProperty('--my',(e.clientY-r.top)+'px')}));
@@ -478,10 +485,10 @@ const showTb=()=>{clearTimeout(tbT);tb.classList.add('visible')},hideTb=()=>{tbT
 $('#tb-zone').addEventListener('mouseenter',showTb);tb.addEventListener('mouseenter',showTb);tb.addEventListener('mouseleave',hideTb);
 
 /* start menu */
-const START_APPS=[['browser','<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>','Browser','c1'],['games','<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h4M8 10v4M15 13h.01M18 11h.01"/><path d="M17.32 5H6.68a4 4 0 0 0-3.98 3.6L2 16a2.5 2.5 0 0 0 4.5 1.5L8 15h8l1.5 2.5A2.5 2.5 0 0 0 22 16l-.7-7.4A4 4 0 0 0 17.32 5z"/></svg>','Games','c2'],['vm1','<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v10H4z"/><path d="M2 19h20"/></svg>','VM #1','c7'],['vm2','<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg>','VM #2','c3'],['links','<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>','Links','c4'],['remote','<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/><circle cx="12" cy="10" r="2.4"/></svg>','Remote PC','c7'],['cloud','<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg>','Cloud','c3'],['chat','<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>','Server','c6'],['settings','<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>','Settings','c5']];
+const START_APPS=[['browser','<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>','Browser','c1'],['games','<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h4M8 10v4M15 13h.01M18 11h.01"/><path d="M17.32 5H6.68a4 4 0 0 0-3.98 3.6L2 16a2.5 2.5 0 0 0 4.5 1.5L8 15h8l1.5 2.5A2.5 2.5 0 0 0 22 16l-.7-7.4A4 4 0 0 0 17.32 5z"/></svg>','Games','c2'],['vm1','<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v10H4z"/><path d="M2 19h20"/></svg>','VM #1','c7'],['vm2','<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg>','VM #2','c3'],['links','<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>','Links','c4'],['remote','<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/><circle cx="12" cy="10" r="2.4"/></svg>','Remote PC','c7'],['cloud','<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg>','Cloud','c3'],['chat','<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>','Server','c6'],['settings','<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>','Settings','c5'],['admin','<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>','Admin','c7']];
 function renderStart(q=''){
   q=q.toLowerCase().trim();const g=$('#start-grid');
-  let html=START_APPS.filter(a=>!q||a[2].toLowerCase().includes(q)).map(a=>`<button class="dicon" data-app="${a[0]}"><div class="ic ${a[3]}">${a[1]}</div><span>${a[2]}</span></button>`).join('');
+  let html=START_APPS.filter(a=>(a[0]!=='admin'||currentRole==='owner')&&(!q||a[2].toLowerCase().includes(q))).map(a=>`<button class="dicon" data-app="${a[0]}"><div class="ic ${a[3]}">${a[1]}</div><span>${a[2]}</span></button>`).join('');
   if(q)html+=GAMES.filter(g=>g.name.toLowerCase().includes(q)).slice(0,8).map(g=>`<button class="dicon" data-game="${esc(g.name)}"><div class="ic" style="background:#1c2030 url('${esc(g.img)}') center/cover"></div><span>${esc(g.name)}</span></button>`).join('');
   g.innerHTML=html||'<div class="empty" style="grid-column:1/-1;padding:20px">No results</div>';
 }
@@ -518,10 +525,10 @@ makeDraggable(mainWin,$('#win-drag-handle'),{bounds:'#desktop',canDrag:()=>!winM
    adaptive JPEG drawn to a canvas; input is normalized 0..10000 of
    the primary screen so it survives any scaling.
    ═══════════════════════════════════════════════════════════ */
-let rmWS=null,rmMeta=null,rmActive=false,rmRetry=0,rmRetryT=null;
+let rmWS=null,rmMeta=null,rmActive=false,rmRetry=0,rmRetryT=null,rmPc=null,rmAgents=[],rmFailedOpens=0;
 let rmDecoding=false,rmPending=null,rmRect={x:0,y:0,w:0,h:0};
 let rmFrames=0,rmFps=0,rmLat=0,rmPingT=null,rmStatT=null,rmLastMove=0;
-const rmKeyLS='remoteKey';
+const rmKeyLS='remoteKey',rmPcLS='remotePc';
 
 /* physical-key -> Windows virtual-key code (US layout; the OS composes
    characters, and modifiers are forwarded as their own keys, so shift +
@@ -564,46 +571,117 @@ function closeRemote(){
 function toggleRemote(){const w=$('#remote-wrap');if(w.style.display==='flex')closeRemote();else openRemote()}
 function remoteVisible(){return $('#remote-wrap').style.display==='flex'}
 
+function rmHint(text){const h=$('#remote-hint');h.textContent=text;h.classList.toggle('err',!!text);if(text)window.motion?.shake($('#remote-overlay .rc-card'))}
 function rmConnect(key){
   clearTimeout(rmRetryT);
   try{if(rmWS)rmWS.close()}catch(_){}
+  if(currentRole!=='owner'){rmState('off');rmHint('Sign in as the owner account to use Remote PC.');return}
   rmState('wait');
   $('#remote-stat').textContent='Connecting…';
-  const hint=$('#remote-hint');hint.textContent='';hint.classList.remove('err');
-  let ws;
-  try{ws=new WebSocket((location.protocol==='https:'?'wss://':'ws://')+location.host+'/remote/?role=viewer&key='+encodeURIComponent(key))}
+  rmHint('');
+  let ws,opened=false;
+  // the key is not in the URL (logs keep URLs); it is the first message instead
+  try{ws=new WebSocket((location.protocol==='https:'?'wss://':'ws://')+location.host+'/remote/?role=viewer')}
   catch(_){rmState('off');return}
   ws.binaryType='arraybuffer';
   rmWS=ws;
 
   ws.onopen=()=>{
-    rmRetry=0;
-    $('#remote-stat').textContent='Waiting for your PC…';
-    rmSendSettings();
+    opened=true;rmRetry=0;rmFailedOpens=0;
+    let pc=null;try{pc=localStorage.getItem(rmPcLS)}catch(_){}
+    ws.send(JSON.stringify({t:'auth',key,pc}));
+    $('#remote-stat').textContent='Checking key…';
     clearInterval(rmPingT);rmPingT=setInterval(()=>rmSend({t:'ping',ts:performance.now()}),2000);
     clearInterval(rmStatT);rmStatT=setInterval(rmUpdateStat,1000);
   };
   ws.onmessage=(e)=>{
     if(typeof e.data!=='string'){rmFrame(e.data);return}
     let m;try{m=JSON.parse(e.data)}catch(_){return}
-    if(m.t==='up'){rmState('on');rmActive=true;$('#remote-canvas').focus()}
-    else if(m.t==='down'){rmState('wait');rmActive=false;$('#remote-stat').textContent='Your PC agent is offline';}
-    else if(m.t==='meta'){rmMeta={w:m.w,h:m.h}}
-    else if(m.t==='pong'){rmLat=Math.round(performance.now()-m.ts)}
+    switch(m.t){
+      case 'authed':$('#remote-stat').textContent='Waiting for a PC…';break;
+      case 'agents':rmAgents=m.list||[];rmRenderPcs();break;
+      case 'up':
+        rmPc=m.name;rmState('on');rmActive=true;rmRenderPcs();rmSendSettings();
+        try{localStorage.setItem(rmPcLS,m.name)}catch(_){}
+        $('#remote-canvas').focus();break;
+      case 'down':
+        rmActive=false;rmState('wait');rmMeta=null;rmRenderMonitors();
+        $('#remote-stat').textContent=m.name?`${m.name} is offline`:rmAgents.length?'Pick a PC':'No PCs online. Run the agent on one.';
+        break;
+      case 'meta':rmMeta=m;rmRenderMonitors();break;
+      case 'pong':rmLat=Math.round(performance.now()-m.ts);break;
+      case 'clip':rmGotClipboard(m.text||'');break;
+      case 'clip.ok':toast('Sent to the PC clipboard','ok');window.motion?.pop($('#remote-clip-send'));break;
+      case 'clip.err':toast('PC clipboard failed: '+(m.error||'unknown'),'err');break;
+    }
   };
   ws.onclose=(ev)=>{
     clearInterval(rmPingT);clearInterval(rmStatT);rmActive=false;
-    if(ev.code===1008||ev.code===4001){
+    if(ev.code===4001){
       rmState('off');
-      const h=$('#remote-hint');h.textContent='Rejected: wrong key, or this account is not the owner.';h.classList.add('err');
+      rmHint('Wrong key. Too many wrong keys locks this network out for 15 minutes.');
       try{localStorage.removeItem(rmKeyLS)}catch(_){}
       return;
     }
+    // refused before opening (not owner, feature off, locked out): stop after a few tries
+    if(!opened&&++rmFailedOpens>=3){rmState('off');rmHint('Could not reach Remote PC. It may be off on the server, or locked after wrong keys.');return}
     if(!remoteVisible()){rmState('off');return}
     rmState('wait');$('#remote-stat').textContent='Reconnecting…';
     rmRetry++;rmRetryT=setTimeout(()=>rmConnect(key),Math.min(1000*Math.pow(1.5,rmRetry),12000));
   };
   ws.onerror=()=>{};
+}
+
+/* PC + monitor pickers ---------------------------------------------- */
+function rmRenderPcs(){
+  const sel=$('#remote-pc');
+  const opts=rmAgents.length?rmAgents.map(a=>{const o=document.createElement('option');o.value=a.name;o.textContent=a.name+(a.meta?` · ${a.meta.w}×${a.meta.h}`:'');return o})
+    :[Object.assign(document.createElement('option'),{value:'',textContent:'No PCs online'})];
+  if(rmAgents.length&&!rmPc){const o=document.createElement('option');o.value='';o.textContent='Pick a PC…';opts.unshift(o)}
+  sel.replaceChildren(...opts);
+  sel.value=rmPc&&rmAgents.some(a=>a.name===rmPc)?rmPc:'';
+  sel.disabled=!rmAgents.length;
+  if(!rmActive&&!rmPc)$('#remote-stat').textContent=rmAgents.length?`${rmAgents.length} PC${rmAgents.length>1?'s':''} online · pick one`:'No PCs online. Run the agent on one.';
+}
+$('#remote-pc').onchange=e=>{
+  const name=e.target.value;if(!name)return;
+  rmPc=name;rmMeta=null;rmRenderMonitors();
+  rmSend({t:'select',name});
+  const cv=$('#remote-canvas');cv.getContext('2d').clearRect(0,0,cv.width,cv.height);
+  window.motion?.pop($('#remote-pc-wrap'));
+};
+function rmRenderMonitors(){
+  const wrap=$('#remote-mon-wrap'),sel=$('#remote-mon'),mons=rmMeta&&rmMeta.monitors||[];
+  wrap.hidden=mons.length<2;
+  if(mons.length<2)return;
+  sel.replaceChildren(...mons.map((mn,i)=>{const o=document.createElement('option');o.value=i;o.textContent=`${i+1}${mn.primary?' (main)':''} · ${mn.w}×${mn.h}`;return o}));
+  sel.value=String(rmMeta.monitor||0);
+}
+$('#remote-mon').onchange=e=>{rmSend({t:'set',monitor:+e.target.value});window.motion?.pop($('#remote-mon-wrap'))};
+
+/* clipboard ----------------------------------------------------------- */
+$('#remote-clip-send').onclick=async()=>{
+  if(!rmActive)return toast('Connect to a PC first.','err');
+  let text=null;
+  try{text=await navigator.clipboard.readText()}catch(_){}
+  if(text!=null){
+    if(!text)return toast('Your clipboard is empty.','err');
+    rmSend({t:'clip.set',text:text.slice(0,256*1024)});return;
+  }
+  // no permission to read it: let them paste by hand
+  dcModal({title:'Paste to PC',sub:"Your browser didn't share its clipboard. Paste here (Ctrl+V) and send.",okLabel:'Send to PC',
+    fields:[{key:'text',label:'Text',type:'textarea',rows:6}],
+    onOk:v=>{if(!v.text)throw new Error('Nothing to send.');rmSend({t:'clip.set',text:v.text.slice(0,256*1024)})}});
+};
+$('#remote-clip-get').onclick=()=>{
+  if(!rmActive)return toast('Connect to a PC first.','err');
+  rmSend({t:'clip.get'});
+};
+async function rmGotClipboard(text){
+  if(!text)return toast("The PC's clipboard is empty (or not text).");
+  try{await navigator.clipboard.writeText(text);toast('Copied from the PC','ok');window.motion?.pop($('#remote-clip-get'));return}catch(_){}
+  dcModal({title:'Copied from PC',sub:"Your browser blocked clipboard access. Select it and press Ctrl+C.",okLabel:'Done',
+    fields:[{key:'text',label:'PC clipboard',type:'textarea',rows:8,value:text,readonly:true}],onOk:()=>{}});
 }
 $('#remote-connect').onclick=()=>{
   const k=$('#remote-key').value.trim();
@@ -619,6 +697,7 @@ $('#remote-fs').onclick=()=>{
 };
 
 function rmSendSettings(){
+  if(!rmActive)return;
   rmSend({t:'set',quality:+$('#remote-quality').value,scale:+$('#remote-scale').value,fps:15});
 }
 $('#remote-quality').onchange=rmSendSettings;
@@ -651,7 +730,7 @@ function rmUpdateStat(){
   rmFps=rmFrames;rmFrames=0;
   if(!rmActive)return;
   const dims=rmMeta?rmMeta.w+'×'+rmMeta.h:'';
-  $('#remote-stat').textContent=[dims,rmFps+' fps',rmLat+' ms'].filter(Boolean).join('  ·  ');
+  $('#remote-stat').textContent=[rmPc,dims,rmFps+' fps',rmLat+' ms'].filter(Boolean).join('  ·  ');
 }
 
 /* pointer -> normalized screen coords */
@@ -872,16 +951,56 @@ $('#btn-maximize').onclick=()=>{click();winMax=!winMax;const s=mainWin.style;s.t
 /* ═══════════════════════════════════════════════════════════
    AUTH
    ═══════════════════════════════════════════════════════════ */
-let authMode='register',currentUsername='Guest',vmLimit=30*60;
+let authMode='register',currentUsername='Guest',currentRole='guest',vmLimit=30*60;
 function setAuthMode(m){authMode=m;const L=m==='login';$('#auth-title').textContent=L?'Welcome back':'Create your account';$('#auth-submit').textContent=L?'Log in':'Create account';$('#auth-alt-text').textContent=L?'New here?':'Already have an account?';$('#login-button').textContent=L?'Create an account':'Log in';$('#auth-password').autocomplete=L?'current-password':'new-password';$('#auth-error').textContent=''}
-function acceptAuth(d){vmLimit=(d.vmMinutes||30)*60;currentUsername=d.username||'Guest';$('#auth-wrap').classList.add('hidden');setUser();connectChat();toast(`Welcome, ${currentUsername}! ${d.vmMinutes||30} min of VM time.`,'ok')}
+function acceptAuth(d,fresh){
+  vmLimit=(d.vmMinutes||30)*60;currentUsername=d.username||'Guest';
+  currentRole=d.role||(d.account?'member':'guest');
+  root.dataset.account=d.account?'on':'off';
+  root.dataset.owner=currentRole==='owner'?'on':'off';
+  $('#auth-wrap').classList.add('hidden');setUser();connectChat();
+  toast(`Welcome, ${currentUsername}! ${d.vmMinutes||30} min of VM time.`,'ok');
+  if(fresh)window.motion?.celebrate();
+}
 function setUser(){const a=currentUsername[0].toUpperCase();['#tb-avatar','#start-avatar','#acct-avatar'].forEach(s=>$(s).textContent=a);['#tb-username','#start-username','#settings-username'].forEach(s=>$(s).textContent=currentUsername);$('#settings-vmtime').textContent=`${Math.round(vmLimit/60)} min VM time per session`;updateHero()}
-async function checkAuth(){try{const r=await fetch('/api/auth/me'),d=await r.json();if(d.loggedIn)acceptAuth(d)}catch(_){}}
-$('#auth-card').addEventListener('submit',async e=>{e.preventDefault();const u=$('#auth-username').value.trim(),p=$('#auth-password').value,btn=$('#auth-submit');btn.disabled=true;try{const r=await fetch(authMode==='login'?'/api/auth/login':'/api/auth/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p})}),d=await r.json();if(!r.ok)throw new Error(d.error||'Authentication failed.');acceptAuth(d)}catch(err){$('#auth-error').textContent=err.message}finally{btn.disabled=false}});
+async function checkAuth(){try{const r=await fetch('/api/auth/me'),d=await r.json();if(d.loggedIn)acceptAuth(d);return d}catch(_){return null}}
+$('#auth-card').addEventListener('submit',async e=>{e.preventDefault();const u=$('#auth-username').value.trim(),p=$('#auth-password').value,btn=$('#auth-submit');btn.disabled=true;try{const r=await fetch(authMode==='login'?'/api/auth/login':'/api/auth/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p})}),d=await r.json();if(!r.ok)throw new Error(d.error||'Authentication failed.');acceptAuth(d,true)}catch(err){$('#auth-error').textContent=err.message;window.motion?.shake($('#auth-card'))}finally{btn.disabled=false}});
 $('#guest-button').onclick=async()=>{try{const r=await fetch('/api/auth/guest',{method:'POST'}),d=await r.json();if(!r.ok)throw 0;acceptAuth(d)}catch(_){acceptAuth({username:'Guest',vmMinutes:30})}};
 $('#login-button').onclick=()=>setAuthMode(authMode==='login'?'register':'login');
 function logoutUser(){fetch('/api/auth/logout',{method:'POST'}).catch(()=>{});location.reload()}
 $('#logout-btn').onclick=logoutUser;
+
+/* account security ------------------------------------------------ */
+$('#pw-btn').onclick=()=>dcModal({
+  title:'Change password',sub:'You stay signed in here. Every other device gets signed out.',
+  okLabel:'Change password',
+  fields:[{key:'password',label:'Current password',type:'password'},
+          {key:'newPassword',label:'New password',type:'password',placeholder:'8+ characters',autocomplete:'new-password'},
+          {key:'repeat',label:'Repeat new password',type:'password',autocomplete:'new-password'}],
+  onOk:async v=>{
+    if(v.newPassword.length<8)throw new Error('New password must be at least 8 characters.');
+    if(v.newPassword!==v.repeat)throw new Error("The new passwords don't match.");
+    await postJSON('/api/account/password',{password:v.password,newPassword:v.newPassword});
+    toast('Password changed. Other devices are signed out.','ok');window.motion?.celebrate();
+  }
+});
+$('#signout-others-btn').onclick=async()=>{
+  if(!confirm('Sign out every other device using this account?'))return;
+  try{await postJSON('/api/account/signout-others');toast('Signed out everywhere else','ok')}
+  catch(e){toast(e.message,'err')}
+};
+$('#delete-acct-btn').onclick=()=>dcModal({
+  title:'Delete your account',danger:true,
+  sub:'This removes your account, your messages, your DMs and your reactions. It cannot be undone.',
+  okLabel:'Delete forever',
+  fields:[{key:'confirm',label:`Type your username (${currentUsername}) to confirm`,placeholder:currentUsername},
+          {key:'password',label:'Password',type:'password'}],
+  onOk:async v=>{
+    await postJSON('/api/account/delete',{confirm:v.confirm.trim().toLowerCase(),password:v.password});
+    toast('Account deleted. Bye!','ok');setTimeout(()=>location.reload(),1200);
+  }
+});
+$('#guest-upgrade-btn').onclick=()=>{fetch('/api/auth/logout',{method:'POST'}).catch(()=>{}).finally(()=>location.reload())};
 async function fetchPlayerCount(){try{const c=new AbortController(),t=setTimeout(()=>c.abort(),5000),r=await fetch('/api/stats',{signal:c.signal,cache:'no-store'});clearTimeout(t);if(!r.ok)throw 0;const d=await r.json(),n=d.online??d.count??d.players;if(n!=null)$('#player-count-text').textContent=`${n} online`}catch(_){}}
 
 /* ═══════════════════════════════════════════════════════════
@@ -1062,6 +1181,8 @@ let dcChannels=[],dcDMs=[],dcMembers=[],dcProfiles=[];
 let dcActive='general',dcActiveIsDM=false,dcMessages=[],dcOldest=null;
 let dcTypers=new Map(),dcTypingSent=null,dcTypingT=null;
 let dcAtBottom=true,dcUnread={},dcLastSeen=store('dcLastSeen',{});
+let dcReply=null,dcEdit=null,dcFresh=new Set(),dcBump=null,dcBanned=null;
+const DC_EMOJI=['👍','❤️','😂','🔥','😮','😢','🎉','👀','💯','🙏','😎','🤯','👎','✅','❌','🤣','😭','🥳','🤔','💀','🫡','⚡','🍿','🐐'];
 const ROLE_COLOR={owner:'#f5b301',admin:'#ef4444',mod:'#3b82f6',member:'',guest:''};
 const ROLE_RANK={owner:4,admin:3,mod:2,member:1,guest:0};
 const rank=r=>ROLE_RANK[r]??0;
@@ -1089,6 +1210,12 @@ function connectChat(){
   ws.onclose=ev=>{
     chatReady=false;chatWS=null;dcTypers.clear();dcRenderTyping();dcSyncCompose();
     if(ev.code===1008){chatState('err');return}
+    if(ev.code===4003){chatState('err');dcSyncCompose();return} // banned: don't hammer the door
+    if(ev.code===4005){ // signed out (password change, deletion, admin)
+      checkAuth().then(d=>{if(d&&d.loggedIn)scheduleChatRetry();else{toast('You were signed out.','err');setTimeout(()=>location.reload(),1500)}});
+      return;
+    }
+    if(ev.code===4004){toast('You were kicked from chat. Reconnecting in a bit…','err');chatRetry=5}
     chatState('off');scheduleChatRetry();
   };
   ws.onerror=()=>chatState('err');
@@ -1139,7 +1266,34 @@ function dcHandle(d){
       break;
     case 'msg': dcOnMessage(d);break;
     case 'deleted':
-      if(d.channel===dcActive){dcMessages=dcMessages.filter(m=>m.id!==d.id);dcRenderMessages()}
+      if(d.channel===dcActive){
+        dcMessages=dcMessages.filter(m=>m.id!==d.id);
+        dcMessages.forEach(m=>{if(m.replyTo&&m.replyTo.id===d.id)m.replyTo={id:d.id,missing:true}});
+        if(dcReply&&dcReply.id===d.id)dcSetMode(null);
+        if(dcEdit&&dcEdit.id===d.id)dcSetMode(null);
+        dcRenderMessages();
+      }
+      break;
+    case 'edited': {
+      const m=d.message;if(!m||m.channel!==dcActive)break;
+      const i=dcMessages.findIndex(x=>x.id===m.id);if(i>=0)dcMessages[i]={...dcMessages[i],...m};
+      dcMessages.forEach(x=>{if(x.replyTo&&x.replyTo.id===m.id)x.replyTo={...x.replyTo,text:m.text.slice(0,140)}});
+      dcRenderMessages();
+      break;
+    }
+    case 'reactions': {
+      if(d.channel!==dcActive)break;
+      const m=dcMessages.find(x=>x.id===d.id);if(!m)break;
+      m.reactions=d.reactions||[];
+      dcBump={id:d.id,emoji:d.emoji};
+      dcRenderMessages();dcBump=null;
+      break;
+    }
+    case 'announce': dcAnnounce(d);break;
+    case 'banned':
+      dcBanned=d;
+      toast(d.until?`You're banned from chat until ${new Date(d.until).toLocaleString()}.`:"You're banned from chat.",'err');
+      dcSyncCompose();
       break;
     case 'typing': {
       if(d.name===chatMe||d.channel!==dcActive)break;
@@ -1157,8 +1311,15 @@ function dcUpsertProfile(p){
   if(i<0)dcProfiles.push(p);else dcProfiles[i]=p;
 }
 
+function dcMentionsMe(text){
+  if(!chatMe||!text)return false;
+  const me=chatMe.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+  return new RegExp('(^|[^a-z0-9_-])@'+me+'(?![a-z0-9_-])','i').test(text);
+}
 function dcOnMessage(m){
+  const mention=m.username!==chatMe&&dcMentionsMe(m.text);
   if(m.channel===dcActive){
+    dcFresh.add(m.id);
     dcMessages.push(m);
     if(dcMessages.length>300)dcMessages=dcMessages.slice(-300);
     dcRenderMessages();
@@ -1172,8 +1333,10 @@ function dcOnMessage(m){
     dcRenderChannels();
   }
   if(m.username!==chatMe){
-    chatPing();
-    if(!$('#chat-window').classList.contains('show'))bumpBadge();
+    chatPing(mention);
+    const open=$('#chat-window').classList.contains('show');
+    if(!open)bumpBadge();
+    if(mention&&(!open||m.channel!==dcActive))toast(`${nameOf(m.username)} mentioned you: ${m.text.slice(0,80)}`,'ok');
   }
 }
 
@@ -1181,6 +1344,7 @@ function dcOnMessage(m){
 function dcOpen(slug){
   if(!slug)return;
   dcActive=slug;dcActiveIsDM=slug.startsWith('dm:');
+  dcSetMode(null);
   dcTypers.clear();dcRenderTyping();
   delete dcUnread[slug];
   dcMessages=[];
@@ -1251,17 +1415,45 @@ function dcDayLabel(ts){
   if(diff===1)return 'Yesterday';
   return d.toLocaleDateString(undefined,{month:'long',day:'numeric',year:'numeric'});
 }
-function dcLinkify(el,text){
-  const re=/(https?:\/\/[^\s]+)/g;
+/* links open in the proxied browser; @names become clickable mentions */
+function dcRichText(el,text){
+  const re=/(https?:\/\/[^\s]+)|(^|[^a-z0-9_-])@([a-z0-9_-]{3,24})(?![a-z0-9_-])/gi;
   let last=0,m;
   while((m=re.exec(text))){
-    if(m.index>last)el.appendChild(document.createTextNode(text.slice(last,m.index)));
-    const a=document.createElement('a');
-    a.textContent=m[0];a.href='#';a.title=m[0];
-    a.onclick=ev=>{ev.preventDefault();closeChat();openBrowser(m[0])};
-    el.appendChild(a);last=m.index+m[0].length;
+    if(m[1]){
+      // each handler keeps its own URL; sharing the loop variable made every link point at null
+      const url=m[1];
+      if(m.index>last)el.appendChild(document.createTextNode(text.slice(last,m.index)));
+      const a=document.createElement('a');
+      a.textContent=url;a.href='#';a.title=url;
+      a.onclick=ev=>{ev.preventDefault();closeChat();openBrowser(url)};
+      el.appendChild(a);last=m.index+url.length;
+    }else{
+      const start=m.index+m[2].length,name=m[3].toLowerCase();
+      if(start>last)el.appendChild(document.createTextNode(text.slice(last,start)));
+      const sp=document.createElement('span');
+      sp.className='dc-mention'+(name===chatMe?' me':'');
+      sp.textContent='@'+m[3];
+      sp.onclick=ev=>{ev.stopPropagation();dcUserMenu(name,sp)};
+      el.appendChild(sp);last=start+1+m[3].length;
+    }
   }
   if(last<text.length)el.appendChild(document.createTextNode(text.slice(last)));
+}
+
+const ICON={
+  react:'<svg class="i i-sm" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2M9 9h.01M15 9h.01"/></svg>',
+  reply:'<svg class="i i-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 17 4 12l5-5"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>',
+  edit:'<svg class="i i-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>',
+  del:'<svg class="i i-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>'
+};
+function dcTool(title,icon,fn,cls=''){
+  const b=document.createElement('button');b.title=title;b.className=cls;b.innerHTML=icon;
+  b.onclick=e=>{e.stopPropagation();fn(e.currentTarget)};return b;
+}
+function dcCanPost(){
+  const ch=dcChannels.find(c=>c.slug===dcActive);
+  return chatReady&&!dcBanned&&!(!dcActiveIsDM&&ch&&ch.locked&&rank(chatMeRole)<2);
 }
 
 function dcRenderMessages(){
@@ -1278,6 +1470,7 @@ function dcRenderMessages(){
     : (ch&&ch.topic?ch.topic:'This is the beginning of the channel.');
   frag.appendChild(intro);
 
+  const canPost=dcCanPost();
   let lastDay='',lastUser='',lastAt=0;
   dcMessages.forEach(m=>{
     const day=dcDayLabel(m.createdAt);
@@ -1285,9 +1478,16 @@ function dcRenderMessages(){
       const s=document.createElement('div');s.className='dc-day';s.textContent=day;
       frag.appendChild(s);lastDay=day;lastUser='';
     }
-    const fresh=m.username!==lastUser||m.createdAt-lastAt>7*60000;
+    // a reply always shows its header, so the quote has someone to belong to
+    const fresh=m.username!==lastUser||m.createdAt-lastAt>7*60000||!!m.replyTo;
+    const mine=m.username===chatMe;
     const row=document.createElement('div');
-    row.className='dc-m'+(fresh?' fresh':'');
+    row.className='dc-m'+(fresh?' fresh':'')+(mine?' own':'')
+      +(!mine&&dcMentionsMe(m.text)?' mention':'')
+      +(dcFresh.has(m.id)?' new':'')
+      +(dcEdit&&dcEdit.id===m.id?' editing':'')
+      +(dcReply&&dcReply.id===m.id?' replying':'');
+    row.dataset.id=m.id;
 
     const stamp=document.createElement('span');
     stamp.className='stamp';
@@ -1297,6 +1497,19 @@ function dcRenderMessages(){
     row.appendChild(avatar(m.username));
 
     const body=document.createElement('div');body.className='dc-body';
+
+    if(m.replyTo){
+      const q=document.createElement('button');q.className='dc-quote';
+      if(m.replyTo.missing){q.classList.add('gone');q.textContent='Original message was deleted'}
+      else{
+        const who=document.createElement('b');who.textContent=nameOf(m.replyTo.username);who.style.color=colorOf(m.replyTo.username);
+        const sn=document.createElement('span');sn.textContent=m.replyTo.text;
+        q.append(who,sn);
+        q.onclick=()=>dcJumpTo(m.replyTo.id);
+      }
+      body.appendChild(q);
+    }
+
     if(fresh){
       const head=document.createElement('div');head.className='dc-name';
       const b=document.createElement('b');
@@ -1323,26 +1536,109 @@ function dcRenderMessages(){
       body.appendChild(head);
     }
     const txt=document.createElement('div');txt.className='dc-text';
-    dcLinkify(txt,m.text);
+    dcRichText(txt,m.text);
+    if(m.editedAt){
+      const ed=document.createElement('span');ed.className='dc-edited';ed.textContent='(edited)';
+      ed.title='Edited '+new Date(m.editedAt).toLocaleString();
+      txt.appendChild(ed);
+    }
     body.appendChild(txt);
+
+    if(m.reactions&&m.reactions.length){
+      const rx=document.createElement('div');rx.className='dc-reacts';
+      m.reactions.forEach(r=>{
+        const chip=document.createElement('button');
+        chip.className='dc-react'+(r.users.includes(chatMe)?' mine':'')+(dcBump&&dcBump.id===m.id&&dcBump.emoji===r.emoji?' bump':'');
+        chip.title=r.users.map(nameOf).join(', ');
+        const em=document.createElement('span');em.className='em';em.textContent=r.emoji;
+        const n=document.createElement('span');n.className='n';n.textContent=r.users.length;
+        chip.append(em,n);
+        chip.onclick=e=>{e.stopPropagation();dcReact(m.id,r.emoji,chip)};
+        rx.appendChild(chip);
+      });
+      if(canPost){
+        const add=document.createElement('button');add.className='dc-react add';add.title='Add reaction';add.innerHTML=ICON.react;
+        add.onclick=e=>{e.stopPropagation();dcEmojiPicker(m.id,add)};
+        rx.appendChild(add);
+      }
+      body.appendChild(rx);
+    }
     row.appendChild(body);
 
-    if(m.username===chatMe||rank(chatMeRole)>=2){
-      const tools=document.createElement('div');tools.className='dc-tools';
-      const del=document.createElement('button');
-      del.className='danger';del.title='Delete message';
-      del.innerHTML='<svg class="i i-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>';
-      del.onclick=()=>{if(confirm('Delete this message?'))dcSend({type:'delete',id:m.id})};
-      tools.appendChild(del);
-      row.appendChild(tools);
+    const tools=document.createElement('div');tools.className='dc-tools';
+    if(canPost){
+      tools.appendChild(dcTool('Add reaction',ICON.react,el=>dcEmojiPicker(m.id,el)));
+      tools.appendChild(dcTool('Reply',ICON.reply,()=>dcSetMode('reply',m)));
     }
+    if(mine&&canPost)tools.appendChild(dcTool('Edit',ICON.edit,()=>dcSetMode('edit',m)));
+    if(mine||rank(chatMeRole)>=2){
+      tools.appendChild(dcTool('Delete message',ICON.del,()=>{if(confirm('Delete this message?'))dcSend({type:'delete',id:m.id})},'danger'));
+    }
+    if(tools.children.length)row.appendChild(tools);
+    row.ondblclick=e=>{if(canPost&&!e.target.closest('a,button,.dc-mention')&&!getSelection().toString())dcReact(m.id,'❤️',row)};
 
     frag.appendChild(row);
     lastUser=m.username;lastAt=m.createdAt;
   });
 
   box.replaceChildren(frag);
+  dcFresh.clear();
 }
+
+function dcJumpTo(id){
+  const el=$(`#dc-msgs .dc-m[data-id="${id}"]`);
+  if(!el)return toast('That message is further up. Scroll to load it.');
+  el.scrollIntoView({behavior:S.motion?'auto':'smooth',block:'center'});
+  el.classList.remove('flash');void el.offsetWidth;el.classList.add('flash');
+}
+
+/* reactions ---------------------------------------------------- */
+function dcReact(id,emoji,from){
+  if(!dcCanPost())return;
+  const m=dcMessages.find(x=>x.id===id);
+  const adding=!(m&&m.reactions&&m.reactions.some(r=>r.emoji===emoji&&r.users.includes(chatMe)));
+  dcSend({type:'react',id,emoji});
+  if(adding&&from)window.motion?.emojiBurst(emoji,from);
+}
+function dcEmojiPicker(id,anchor){
+  const pop=$('#dc-emoji');
+  pop.replaceChildren(...DC_EMOJI.map(e=>{
+    const b=document.createElement('button');b.textContent=e;b.title=e;
+    b.onclick=ev=>{ev.stopPropagation();pop.classList.remove('show');dcReact(id,e,anchor)};
+    return b;
+  }));
+  pop.classList.add('show');
+  const r=anchor.getBoundingClientRect(),pw=pop.offsetWidth,ph=pop.offsetHeight;
+  pop.style.left=Math.max(10,Math.min(innerWidth-pw-10,r.right-pw))+'px';
+  pop.style.top=(r.top-ph-8<10?r.bottom+8:r.top-ph-8)+'px';
+}
+document.addEventListener('pointerdown',e=>{
+  const pop=$('#dc-emoji');
+  if(pop.classList.contains('show')&&!pop.contains(e.target))pop.classList.remove('show');
+},true);
+
+/* reply / edit mode on the composer ------------------------------ */
+function dcSetMode(mode,m){
+  const input=$('#dc-input'),bar=$('#dc-replybar');
+  const wasEdit=!!dcEdit;
+  dcReply=mode==='reply'?m:null;
+  dcEdit=mode==='edit'?m:null;
+  if(!mode){
+    bar.classList.remove('show');
+    if(wasEdit){input.value='';dcGrow()}
+  }else{
+    $('#dc-reply-label').textContent=mode==='edit'?'Editing your message':'Replying to';
+    $('#dc-reply-name').textContent=mode==='edit'?'':nameOf(m.username);
+    $('#dc-reply-snip').textContent=m.text.slice(0,120);
+    bar.classList.toggle('editing',mode==='edit');
+    bar.classList.remove('show');void bar.offsetWidth;bar.classList.add('show');
+    if(mode==='edit'){input.value=m.text;dcGrow()}
+    setTimeout(()=>{input.focus();const n=input.value.length;input.setSelectionRange(n,n)},30);
+  }
+  dcSyncCompose();
+  if($('#chat-window').classList.contains('show'))dcRenderMessages();
+}
+$('#dc-reply-cancel').onclick=()=>dcSetMode(null);
 
 function dcScroll(instant){
   const box=$('#dc-msgs');
@@ -1443,6 +1739,14 @@ function dcUserMenu(name,anchor){
     item('Time out 1 hour',()=>dcSend({type:'timeout',name,minutes:60,channel:dcActive}),true);
     item('Lift timeout',()=>dcSend({type:'untimeout',name}));
   }
+  if(myRank>=3&&theirRank<myRank&&!me){
+    item('Ban for 1 day',()=>{if(confirm(`Ban ${name} from chat for a day?`))dcSend({type:'ban',name,hours:24})},true);
+    item('Ban permanently',()=>{if(confirm(`Ban ${name} from chat for good?`))dcSend({type:'ban',name,hours:null})},true);
+    item('Unban',()=>dcSend({type:'unban',name}));
+  }
+  if(!me&&chatMeAccount&&!dcActiveIsDM&&dcCanPost()){
+    item('Mention',()=>{const i=$('#dc-input');i.value=(i.value&&!/\s$/.test(i.value)?i.value+' ':i.value)+'@'+name+' ';i.focus();dcSyncCompose()});
+  }
 
   pop.classList.add('show');
   const rect=anchor.getBoundingClientRect(),ph=pop.offsetHeight,pw=pop.offsetWidth;
@@ -1458,18 +1762,25 @@ document.addEventListener('pointerdown',e=>{
 
 /* dialogs ----------------------------------------------------- */
 let dcModalOk=null;
-function dcModal({title,sub,fields,okLabel='Save',onOk}){
+/* onOk may be async; throwing keeps the dialog open and shows the message */
+function dcModal({title,sub,fields,okLabel='Save',onOk,danger=false}){
   $('#dc-modal-title').textContent=title;
   $('#dc-modal-sub').textContent=sub||'';
+  $('#dc-modal-err').textContent='';
+  $('#dc-modal-ok').classList.toggle('danger',danger);
+  $('#dc-modal-ok').classList.toggle('primary',!danger);
   const box=$('#dc-modal-fields');box.replaceChildren();
   fields.forEach(f=>{
     const wrap=document.createElement('div');
     const lab=document.createElement('label');lab.textContent=f.label;wrap.appendChild(lab);
     let input;
-    if(f.type==='textarea'){input=document.createElement('textarea');input.rows=3}
+    if(f.type==='textarea'){input=document.createElement('textarea');input.rows=f.rows||3}
     else{input=document.createElement('input');input.type=f.type||'text'}
     input.className='field';input.id='dcf-'+f.key;
     input.value=f.value||'';
+    if(f.readonly)input.readOnly=true;
+    if(f.type==='password')input.autocomplete=f.autocomplete||'current-password';
+    if(f.type!=='textarea')input.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();$('#dc-modal-ok').click()}});
     if(f.placeholder)input.placeholder=f.placeholder;
     if(f.maxlength)input.maxLength=f.maxlength;
     wrap.appendChild(input);box.appendChild(wrap);
@@ -1478,14 +1789,20 @@ function dcModal({title,sub,fields,okLabel='Save',onOk}){
   dcModalOk=()=>{
     const out={};
     fields.forEach(f=>{out[f.key]=$('#dcf-'+f.key).value});
-    onOk(out);
+    return onOk(out);
   };
   $('#dc-modal').classList.add('show');
   setTimeout(()=>{const first=box.querySelector('.field');if(first)first.focus()},60);
 }
 function dcCloseModal(){$('#dc-modal').classList.remove('show');dcModalOk=null}
 $('#dc-modal-cancel').onclick=dcCloseModal;
-$('#dc-modal-ok').onclick=()=>{if(dcModalOk)dcModalOk();dcCloseModal()};
+$('#dc-modal-ok').onclick=async()=>{
+  const ok=$('#dc-modal-ok');if(!dcModalOk||ok.disabled)return;
+  ok.disabled=true;
+  try{await dcModalOk();dcCloseModal()}
+  catch(e){$('#dc-modal-err').textContent=e.message||String(e);window.motion?.shake($('#dc-modal .dc-card'))}
+  finally{ok.disabled=false}
+};
 $('#dc-modal').onclick=e=>{if(e.target===$('#dc-modal'))dcCloseModal()};
 
 $('#dc-add-channel').onclick=()=>dcModal({
@@ -1543,11 +1860,14 @@ function dcSyncCompose(){
   const ch=dcChannels.find(c=>c.slug===dcActive);
   const locked=!dcActiveIsDM&&ch&&ch.locked&&rank(chatMeRole)<2;
   const input=$('#dc-input');
-  input.disabled=!chatReady||locked;
-  $('#dc-send').disabled=!chatReady||locked||!input.value.trim();
-  $('#dc-hint').textContent=!chatReady?'Connecting…'
+  input.disabled=!chatReady||locked||!!dcBanned;
+  $('#dc-send').disabled=input.disabled||!input.value.trim();
+  $('#dc-hint').textContent=dcBanned?(dcBanned.until?`You're banned from chat until ${new Date(dcBanned.until).toLocaleString()}.`:"You're banned from chat.")
+    :!chatReady?'Connecting…'
     :locked?'This channel is locked. Only moderators and above can post.'
-    :'Enter to send · Shift+Enter for a new line';
+    :dcEdit?'Enter to save · Esc to cancel'
+    :dcReply?'Enter to reply · Esc to cancel'
+    :'Enter to send · Shift+Enter for a new line · ↑ to edit your last message · @ to mention';
 }
 function dcGrow(){const i=$('#dc-input');i.style.height='auto';i.style.height=Math.min(i.scrollHeight,180)+'px'}
 function dcSignalTyping(on){
@@ -1561,13 +1881,20 @@ function sendChat(){
   const i=$('#dc-input'),t=i.value.trim();
   if(!t)return;
   if(!chatReady)return toast('Not connected yet.','err');
-  if(!dcSend({type:'msg',channel:dcActive,text:t}))return;
+  if(dcEdit){
+    if(t!==dcEdit.text&&!dcSend({type:'edit',id:dcEdit.id,text:t}))return;
+    i.value='';dcSetMode(null);dcGrow();return;
+  }
+  if(!dcSend({type:'msg',channel:dcActive,text:t,replyTo:dcReply?dcReply.id:undefined}))return;
   dcSignalTyping(false);clearTimeout(dcTypingT);
-  i.value='';dcGrow();dcSyncCompose();
+  i.value='';dcGrow();
+  if(dcReply)dcSetMode(null);else dcSyncCompose();
+  window.motion?.pop($('#dc-send'));
 }
 $('#dc-send').onclick=sendChat;
 $('#dc-input').addEventListener('input',()=>{
-  dcGrow();dcSyncCompose();
+  dcGrow();dcSyncCompose();dcSuggest();
+  if(dcEdit)return; // editing isn't typing a new message
   if($('#dc-input').value.trim()){
     dcSignalTyping(true);
     clearTimeout(dcTypingT);
@@ -1575,8 +1902,75 @@ $('#dc-input').addEventListener('input',()=>{
   }else dcSignalTyping(false);
 });
 $('#dc-input').addEventListener('keydown',e=>{
+  const sug=$('#dc-suggest');
+  if(sug.classList.contains('show')){
+    const items=$$('button',sug),cur=items.findIndex(b=>b.classList.contains('on'));
+    if(e.key==='ArrowDown'||e.key==='ArrowUp'){
+      e.preventDefault();
+      const n=(cur+(e.key==='ArrowDown'?1:-1)+items.length)%items.length;
+      items.forEach((b,i)=>b.classList.toggle('on',i===n));return;
+    }
+    if(e.key==='Enter'||e.key==='Tab'){e.preventDefault();(items[cur]||items[0]).click();return}
+    if(e.key==='Escape'){e.preventDefault();e.stopPropagation();sug.classList.remove('show');return}
+  }
+  if(e.key==='Escape'&&(dcEdit||dcReply)){e.preventDefault();e.stopPropagation();dcSetMode(null);return}
+  if(e.key==='ArrowUp'&&!e.target.value&&!dcEdit){
+    const last=[...dcMessages].reverse().find(m=>m.username===chatMe);
+    if(last){e.preventDefault();dcSetMode('edit',last)}
+    return;
+  }
   if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendChat()}
 });
+
+/* @mention autocomplete ------------------------------------------ */
+function dcSuggest(){
+  const i=$('#dc-input'),sug=$('#dc-suggest');
+  const before=i.value.slice(0,i.selectionStart);
+  const m=/(^|\s)@([a-z0-9_-]{0,24})$/i.exec(before);
+  if(!m){sug.classList.remove('show');return}
+  const q=m[2].toLowerCase();
+  const names=new Map();
+  dcMembers.forEach(x=>names.set(x.name,true));
+  dcProfiles.forEach(p=>{if(!names.has(p.username))names.set(p.username,false)});
+  const list=[...names].filter(([n])=>n!==chatMe&&!n.startsWith('guest-')&&(n.includes(q)||nameOf(n).toLowerCase().includes(q)))
+    .sort((a,b)=>Number(b[1])-Number(a[1])||a[0].localeCompare(b[0])).slice(0,6);
+  if(!list.length){sug.classList.remove('show');return}
+  sug.replaceChildren(...list.map(([n,online],idx)=>{
+    const b=document.createElement('button');b.className=idx===0?'on':'';
+    b.appendChild(avatar(n));
+    const nm=document.createElement('span');nm.textContent=nameOf(n);
+    const at=document.createElement('small');at.textContent='@'+n+(online?' · online':'');
+    b.append(nm,at);
+    b.onmousedown=e=>e.preventDefault();
+    b.onclick=()=>{
+      const start=before.length-m[2].length;
+      i.value=i.value.slice(0,start)+n+' '+i.value.slice(i.selectionStart);
+      const pos=start+n.length+1;i.setSelectionRange(pos,pos);
+      sug.classList.remove('show');i.focus();dcSyncCompose();
+    };
+    return b;
+  }));
+  sug.classList.add('show');
+}
+$('#dc-input').addEventListener('click',dcSuggest);
+
+/* announcements --------------------------------------------------- */
+let annT=null;
+function dcAnnounce(d){
+  const el=$('#announce');
+  el.replaceChildren();
+  const ic=document.createElement('span');ic.className='mega';ic.textContent='📣';
+  const tx=document.createElement('div');
+  const b=document.createElement('b');b.textContent='Announcement from '+nameOf(d.by||'the owner');
+  const p=document.createElement('p');p.textContent=d.text;
+  tx.append(b,p);
+  const x=document.createElement('button');x.innerHTML='<svg class="i i-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg>';x.title='Dismiss';
+  x.onclick=()=>el.classList.remove('show');
+  el.append(ic,tx,x);
+  el.classList.remove('show');void el.offsetWidth;el.classList.add('show');
+  chatPing(true);
+  clearTimeout(annT);annT=setTimeout(()=>el.classList.remove('show'),12000);
+}
 $('#dc-input').addEventListener('blur',()=>dcSignalTyping(false));
 $('#dc-msgs').addEventListener('scroll',()=>{
   const b=$('#dc-msgs');
@@ -1602,21 +1996,6 @@ function bumpBadge(){
 }
 function clearBadge(){const b=$('#chat-badge');b.textContent='0';b.classList.remove('show')}
 
-/* a soft two-note ping, distinct from the UI click */
-function chatPing(){if(!S.chatsound)return;try{
-  const vol=(S.volume??.5)*.5;if(vol<=0)return;
-  audioCtx=audioCtx||new (window.AudioContext||window.webkitAudioContext)();
-  const t=audioCtx.currentTime;
-  [[880,0],[1320,.09]].forEach(([f,at])=>{
-    const o=audioCtx.createOscillator(),g=audioCtx.createGain();
-    o.type='sine';o.frequency.setValueAtTime(f,t+at);
-    g.gain.setValueAtTime(0,t+at);
-    g.gain.linearRampToValueAtTime(vol,t+at+.012);
-    g.gain.exponentialRampToValueAtTime(.0001,t+at+.16);
-    o.connect(g).connect(audioCtx.destination);o.start(t+at);o.stop(t+at+.18);
-  });
-}catch(_){}}
-
 /* window ------------------------------------------------------ */
 function toggleChat(){const w=$('#chat-window');if(w.classList.contains('show'))closeChat();else openChat()}
 function openChat(){
@@ -1634,6 +2013,8 @@ function closeChat(){
   if(!w.classList.contains('show'))return;
   dcSignalTyping(false);
   $('#dc-user-pop').classList.remove('show');
+  $('#dc-emoji').classList.remove('show');
+  $('#dc-suggest').classList.remove('show');
   dcCloseModal();
   w.classList.add('closing');
   onCloseDone(w,()=>w.classList.remove('show','closing'));
@@ -1641,6 +2022,119 @@ function closeChat(){
 }
 $('#dc-close').onclick=closeChat;
 $('#dc-toggle-members').onclick=()=>$('#chat-window').classList.toggle('hide-members');
+
+/* ═══════════════════════════════════════════════════════════
+   ADMIN DASHBOARD (owner only; every call is checked server-side)
+   ═══════════════════════════════════════════════════════════ */
+let adData=null,adTimer=null,adFilter='';
+function openAdmin(){
+  if(currentRole!=='owner')return toast('The admin dashboard is for the owner.','err');
+  openPanel('admin-panel');adRefresh();
+  clearInterval(adTimer);
+  adTimer=setInterval(()=>{if($('#admin-panel').classList.contains('show')&&!document.hidden)adRefresh();else if(!$('#admin-panel').classList.contains('show'))clearInterval(adTimer)},5000);
+}
+async function adRefresh(){
+  const live=$('#ad-live');
+  try{
+    const r=await fetch('/api/admin/overview',{cache:'no-store'});
+    if(!r.ok)throw new Error((await r.json().catch(()=>({}))).error||'HTTP '+r.status);
+    adData=await r.json();live.classList.remove('err');live.lastChild.textContent='Live';adRender();
+  }catch(e){live.classList.add('err');live.lastChild.textContent=' '+e.message}
+}
+async function adAct(url,body,method='POST',done){
+  try{await postJSON(url,body,method);if(done)toast(done,'ok');adRefresh()}
+  catch(e){toast(e.message,'err')}
+}
+const adAgo=t=>{if(!t)return'never';const s=Math.max(0,Math.round((Date.now()-t)/1000));return s<60?s+'s ago':s<3600?Math.round(s/60)+'m ago':s<86400?Math.round(s/3600)+'h ago':Math.round(s/86400)+'d ago'};
+const adLeft=t=>{if(!t)return'';const s=Math.max(0,Math.round((t-Date.now())/1000));return s<60?s+'s left':s<3600?Math.round(s/60)+'m left':Math.round(s/3600)+'h left'};
+function adRow(main,sub,actions=[],cls=''){
+  const row=document.createElement('div');row.className='ad-row '+cls;
+  const txt=document.createElement('div');txt.className='t';
+  const b=document.createElement('b');b.textContent=main;const sm=document.createElement('small');sm.textContent=sub;
+  txt.append(b,sm);row.appendChild(txt);
+  const acts=document.createElement('div');acts.className='a';
+  actions.forEach(a=>{if(!a)return;const el=a.el||document.createElement('button');if(!a.el){el.className='btn sm'+(a.danger?' danger':'');el.textContent=a.label;el.onclick=a.fn}acts.appendChild(el)});
+  row.appendChild(acts);return row;
+}
+function adEmpty(text){const e=document.createElement('div');e.className='ad-empty';e.textContent=text;return e}
+function adCount(el,n){
+  const prev=+el.dataset.n||0;el.dataset.n=n;
+  if(prev===n){el.textContent=n;return}
+  window.motion?.countUp(el,prev,n)||(el.textContent=n);
+}
+function adRender(){
+  const d=adData;if(!d)return;
+  /* stat tiles */
+  const stats=$('#ad-stats');
+  const tiles=[['online','Online now',d.counts.online],['accounts','Accounts',d.counts.accounts],['vms','Live VMs',d.counts.vms],['messages','Messages',d.counts.messages],['pcs','Remote PCs',d.remote.agents.length]];
+  if(!stats.children.length)stats.innerHTML=tiles.map(t=>`<div class="ad-stat" data-k="${t[0]}"><b data-n="0">0</b><span>${t[1]}</span></div>`).join('');
+  tiles.forEach(t=>adCount($(`.ad-stat[data-k="${t[0]}"] b`,stats),t[2]));
+
+  /* VMs */
+  $('#ad-vms-n').textContent=d.vms.length||'';
+  $('#ad-vms').replaceChildren(...(d.vms.length?d.vms.map(v=>adRow(`${v.kind==='gpu'?'GPU':'Desktop'} · ${v.owner}`,`${v.id.slice(0,14)} · started ${adAgo(v.startedAt)} · ${adLeft(v.expiresAt)}`,[{label:'Stop',danger:true,fn:()=>{if(confirm(`Stop ${v.owner}'s VM now?`))adAct(`/api/admin/vms/${encodeURIComponent(v.id)}/kill`,null,'POST','VM stopped')}}])):[adEmpty('No VMs running.')]));
+
+  /* online */
+  $('#ad-online-n').textContent=d.online.length||'';
+  const seen=new Set();
+  const online=d.online.filter(o=>!seen.has(o.name)&&seen.add(o.name));
+  $('#ad-online').replaceChildren(...(online.length?online.map(o=>adRow(o.name,`${o.role} · here ${adAgo(o.since).replace(' ago','')}`,o.role==='owner'?[]:[
+    {label:'Kick',fn:()=>adAct(`/api/admin/users/${encodeURIComponent(o.name)}/kick`,null,'POST',`${o.name} kicked`)},
+    {label:'Mute',fn:()=>adMute(o.name)},
+    {label:'Ban',danger:true,fn:()=>adBan(o.name)}
+  ],'role-'+o.role)):[adEmpty('Nobody is connected to chat.')]));
+
+  /* accounts */
+  $('#ad-users-n').textContent=d.users.length||'';
+  const users=d.users.filter(u=>!adFilter||u.username.includes(adFilter)||(u.displayName||'').toLowerCase().includes(adFilter));
+  $('#ad-users').replaceChildren(...(users.length?users.slice(0,150).map(u=>{
+    if(u.role==='owner')return adRow(u.username,`owner · seen ${adAgo(u.lastSeen)}`,[],'role-owner');
+    const sel=document.createElement('select');sel.className='field ad-role';
+    ['admin','mod','member'].forEach(r=>{const o=document.createElement('option');o.value=r;o.textContent=r;o.selected=u.role===r;sel.appendChild(o)});
+    sel.onchange=()=>adAct(`/api/admin/users/${encodeURIComponent(u.username)}/role`,{role:sel.value},'POST',`${u.username} is now ${sel.value}`);
+    return adRow(u.displayName!==u.username?`${u.displayName} (@${u.username})`:u.username,`joined ${adAgo(u.createdAt)} · seen ${adAgo(u.lastSeen)}`,[
+      {el:sel},
+      {label:'Sign out',fn:()=>{if(confirm(`Sign ${u.username} out on every device?`))adAct(`/api/admin/users/${encodeURIComponent(u.username)}/signout`,null,'POST',`${u.username} signed out`)}},
+      {label:'Ban',danger:true,fn:()=>adBan(u.username)},
+      {label:'Delete',danger:true,fn:()=>{if(prompt(`Type ${u.username} to delete this account and all its messages.`)===u.username)adAct(`/api/admin/users/${encodeURIComponent(u.username)}`,null,'DELETE','Account deleted')}}
+    ],'role-'+u.role);
+  }):[adEmpty(adFilter?'No accounts match.':'No accounts yet.')]));
+
+  /* sanctions */
+  $('#ad-sanctions-n').textContent=d.sanctions.length||'';
+  $('#ad-sanctions').replaceChildren(...(d.sanctions.length?d.sanctions.map(x=>adRow(`${x.username} · ${x.kind==='ban'?'banned':'muted'}`,`${x.until?adLeft(x.until):'permanent'} · by ${x.by}${x.reason?' · '+x.reason:''}`,[
+    {label:x.kind==='ban'?'Unban':'Unmute',fn:()=>adAct(`/api/admin/sanctions/${encodeURIComponent(x.username)}/${x.kind}`,null,'DELETE',`${x.username} ${x.kind==='ban'?'unbanned':'unmuted'}`)}
+  ],'kind-'+x.kind)):[adEmpty('Nobody is muted or banned.')]));
+
+  /* remote */
+  const rm=d.remote;
+  $('#ad-remote').replaceChildren(...(!rm.configured?[adEmpty('Off. Set REMOTE_KEY on the server to enable it.')]:rm.agents.length?rm.agents.map(a=>adRow(a.name,`${a.meta?a.meta.w+'×'+a.meta.h+(a.meta.monitors&&a.meta.monitors.length>1?` · ${a.meta.monitors.length} screens`:''):'starting'} · online ${adAgo(a.since).replace(' ago','')} · ${a.viewers} watching`,[{label:'Open',fn:()=>{closePanel('admin-panel');openRemote()}}])):[adEmpty('No PCs connected. Run the agent on one.')]));
+
+  /* server */
+  const up=d.server.uptime,h=Math.floor(up/3600),m=Math.floor(up%3600/60);
+  const kv=[['Uptime',h?`${h}h ${m}m`:`${m}m`],['Memory',`${d.server.rssMb} MB (heap ${d.server.heapMb} MB)`],['Node',d.server.node],['Desktop VMs (E2B)',d.server.e2bConfigured?'configured':'no API key'],['GPU VMs (XENV)',d.server.xenvConfigured?'configured':'no API key']];
+  $('#ad-server').innerHTML=kv.map(([k,v])=>`<div><span>${esc(k)}</span><b>${esc(v)}</b></div>`).join('');
+
+  /* activity */
+  const feed=$('#ad-activity');
+  feed.replaceChildren(...(d.activity.length?d.activity.map(a=>{const el=document.createElement('div');el.className='ad-ev k-'+a.kind;const t=document.createElement('time');t.textContent=new Date(a.at).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});const tx=document.createElement('span');tx.textContent=a.text;el.append(t,tx);return el}):[adEmpty('Nothing yet. Sign-ups, logins, VMs and moderation show up here.')]));
+}
+function adMute(name){
+  dcModal({title:`Mute ${name}`,sub:'They can still read chat but cannot post, react or edit.',okLabel:'Mute',
+    fields:[{key:'minutes',label:'Minutes',type:'number',value:'30'},{key:'reason',label:'Reason (optional)',maxlength:200}],
+    onOk:v=>postJSON(`/api/admin/users/${encodeURIComponent(name)}/mute`,{minutes:+v.minutes||30,reason:v.reason}).then(()=>{toast(`${name} muted`,'ok');adRefresh()})});
+}
+function adBan(name){
+  dcModal({title:`Ban ${name}`,danger:true,sub:'Kicks them from chat and keeps them out. Leave hours empty for a permanent ban. Guest bans also follow their network address.',okLabel:'Ban',
+    fields:[{key:'hours',label:'Hours (empty = permanent)',type:'number',placeholder:'permanent'},{key:'reason',label:'Reason (optional)',maxlength:200}],
+    onOk:v=>postJSON(`/api/admin/users/${encodeURIComponent(name)}/ban`,{hours:v.hours.trim()?+v.hours:null,reason:v.reason}).then(()=>{toast(`${name} banned`,'ok');adRefresh()})});
+}
+$('#admin-refresh').onclick=()=>{adRefresh();window.motion?.spin($('#admin-refresh'))};
+$('#ad-user-filter').addEventListener('input',e=>{adFilter=e.target.value.trim().toLowerCase();adRender()});
+$('#ad-announce').addEventListener('submit',async e=>{
+  e.preventDefault();const i=$('#ad-announce-text'),t=i.value.trim();if(!t)return;
+  try{await postJSON('/api/admin/announce',{text:t});i.value='';toast('Announcement sent','ok');adRefresh()}catch(err){toast(err.message,'err')}
+});
 
 /* settings open */
 function openSettings(){openPanel('settings-panel');syncControls();$('#tb-settings').classList.add('active')}
@@ -1659,7 +2153,7 @@ document.addEventListener('keydown',e=>{
   if(map[k]){e.preventDefault();map[k]()}
 });
 /* panel close → clear active state */
-new MutationObserver(()=>{$('#tb-settings').classList.toggle('active',$('#settings-panel').classList.contains('show'));$('#tb-games').classList.toggle('active',$('#games-panel').classList.contains('show'));$('#tb-links').classList.toggle('active',$('#links-panel').classList.contains('show'))}).observe(document.body,{attributes:true,subtree:true,attributeFilter:['class']});
+new MutationObserver(()=>{$('#tb-admin').classList.toggle('active',$('#admin-panel').classList.contains('show'));$('#tb-settings').classList.toggle('active',$('#settings-panel').classList.contains('show'));$('#tb-games').classList.toggle('active',$('#games-panel').classList.contains('show'));$('#tb-links').classList.toggle('active',$('#links-panel').classList.contains('show'))}).observe(document.body,{attributes:true,subtree:true,attributeFilter:['class']});
 
 /* ═══════════════════════════════════════════════════════════
    BOOT

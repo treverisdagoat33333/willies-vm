@@ -454,11 +454,13 @@ function getVmSeconds(req) {
 /*
  * Brute-force protection. Per address for everything, plus per username for
  * failed passwords, so spreading guesses across addresses does not help.
+ * The per-address limits are generous on purpose: a whole school or house
+ * shares one address, and the per-username limit does the real work.
  */
-const registerLimiter = createLimiter({ windowMs: 60 * 60_000, max: 5 });
-const loginIpLimiter = createLimiter({ windowMs: 15 * 60_000, max: 20 });
+const registerLimiter = createLimiter({ windowMs: 60 * 60_000, max: 20 });
+const loginIpLimiter = createLimiter({ windowMs: 15 * 60_000, max: 60 });
 const passwordFailLimiter = createLimiter({ windowMs: 15 * 60_000, max: 8 });
-const guestLimiter = createLimiter({ windowMs: 60 * 60_000, max: 30 });
+const guestLimiter = createLimiter({ windowMs: 60 * 60_000, max: 120 });
 
 function passwordLocked(username, res) {
   const wait = passwordFailLimiter.peek(username);
