@@ -24,6 +24,7 @@
 <link id="favicon" rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23f2f2f2' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='2' y='4' width='20' height='13' rx='2'/%3E%3Cline x1='8' y1='21' x2='16' y2='21'/%3E%3Cline x1='12' y1='17' x2='12' y2='21'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="/css/app.css">
 <link rel="stylesheet" href="/css/features.css">
+<link rel="stylesheet" href="/css/music.css">
 <link rel="stylesheet" href="/css/motion.css">
 </head>
 <body>
@@ -64,6 +65,7 @@
     <button class="dicon" data-app="links"><div class="ic c4"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></div><span>Links</span></button>
     <button class="dicon" data-app="remote"><div class="ic c7"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/><circle cx="12" cy="10" r="2.4"/></svg></div><span>Remote PC</span></button>
     <button class="dicon" data-app="cloud"><div class="ic c3"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg></div><span>Cloud</span></button>
+    <button class="dicon" data-app="music"><div class="ic c8"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></div><span>Music</span></button>
   <button class="dicon" data-app="chat"><div class="ic c6"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div><span>Chat</span></button>
     <button class="dicon owner-only" data-app="admin"><div class="ic c7"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg></div><span>Admin</span></button>
     <button class="dicon" data-app="settings"><div class="ic c5"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></div><span>Settings</span></button>
@@ -91,6 +93,7 @@
         <button class="tile" data-app="links"><div class="ic c4"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></div><div><b>Links</b><small>Mirror list</small></div></button>
         <button class="tile" data-app="remote"><div class="ic c7"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/><circle cx="12" cy="10" r="2.4"/></svg></div><div><b>Remote PC</b><small>Control your PC</small></div></button>
         <button class="tile" data-app="cloud"><div class="ic c3"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg></div><div><b>Cloud</b><small>Streamed games</small></div></button>
+        <button class="tile" data-app="music"><div class="ic c8"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></div><div><b>Music</b><small>Every song, free</small></div></button>
         <button class="tile" data-app="chat"><div class="ic c6"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div><div><b>Server</b><small>Channels &amp; DMs</small></div></button>
         <button class="tile owner-only" data-app="admin"><div class="ic c7"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg></div><div><b>Admin</b><small>Owner dashboard</small></div></button>
       </div>
@@ -580,6 +583,67 @@
   </div>
 </div>
 
+
+<!-- MUSIC (the logic is in js/music.js) -->
+<div id="music-window" data-view="home">
+  <aside class="mu-side">
+    <div class="mu-brand"><div class="ic c8"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></div><b>Music</b></div>
+    <nav class="mu-nav">
+      <button data-view="home" class="active"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="m3 10 9-7 9 7v10a2 2 0 0 1-2 2h-4v-7H9v7H5a2 2 0 0 1-2-2z"/></svg><span>Home</span></button>
+      <button data-view="search"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg><span>Search</span></button>
+      <button data-view="liked"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1.1L12 21l7.8-7.5 1-1.1a5.5 5.5 0 0 0 0-7.8z"/></svg><span>Liked songs</span><small id="mu-liked-n"></small></button>
+      <button data-view="queue"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h13M3 12h13M3 18h9M17 15v6l4-3z"/></svg><span>Queue</span></button>
+    </nav>
+    <div class="mu-sec"><span>Playlists</span><button id="mu-new-pl" title="New playlist" aria-label="New playlist"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button></div>
+    <div class="mu-pls" id="mu-pls"></div>
+    <p class="mu-credit">Songs play on <a href="https://soundcloud.com" target="_blank" rel="noopener">SoundCloud</a>. Charts from <a href="https://www.deezer.com" target="_blank" rel="noopener">Deezer</a>.</p>
+  </aside>
+  <main class="mu-main">
+    <header class="mu-top">
+      <button class="mu-iconbtn mu-menu-btn" id="mu-side-btn" aria-label="Menu"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M3 12h18M3 18h18"/></svg></button>
+      <label class="mu-search"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg><input id="mu-q" type="search" placeholder="Search any song, artist or album" autocomplete="off" spellcheck="false"></label>
+      <button class="btn sm" id="mu-close">Close</button>
+    </header>
+    <div class="mu-scroll" id="mu-scroll">
+      <div class="mu-body" id="mu-body"></div>
+      <div class="mu-player" id="mu-player"><div class="mu-fallback" id="mu-fallback"></div></div>
+    </div>
+  </main>
+  <footer class="mu-bar">
+    <div class="mu-now" id="mu-now" title="Now playing">
+      <div class="art" id="mu-art"></div>
+      <div class="t"><b id="mu-title">Nothing playing</b><small id="mu-artist">Pick a song to start</small></div>
+      <button class="mu-iconbtn mu-like" id="mu-like" aria-label="Like"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1.1L12 21l7.8-7.5 1-1.1a5.5 5.5 0 0 0 0-7.8z"/></svg></button>
+    </div>
+    <div class="mu-ctl">
+      <div class="mu-btns">
+        <button class="mu-iconbtn" id="mu-shuffle" aria-label="Shuffle" title="Shuffle"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/></svg></button>
+        <button class="mu-iconbtn" id="mu-prev" aria-label="Previous" title="Previous"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 20 9 12l10-8zM5 19V5"/></svg></button>
+        <button class="mu-play" id="mu-play" aria-label="Play" title="Play (Space)"><svg class="i ip" viewBox="0 0 24 24" aria-hidden="true"><path d="m7 4 13 8-13 8z"/></svg><svg class="i ipa" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4h3v16H7zM14 4h3v16h-3z"/></svg></button>
+        <button class="mu-iconbtn" id="mu-next" aria-label="Next" title="Next"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 4 10 8-10 8zM19 5v14"/></svg></button>
+        <button class="mu-iconbtn" id="mu-repeat" aria-label="Repeat" title="Repeat"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="m17 2 4 4-4 4"/><path d="M3 11V9a3 3 0 0 1 3-3h15M7 22l-4-4 4-4"/><path d="M21 13v2a3 3 0 0 1-3 3H3"/></svg><b class="one">1</b></button>
+      </div>
+      <div class="mu-prog"><span id="mu-cur">0:00</span><input type="range" id="mu-seek" min="0" max="1000" value="0" aria-label="Seek"><span id="mu-dur">0:00</span></div>
+    </div>
+    <div class="mu-right">
+      <button class="mu-iconbtn" id="mu-np-btn" aria-label="Now playing" title="Now playing"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r=".6"/></svg></button>
+      <svg class="i vol" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5 6 9H2v6h4l5 4zM15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14"/></svg>
+      <input type="range" id="mu-vol" min="0" max="100" value="80" aria-label="Volume">
+    </div>
+  </footer>
+  <div class="mu-pop" id="mu-pop" role="menu"></div>
+</div>
+
+<div id="music-mini">
+  <div class="art" id="mm-art"></div>
+  <div class="t"><b id="mm-title"></b><small id="mm-artist"></small></div>
+  <button class="mu-iconbtn" id="mm-prev" aria-label="Previous"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 20 9 12l10-8zM5 19V5"/></svg></button>
+  <button class="mu-play sm" id="mm-play" aria-label="Play"><svg class="i ip" viewBox="0 0 24 24" aria-hidden="true"><path d="m7 4 13 8-13 8z"/></svg><svg class="i ipa" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4h3v16H7zM14 4h3v16h-3z"/></svg></button>
+  <button class="mu-iconbtn" id="mm-next" aria-label="Next"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 4 10 8-10 8zM19 5v14"/></svg></button>
+  <button class="mu-iconbtn" id="mm-x" aria-label="Hide"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+  <div class="bar"><i id="mm-bar"></i></div>
+</div>
+
 <!-- TASKBAR -->
 <div id="tb-zone"></div>
 <div id="taskbar">
@@ -593,6 +657,7 @@
     <button class="tbb" data-app="links" id="tb-links" title="Links (Alt+L)"><div class="ic c4"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></div></button>
     <button class="tbb" data-app="remote" id="tb-remote" title="Remote PC"><div class="ic c7"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/><circle cx="12" cy="10" r="2.4"/></svg></div></button>
     <button class="tbb" data-app="cloud" id="tb-cloud" title="Cloud gaming"><div class="ic c3"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg></div></button>
+    <button class="tbb" data-app="music" id="tb-music" title="Music (Alt+M)"><div class="ic c8"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></div><span class="eq" aria-hidden="true"><i></i><i></i><i></i></span></button>
     <button class="tbb" data-app="chat" id="tb-chat" title="Server (Alt+C)"><div class="ic c6"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div><span class="badge" id="chat-badge">0</span></button>
     <button class="tbb owner-only" data-app="admin" id="tb-admin" title="Admin"><div class="ic c7"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg></div></button>
     <button class="tbb" data-app="settings" id="tb-settings" title="Settings (Alt+S)"><div class="ic c5"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></div></button>
@@ -611,5 +676,6 @@
 
 <script src="/js/motion.js"></script>
 <script src="/js/app.js"></script>
+<script src="/js/music.js"></script>
 </body>
 </html>

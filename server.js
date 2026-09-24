@@ -53,6 +53,7 @@ import {
   cleanAgentName,
 } from "./remote.js";
 import { clientIp, createLimiter, limitByIp, formatWait } from "./security.js";
+import { musicRouter } from "./music.js";
 
 const require = createRequire(import.meta.url);
 const dirOf = (specifier) => path.dirname(require.resolve(specifier));
@@ -663,6 +664,17 @@ app.put("/api/account/settings", requireAccount, (req, res) => {
   }
   res.json({ ok: true, updatedAt: saveSettings(username, json) });
 });
+
+/*
+|--------------------------------------------------------------------------
+| Music (see music.js)
+|--------------------------------------------------------------------------
+*/
+const musicLimiter = createLimiter({ windowMs: 60_000, max: 90 });
+app.use(
+  "/api/music",
+  musicRouter({ requireSession, limiter: limitByIp(musicLimiter, "Too many music requests from your network.") })
+);
 
 /*
 |--------------------------------------------------------------------------
