@@ -114,7 +114,7 @@ node --check server.js             # quick syntax check for any file
 - There is no build step, bundler, linter or test suite. The front end is served as-is from `public/`.
 - To verify a change, run the server against a throwaway database (`DATA_DIR=/tmp/wvm-test`) and drive the HTTP and WebSocket endpoints from a script (`ws` is in `node_modules`), or load the page in Chromium.
 - Useful env vars: `DATA_DIR` (SQLite location, default `./data`, gitignored), `OWNER_USERNAME` (default `william`), `OWNER_PASSWORD` (see below), `REMOTE_KEY` (enables Remote PC; unset means it's off), `MAX_LIVE_VMS` (site-wide VM cap, default 20), `E2B_API_KEY`, `XENV_API_KEY`, `SOUNDCLOUD_CLIENT_ID` (optional; music finds the public one itself), `TURN_URL`/`TURN_USERNAME`/`TURN_CREDENTIAL` (optional relay for voice calls). `render.yaml` is the deploy config. On Render's free plan `DATA_DIR` is ephemeral, so the database is wiped on every redeploy.
-- No lockfile is committed; Render runs `npm install`. The Scramjet packages are pinned to GitHub release tarballs in `package.json`.
+- No lockfile is committed; Render runs `npm install`. The Scramjet v2 packages are pinned to GitHub release tarballs in `package.json`; Scramjet v1 is installed under the alias `scramjet-v1`.
 
 - The sandbox usually can't reach SoundCloud, Deezer, E2B or XENV. To test those paths, patch `globalThis.fetch` in a file loaded with `node --import` before `server.js`.
 
@@ -130,11 +130,24 @@ node willies-agent.mjs --url ws://localhost:3000 --key $REMOTE_KEY --name "My PC
 Other server modules: `music.js` (the `/api/music` router), `security.js` (rate limiters, `clientIp`, `safeEqual`).
 
 `server.js` owns the Express app and a single `http.Server`. Its `upgrade` handler dispatches by path:
-- `/wisp/`: the Wisp transport the Scramjet web proxy uses.
+- `/wisp/`: the Wisp transport every proxy engine uses.
 - `/chat/`: `chat.js`.
 - `/remote/`: `remote.js`.
 
 Each WS module creates `WebSocketServer({ noServer: true })` and exports a `handle*Upgrade` function. Authentication happens in `server.js` before the upgrade.
+
+**Proxy browser engines:** Settings > Browser > Proxy engine (`S.proxy`, device-local, not synced) picks one of three.
+- `sj2`, Scramjet v2 alpha, the default: its own controller, with libcurl-transport 2.x (`/libcurl/`).
+- `sj1`, Scramjet v1 (`/sj1/`), and `uv`, Ultraviolet (`/uv/`): both go through bare-mux (`/baremux/`). bare-mux runs the same libcurl 2.x through `public/js/libcurl-bare.mjs`, which converts headers between the two formats. The 1.x libcurl build has a startup race, and epoxy sends WebSocket handshakes in absolute form (`GET ws://host/path`), which the `ws` library rejects.
+- `public/sw.js` is the one service worker for all three, routed by prefix: `/~/sj/`, `/~/sj1/`, `/~/uv/`. A scope only gets one worker.
+- **v1 quirks the worker handles:**
+  - It creates v1's IndexedDB tables before v1 starts. Otherwise v1 opens `$scramjet` empty before the page sets it up.
+  - It loads v1's config from the database itself. The page's `loadConfig` message stores the config without applying it.
+  - It sends `/sj1/scramjet.wasm.wasm` to v1, which serves it as a script.
+- Our Ultraviolet config is `public/uv/uv.config.js`, served in place of the package's stock one.
+- A tab keeps its engine until its next navigation. Changing the setting reloads open tabs on the new engine.
+- **Deploys that change `sw.js`:** the engines are tied to the worker they started with. When the browser starts, it calls `reg.update()` and waits for any new worker to take over. If one takes over mid-session, the engines restart and open tabs are marked `stale`; Reload or the next navigation moves them to the new worker.
+- **Testing against a local site:** wisp refuses loopback addresses by default, so set `options.allow_loopback_ips` from a `--import` preload. libcurl sends `Upgrade: h2c` on plain `http://`, so a test server's `upgrade` handler must let non-WebSocket upgrades through as normal requests.
 
 **Cloud gaming (CloudMoon):**
 - CloudMoon publishes each version on jsDelivr (`gh/CloudMoonApp/web`) as `.html` pages plus tiny `.svg` launchers. A launcher's script fetches the real page from the CDN and writes it into a frame.
@@ -150,7 +163,7 @@ Each WS module creates `WebSocketServer({ noServer: true })` and exports a `hand
 - **Fallback:** if their API won't answer our origin, or the CloudMoon site button is clicked, the frame loads their CDN portal (`<version>.svg`) as-is. It uses a `credentialless` frame because of COEP, so sign-ins there don't outlive the tab.
 - **Reading their code:** it's obfuscated. Clone the repo and replace the string-table lookups with their decoded strings.
 
-Every response carries COOP `same-origin` and COEP `require-corp`, because the Wisp transport needs `SharedArrayBuffer`. Anything third-party embedded in the page must send CORP or be re-served from our origin. That is why `/api/cloud/icon` proxies box art (host-locked to `myqcloud.com`), and why `/cloud/app/` re-serves the CloudMoon client from jsDelivr with COEP overridden to `credentialless`.
+Every response carries COOP `same-origin` and COEP `require-corp`, because the proxy engines need `SharedArrayBuffer`. Their service-worker responses set COEP on proxied documents themselves. Anything third-party embedded in the page must send CORP or be re-served from our origin. That is why `/api/cloud/icon` proxies box art (host-locked to `myqcloud.com`), and why `/cloud/app/` re-serves the CloudMoon client from jsDelivr with COEP overridden to `credentialless`.
 
 ### Sessions and roles
 - Sessions are a JWT in the httpOnly `vm_session` cookie. Guests get `{type:'guest', guestId}` with no DB row, and appear in chat as `guest-` plus the first 6 characters of the id.

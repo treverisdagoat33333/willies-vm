@@ -257,7 +257,7 @@ html[data-icons="off"] #icons{display:none}
 @keyframes pulse{50%{opacity:.4}}
 
 /* ── panels (full-screen overlays) ──────────── */
-.panel{position:fixed;inset:0 0 var(--tb-h) 0;z-index:40;display:none;flex-direction:column;background:var(--glass);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur)}
+.panel{position:fixed;inset:0 0 var(--tb-h) 0;z-index:65;display:none;flex-direction:column;background:var(--glass);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur)}
 html[data-tbhide="on"] .panel{bottom:0}
 .panel.show{display:flex;animation:fadeIn .2s var(--ease)}
 .panel.closing{animation:fadeOut .16s var(--ease) forwards}

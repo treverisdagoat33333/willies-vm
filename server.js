@@ -14,6 +14,9 @@ import cookieParser from "cookie-parser";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { scramjetPath } from "@mercuryworkshop/scramjet/path";
+import { scramjetPath as scramjetV1Path } from "scramjet-v1/path";
+import { uvPath } from "@titaniumnetwork-dev/ultraviolet";
+import { baremuxPath } from "@mercuryworkshop/bare-mux/node";
 import { server as wisp } from "@mercuryworkshop/wisp-js/server";
 import { Sandbox } from "@e2b/desktop";
 import {
@@ -171,6 +174,23 @@ app.use("/scram/", express.static(scramjetPath));
 app.use("/controller/", express.static(dirOf("@mercuryworkshop/scramjet-controller")));
 app.use("/utils/", express.static(dirOf("@mercuryworkshop/scramjet-utils")));
 app.use("/libcurl/", express.static(dirOf("@mercuryworkshop/libcurl-transport")));
+
+/*
+|--------------------------------------------------------------------------
+| The other two proxy engines: Scramjet v1 and Ultraviolet
+|
+| Settings > Browser > Proxy engine picks the one the browser uses; Scramjet
+| v2 above stays the default. These two reach the web through bare-mux, a
+| shared worker running the same libcurl transport over /wisp/, adapted by
+| public/js/libcurl-bare.mjs. public/sw.js routes all three engines by
+| prefix: /~/sj/ (v2), /~/sj1/ (v1), /~/uv/ (Ultraviolet).
+|
+| /uv/uv.config.js is ours (public/uv/), not the stock one in the package.
+|--------------------------------------------------------------------------
+*/
+app.use("/sj1/", express.static(scramjetV1Path));
+app.use("/uv/", express.static(path.join(path.dirname(new URL(import.meta.url).pathname), "public", "uv")), express.static(uvPath));
+app.use("/baremux/", express.static(baremuxPath));
 
 /*
 |--------------------------------------------------------------------------
@@ -1207,7 +1227,7 @@ server.listen(PORT, () => {
   console.log(`Willie Games VM running on port ${PORT}`);
   console.log(`E2B configured: ${Boolean(E2B_API_KEY)}`);
   console.log(`XENV configured: ${Boolean(XENV_API_KEY)}`);
-  console.log(`Scramjet v2 assets: /scram/ /controller/ /utils/ /libcurl/`);
+  console.log(`Proxy engines: Scramjet v2 (/~/sj/), Scramjet v1 (/~/sj1/), Ultraviolet (/~/uv/)`);
   console.log(`Wisp endpoint: ws://localhost:${PORT}/wisp/`);
   console.log(`Chat endpoint: ws://localhost:${PORT}/chat/`);
   console.log(`Accounts stored: ${userCount()}`);

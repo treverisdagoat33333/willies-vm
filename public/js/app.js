@@ -19,7 +19,8 @@ const DEFAULTS={
   cloak:'none',cloakTitle:'',cloakIcon:'',cloakAuto:false,cloakRandom:false,
   panic:false,panicKey:'`',panicUrl:'https://classroom.google.com',panicAction:'redirect',panicWipe:false,
   blurunfocus:false,blurAmt:24,lock:false,lockMins:'5',
-  perf:false,motion:false,bouncy:true,wallimg:true,preload:false,sound:false,soundpack:'soft',volume:0.5,chatsound:true,fps:false,notify:false,sync:true
+  perf:false,motion:false,bouncy:true,wallimg:true,preload:false,sound:false,soundpack:'soft',volume:0.5,chatsound:true,fps:false,notify:false,sync:true,
+  proxy:'sj2'
 };
 const KEY='wvm.settings.v1';
 let S=(()=>{
@@ -37,7 +38,7 @@ let S=(()=>{
   return m;
 })();
 /* settings sync state; the logic lives in SETTINGS SYNC further down */
-const SYNC_LOCAL_ONLY=['perf','wallimg','preload','fps','sync']; // speed settings belong to the device
+const SYNC_LOCAL_ONLY=['perf','wallimg','preload','fps','sync','proxy']; // speed and engine settings belong to the device
 const SYNC_KEYS=['bookmarks','favGames','music']; // localStorage keys that travel with the account
 let syncOn=false,syncApplying=false,syncT=null,syncPulledAt=0;
 let syncMeta=(()=>{try{return JSON.parse(localStorage.getItem('wvm.sync')||'null')}catch(_){return null}})()||{user:'',server:0,dirty:false};
@@ -205,7 +206,7 @@ document.addEventListener('input',e=>{
   else{S[el.dataset.setting]=el.value;applyAll()}
   saveSoon();
 });
-document.addEventListener('change',e=>{const el=e.target;if(!el.dataset.setting)return;const k=el.dataset.setting;S[k]=el.type==='range'?parseFloat(el.value):el.value;save();applyAll();syncControls();if(k==='gsort'||k==='gsize')renderGames()});
+document.addEventListener('change',e=>{const el=e.target;if(!el.dataset.setting)return;const k=el.dataset.setting;S[k]=el.type==='range'?parseFloat(el.value):el.value;save();applyAll();syncControls();if(k==='gsort'||k==='gsize')renderGames();if(k==='proxy')proxyChanged()});
 let saveT;const saveSoon=()=>{clearTimeout(saveT);saveT=setTimeout(save,400)};
 
 /* Accent swatches */
@@ -1292,7 +1293,7 @@ async function fetchPlayerCount(){try{const c=new AbortController(),t=setTimeout
 let containerId=null,vmType=null,vmUrl=null,pollI=null,vmTimerI=null,vmStart=null,pollT=null,warned={};
 const fmt=s=>{const p=v=>String(v).padStart(2,'0'),h=Math.floor(s/3600),m=Math.floor(s%3600/60),x=s%60;return h?`${p(h)}:${p(m)}:${p(x)}`:`${p(m)}:${p(x)}`};
 function tickVM(){if(!vmStart)return;const e=Math.floor((Date.now()-vmStart)/1000),left=vmLimit-e,t=$('#vm-timer');if(left<=0){toast('Your VM time has ended.','err');closeVM(true);return}t.textContent=fmt(left)+' left';t.className=left<=60?'crit':left<=300?'low':'';if(S.vmwarn){if(left<=300&&!warned[5]){warned[5]=1;toast('5 minutes of VM time left')}if(left<=60&&!warned[1]){warned[1]=1;toast('1 minute of VM time left','err')}}}
-function openVM(url,label){vmUrl=url;const f=$('#vm-frame'),w=$('#vm-wrap');$('#vm-label').textContent=label||'Private VM';f.src='about:blank';w.style.display='flex';w.classList.remove('closing');warned={};vmStart=Date.now();clearInterval(vmTimerI);vmTimerI=setInterval(tickVM,1000);tickVM();setTimeout(()=>f.src=url,50);setStatus('VM connected.');setLaunching(false);toast('VM launched!','ok');$('#tb-vm').classList.add('active');$('#start').classList.remove('show')}
+function openVM(url,label){vmUrl=url;const f=$('#vm-frame'),w=$('#vm-wrap');$('#vm-label').textContent=label||'Private VM';f.src='about:blank';w.style.display='flex';w.classList.remove('closing');warned={};vmStart=Date.now();clearInterval(vmTimerI);vmTimerI=setInterval(tickVM,1000);tickVM();setTimeout(()=>f.src=url,50);setStatus('VM connected.');setLaunching(false);toast('VM launched!','ok');$('#tb-vm').classList.add('active');closeAllPanels()}
 async function closeVM(force){
   if(!force&&S.vmconfirm&&!confirm('Close the VM? Your session will end.'))return;
   clearInterval(pollI);clearInterval(vmTimerI);vmStart=null;$('#vm-timer').textContent='00:00';$('#vm-timer').className='';
@@ -1309,9 +1310,21 @@ async function launchGPUVM(){if(containerId){$('#vm-wrap').style.display='flex';
 function pollQueue(token){clearInterval(pollI);if(!token){setLaunching(false);return}pollI=setInterval(async()=>{try{const r=await fetch(`/api/queue?token=${encodeURIComponent(token)}`),d=await r.json().catch(()=>({}));if(!r.ok){if([401,403,404].includes(r.status)){clearInterval(pollI);setStatus('Error: '+(d.error||`HTTP ${r.status}`));toast('VM #2 failed: '+(d.error||`HTTP ${r.status}`),'err');setLaunching(false)}return}if(d.status==='allocated'){clearInterval(pollI);containerId=d.container_id;vmType='gpu';openVM(d.url,'VM #2 · GPU');return}if(d.status==='failed'){clearInterval(pollI);setStatus('Failed: '+(d.reason||'unknown'));toast('Queue failed: '+(d.reason||'unknown'),'err');setLaunching(false);return}setStatus(d.position!==undefined?`Queued — position ${d.position}…`:'Waiting for GPU…',true)}catch(_){}},4000)}
 
 /* ═══════════════════════════════════════════════════════════
-   BROWSER (Scramjet)
+   BROWSER (proxy engines)
+   Settings > Browser > Proxy engine picks one of three:
+     sj2  Scramjet v2 alpha, the default: its own controller + libcurl
+     sj1  Scramjet v1
+     uv   Ultraviolet
+   sj1 and uv share one bare-mux connection running the same libcurl over /wisp/
+   (through js/libcurl-bare.mjs). All three
+   run in the same service worker (public/sw.js). A tab keeps the engine it
+   loaded with until its next navigation, which moves it to the current one.
    ═══════════════════════════════════════════════════════════ */
-let sjController=null,sjReady=false,sjStarting=null;
+const PROXIES={sj2:'Scramjet v2',sj1:'Scramjet v1',uv:'Ultraviolet'};
+const proxyId=()=>PROXIES[S.proxy]?S.proxy:'sj2';
+const proxies={}; // engine id -> Promise<{frame(iframe)}>
+let swControl=null,swActive=null,bareConn=null;
+const scripts={};
 function bstatus(msg,show=true){const el=$('#browser-status');el.textContent=msg;el.style.display=show?'block':'none'}
 async function waitForControl(reg){
   if(navigator.serviceWorker.controller)return navigator.serviceWorker.controller;
@@ -1321,27 +1334,92 @@ async function waitForControl(reg){
   if(sessionStorage.getItem('scramjet_sw_reload')!=='1'){sessionStorage.setItem('scramjet_sw_reload','1');throw new Error('Refreshing once so the proxy can control this page.')}
   throw new Error('Proxy worker active but not controlling. Please refresh.');
 }
-async function initScramjet(frameEl,tab){
-  if(sjReady&&sjController){if(frameEl&&tab&&!tab.sj)tab.sj=sjController.createFrame(frameEl);return}
-  if(sjStarting){await sjStarting;if(frameEl&&tab&&!tab.sj)tab.sj=sjController.createFrame(frameEl);return}
-  sjStarting=(async()=>{
-    bstatus('Starting proxy…');
+const wispUrl=()=>`${location.protocol==='https:'?'wss':'ws'}://${location.host}/wisp/`;
+function loadScript(src){return scripts[src]||=new Promise((res,rej)=>{const s=document.createElement('script');s.src=src;s.onload=res;s.onerror=()=>{delete scripts[src];rej(new Error(`Couldn't load ${src}`))};document.head.appendChild(s)})}
+function proxyWorker(){
+  return swControl||=(async()=>{
     if(!('serviceWorker'in navigator))throw new Error('This browser has no service-worker support.');
     // wait for deferred scripts if needed
     for(let i=0;i<50&&typeof window.registerScramjetServiceWorker!=='function';i++)await new Promise(r=>setTimeout(r,100));
     if(typeof window.registerScramjetServiceWorker!=='function')throw new Error('register-sw.js missing.');
-    const reg=await window.registerScramjetServiceWorker(),sw=await waitForControl(reg);
+    const reg=await window.registerScramjetServiceWorker(),was=navigator.serviceWorker.controller;
+    // after a deploy there may be a new worker; pick it up now and start the engines on it, not on the one leaving
+    if(was){
+      await reg.update().catch(()=>{});
+      for(let i=0;i<150&&navigator.serviceWorker.controller===was&&(reg.installing||reg.waiting||reg.active!==was);i++)await new Promise(r=>setTimeout(r,100));
+    }
+    const sw=await waitForControl(reg);
+    if(!swActive)setInterval(()=>navigator.serviceWorker.controller?.postMessage({keepalive:true}),15000);
+    swActive=sw;
+    return sw;
+  })().catch(e=>{swControl=null;throw e});
+}
+/* A new worker took over mid-session: the engines were set up with the old one, so start them again.
+   Open tabs move over on their next navigation or Reload. */
+navigator.serviceWorker?.addEventListener('controllerchange',()=>{
+  if(!swActive||navigator.serviceWorker.controller===swActive)return;
+  swControl=null;for(const k in proxies)delete proxies[k];
+  tabs.forEach(t=>{if(t.px)t.stale=true});
+});
+function bareMux(){
+  return bareConn||=(async()=>{
+    const{BareMuxConnection}=await import('/baremux/index.mjs');
+    const conn=new BareMuxConnection('/baremux/worker.js');
+    await conn.setTransport('/js/libcurl-bare.mjs',[{wisp:wispUrl()}]);
+    return conn;
+  })().catch(e=>{bareConn=null;throw e});
+}
+const PROXY_START={
+  async sj2(sw){
     if(typeof $scramjetController==='undefined')throw new Error('controller.api.js missing.');
-    bstatus('Loading engine…');
-    const wisp=`${location.protocol==='https:'?'wss':'ws'}://${location.host}/wisp/`;
     const{default:LibcurlClient}=await import('/libcurl/index.mjs');
-    sjController=new $scramjetController.Controller({serviceworker:sw,transport:new LibcurlClient({wisp}),config:{prefix:'/~/sj/',scramjetPath:'/scramjet/scramjet.js',wasmPath:'/scramjet/scramjet.wasm',injectPath:'/controller/controller.inject.js'},scramjetConfig:{flags:{captureErrors:true,allowInvalidJs:true}}});
-    await sjController.wait();
-    setInterval(()=>navigator.serviceWorker.controller?.postMessage('keepalive'),15000);
-    sjReady=true;sessionStorage.removeItem('scramjet_sw_reload');bstatus('',false);
-  })();
-  try{await sjStarting}finally{sjStarting=null}
-  if(frameEl&&tab&&!tab.sj)tab.sj=sjController.createFrame(frameEl);
+    const c=new $scramjetController.Controller({serviceworker:sw,transport:new LibcurlClient({wisp:wispUrl()}),config:{prefix:'/~/sj/',scramjetPath:'/scramjet/scramjet.js',wasmPath:'/scramjet/scramjet.wasm',injectPath:'/controller/controller.inject.js'},scramjetConfig:{flags:{captureErrors:true,allowInvalidJs:true}}});
+    await c.wait();
+    return{frame:f=>c.createFrame(f)};
+  },
+  async sj1(){
+    await Promise.all([loadScript('/sj1/scramjet.all.js'),bareMux()]);
+    const{ScramjetController}=$scramjetLoadController();
+    const c=new ScramjetController({prefix:'/~/sj1/',files:{wasm:'/sj1/scramjet.wasm.wasm',all:'/sj1/scramjet.all.js',sync:'/sj1/scramjet.sync.js'},flags:{captureErrors:true,allowInvalidJs:true}});
+    await c.init();
+    return{frame:f=>c.createFrame(f)};
+  },
+  async uv(){
+    await Promise.all([loadScript('/uv/uv.bundle.js').then(()=>loadScript('/uv/uv.config.js')),bareMux()]);
+    const cfg=self.__uv$config;
+    return{frame:f=>({
+      go:u=>{f.src=cfg.prefix+cfg.encodeUrl(u)},
+      back:()=>f.contentWindow?.history.back(),
+      forward:()=>f.contentWindow?.history.forward(),
+      reload:()=>f.contentWindow?.location.reload(),
+    })};
+  },
+};
+function proxyEngine(id=proxyId()){
+  return proxies[id]||=(async()=>{
+    bstatus(`Starting ${PROXIES[id]}…`);
+    const e=await PROXY_START[id](await proxyWorker());
+    sessionStorage.removeItem('scramjet_sw_reload');bstatus('',false);
+    return e;
+  })().catch(e=>{delete proxies[id];throw e});
+}
+function makeFrame(id){const f=document.createElement('iframe');f.className='browser-frame';f.title='Tab '+id;f.allow='fullscreen; autoplay; clipboard-read; clipboard-write; encrypted-media; picture-in-picture';f.referrerPolicy='no-referrer';return f}
+/* the tab's frame, driven by the current engine; a tab changing engine (or worker) gets a fresh iframe */
+async function tabProxy(t){
+  const id=proxyId();
+  if(t.px&&!t.stale&&t.engine===id)return t.px;
+  const e=await proxyEngine(id);
+  if(t.px&&!t.stale&&t.engine===id)return t.px;
+  if(t.px){const f=makeFrame(t.id);f.classList.toggle('active',t.frame.classList.contains('active'));try{t.frame.src='about:blank'}catch(_){}t.frame.replaceWith(f);t.frame=f}
+  t.engine=id;t.stale=false;t.px=e.frame(t.frame);
+  return t.px;
+}
+function proxyFailed(err,label='Error'){console.error(err);if(String(err?.message).includes('Refreshing once')){toast('Proxy installing — refreshing…');setTimeout(()=>location.reload(),700)}else bstatus(label+': '+(err?.message||err))}
+/* Settings changed the engine: open tabs reload in the new one */
+function proxyChanged(){
+  const id=proxyId(),open=tabs.filter(t=>t.engine&&t.engine!==id&&t.url&&t.url!=='about:blank');
+  open.forEach(t=>navigate(t.url,t,true));
+  toast(`Browser now uses ${PROXIES[id]}`+(open.length?` · reloaded ${open.length} tab${open.length>1?'s':''}`:''),'ok');
 }
 const GLOBE='<svg class="i i-sm" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15 15 0 0 1 0 20a15 15 0 0 1 0-20z"/></svg>';
 let tabs=[],activeTab=null,tabN=0;
@@ -1357,24 +1435,31 @@ function switchTab(id){tabs.forEach(t=>t.frame.classList.toggle('active',t.id===
 function setOmniIcon(url){const el=$('#browser-favicon'),src=url&&url!=='about:blank'?favicon(url):'';if(src){el.src=src;el.style.display='block';el.onerror=()=>el.style.display='none'}else el.style.display='none'}
 function closeTab(id){const i=tabs.findIndex(t=>t.id===id);if(i<0)return;const t=tabs[i];try{t.frame.src='about:blank'}catch(_){}t.frame.remove();tabs.splice(i,1);if(!tabs.length){closeBrowser();return}if(id===activeTab)switchTab(tabs[Math.min(i,tabs.length-1)].id);else renderTabs()}
 async function newTab(url){
-  const id=++tabN,f=document.createElement('iframe');f.className='browser-frame';f.title='Tab '+id;f.allow='fullscreen; autoplay; clipboard-read; clipboard-write; encrypted-media; picture-in-picture';f.referrerPolicy='no-referrer';$('#browser-frames').appendChild(f);
+  const id=++tabN,f=makeFrame(id);$('#browser-frames').appendChild(f);
   const initial=url||(S.autoblank?'about:blank':S.homepage);
-  const tab={id,title:'New Tab',url:initial,frame:f,sj:null};tabs.push(tab);switchTab(id);
-  try{await initScramjet(f,tab);if(initial!=='about:blank')await navigate(initial,tab);else{$('#browser-address').focus()}}
-  catch(err){console.error(err);if(String(err.message).includes('Refreshing once')){toast('Proxy installing — refreshing…');setTimeout(()=>location.reload(),700)}else bstatus('Error: '+err.message)}
+  const tab={id,title:'New Tab',url:initial,frame:f,px:null,engine:null};tabs.push(tab);switchTab(id);
+  try{await tabProxy(tab);if(initial!=='about:blank')await navigate(initial,tab);else{$('#browser-address').focus()}}
+  catch(err){proxyFailed(err)}
 }
 async function openBrowser(url){const b=$('#browser-wrap');b.style.display='flex';b.classList.remove('closing');$('#vm-wrap').style.display='none';$('#tb-browser').classList.add('active');closeAllPanels();renderBookmarks();if(!tabs.length)await newTab(url);else if(url)await navigate(url)}
 function searchUrl(q){return(ENGINES[S.engine]||ENGINES.google)+encodeURIComponent(q)}
 function normalizeUrl(v){if(/^[a-z][a-z0-9+.-]*:\/\//i.test(v))return v;if(/^about:|^data:|^javascript:/i.test(v))return v;if(/^[^\s]+\.[^\s]{2,}(\/.*)?$/.test(v)&&!/\s/.test(v))return'https://'+v;if(/^localhost(:\d+)?/.test(v))return'http://'+v;return searchUrl(v)}
-async function navigate(value,tab){
+async function navigate(value,tab,quiet){
   const t=tab||getTab();if(!t)return;
-  try{if(!t.sj)await initScramjet(t.frame,t);const raw=typeof value==='string'?value.trim():$('#browser-address').value.trim();if(!raw)return;const url=normalizeUrl(raw);t.url=url;$('#browser-address').value=url;t.title=(()=>{try{return new URL(url).hostname.replace(/^www\./,'')||'Loading…'}catch(_){return'Loading…'}})();renderTabs();setOmniIcon(url);if(!S.incognito)addHistory(url);bstatus('Loading…');t.sj.go(url);setTimeout(()=>bstatus('',false),1200)}
-  catch(err){console.error(err);bstatus('Navigation error: '+(err.message||err))}
+  try{
+    const raw=typeof value==='string'?value.trim():$('#browser-address').value.trim();if(!raw)return;
+    const url=normalizeUrl(raw);t.url=url;t.title=(()=>{try{return new URL(url).hostname.replace(/^www\./,'')||'Loading…'}catch(_){return'Loading…'}})();renderTabs();
+    if(t.id===activeTab){$('#browser-address').value=url;setOmniIcon(url)}
+    if(!S.incognito&&!quiet)addHistory(url);
+    const px=await tabProxy(t);
+    bstatus('Loading…');px.go(url);setTimeout(()=>bstatus('',false),1200)
+  }
+  catch(err){proxyFailed(err,'Navigation error')}
 }
 $('#browser-address').addEventListener('keydown',e=>{if(e.key==='Enter')navigate()});
 $('#browser-address').addEventListener('focus',e=>e.target.select());
-$('#b-back').onclick=()=>getTab()?.sj?.back();$('#b-fwd').onclick=()=>getTab()?.sj?.forward();
-$('#b-reload').onclick=e=>{getTab()?.sj?.reload();const ic=e.currentTarget.querySelector('.i');ic.classList.remove('spinning');void ic.offsetWidth;ic.classList.add('spinning')};
+$('#b-back').onclick=()=>getTab()?.px?.back();$('#b-fwd').onclick=()=>getTab()?.px?.forward();
+$('#b-reload').onclick=e=>{const t=getTab();if(t?.stale)navigate(t.url,t,true);else t?.px?.reload();const ic=e.currentTarget.querySelector('.i');ic.classList.remove('spinning');void ic.offsetWidth;ic.classList.add('spinning')};
 $('#b-home').onclick=()=>navigate(S.homepage);
 $('#b-fs').onclick=async()=>{try{if(!document.fullscreenElement)await $('#browser-wrap').requestFullscreen();else await document.exitFullscreen()}catch(_){}};
 $('#tab-new').onclick=()=>{click();newTab()};
@@ -2477,5 +2562,5 @@ applyAll();syncControls();setUser();
 if(!S.showlauncher){mainWin.style.display='none';$('#tb-home').classList.remove('active')}else $('#tb-home').classList.add('active');
 checkAuth();
 if(S.startapp&&S.startapp!=='none')setTimeout(()=>{const fn=APPS[S.startapp];if(fn)fn()},600);
-requestIdleCallback?.(()=>{fetchPlayerCount();setInterval(fetchPlayerCount,30000);renderBookmarks();if(S.preload)initScramjet().catch(()=>{})},{timeout:2000})??setTimeout(()=>{fetchPlayerCount();renderBookmarks()},500);
+requestIdleCallback?.(()=>{fetchPlayerCount();setInterval(fetchPlayerCount,30000);renderBookmarks();if(S.preload)proxyEngine().catch(()=>{})},{timeout:2000})??setTimeout(()=>{fetchPlayerCount();renderBookmarks()},500);
 window.addEventListener('beforeunload',e=>{if(containerId){e.preventDefault();e.returnValue=''}});
