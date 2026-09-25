@@ -20,7 +20,7 @@ const DEFAULTS={
   panic:false,panicKey:'`',panicUrl:'https://classroom.google.com',panicAction:'redirect',panicWipe:false,
   blurunfocus:false,blurAmt:24,lock:false,lockMins:'5',
   perf:false,motion:false,bouncy:true,wallimg:true,preload:false,sound:false,soundpack:'soft',volume:0.5,chatsound:true,fps:false,notify:false,sync:true,
-  proxy:'wj',wjFast:true,wjAds:true,saveLogins:true
+  proxy:'wj',wjFast:true,wjAds:true,saveLogins:true,confirmLeave:true
 };
 const KEY='wvm.settings.v1';
 let S=(()=>{
@@ -40,6 +40,7 @@ let S=(()=>{
 /* WillieJet with fast mode became the default: anyone still on the old defaults (Scramjet v2,
    fast mode off) moves over once. Picking something else afterwards sticks. */
 try{if(!localStorage.getItem('wvm.defaults.v2')){if(S.proxy==='sj2')S.proxy='wj';if(S.wjFast===false)S.wjFast=true;localStorage.setItem(KEY,JSON.stringify(S));localStorage.setItem('wvm.defaults.v2','1')}}catch(_){}
+let quietLeave=false; // our own reload or the panic key is leaving: don't ask "Leave site?" (see askBeforeLeaving)
 /* settings sync state; the logic lives in SETTINGS SYNC further down */
 const SYNC_LOCAL_ONLY=['perf','wallimg','preload','fps','sync','proxy','wjFast','wjAds']; // speed and engine settings belong to the device
 const SYNC_KEYS=['bookmarks','favGames','music']; // localStorage keys that travel with the account
@@ -113,6 +114,7 @@ function applyAll(){
 /* screen filter + dimmer overlay */
 const FILTERS={none:'',warm:'sepia(.45) saturate(1.25) hue-rotate(-12deg)',cool:'saturate(1.1) hue-rotate(18deg) brightness(1.02)',gray:'grayscale(1)',sepia:'sepia(.85)',contrast:'contrast(1.35) saturate(1.1)',invert:'invert(1) hue-rotate(180deg)'};
 function panicNow(){
+  leaveQuietly(); // the panic key must never stop to ask
   const url=S.panicUrl||'https://classroom.google.com';
   if(S.panicWipe){try{localStorage.clear();sessionStorage.clear()}catch(_){}wjWipe()}
   if(S.panicAction==='close'){
@@ -247,6 +249,7 @@ function openInBlank(){
   f.style.cssText='border:0;width:100vw;height:100vh';
   f.src=location.href;
   w.document.body.appendChild(f);
+  w.addEventListener('beforeunload',askBeforeLeaving); // closing the blank window asks too
   return true;
 }
 $('#panic-test').onclick=()=>{
@@ -258,14 +261,14 @@ $('#open-blank').onclick=()=>{if(openInBlank())toast('Opened in about:blank','ok
 if(S.autoblank&&window.self===window.top){
   let already=false;
   try{already=sessionStorage.getItem('wvm.blanked')==='1';sessionStorage.setItem('wvm.blanked','1')}catch(_){}
-  if(!already)setTimeout(()=>{if(openInBlank())toast('Opened in about:blank \u2014 you can close this tab','ok')},600);
+  if(!already)setTimeout(()=>{if(openInBlank()){leaveQuietly();toast('Opened in about:blank \u2014 you can close this tab','ok')}},600);
 }
 /* Account & data */
 $('#export-btn').onclick=()=>{const data={settings:S,bookmarks,favGames,recentGames,exported:new Date().toISOString()};const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));a.download='willies-vm-settings.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);toast('Settings exported','ok')};
 $('#import-btn').onclick=()=>$('#import-file').click();
 $('#import-file').onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const d=JSON.parse(r.result);if(d.settings)S={...DEFAULTS,...d.settings};if(Array.isArray(d.bookmarks)){bookmarks=d.bookmarks;put('bookmarks',bookmarks)}if(Array.isArray(d.favGames)){favGames=d.favGames;put('favGames',favGames)}if(Array.isArray(d.recentGames)){recentGames=d.recentGames;put('recentGames',recentGames)}save();applyAll();syncControls();renderBookmarks();toast('Settings imported','ok')}catch(_){toast('Invalid settings file','err')}};r.readAsText(f);e.target.value=''};
 $('#reset-btn').onclick=()=>{if(!confirm('Reset all settings to defaults?'))return;S={...DEFAULTS};save();applyAll();syncControls();toast('Settings reset','ok')};
-$('#nuke-btn').onclick=()=>{if(!confirm('Clear ALL data for this site and reload?'))return;localStorage.clear();sessionStorage.clear();if(window.caches)caches.keys().then(k=>k.forEach(x=>caches.delete(x)));loginsWipe();['williejet','__scramjet_controller','$scramjet'].forEach(n=>{try{indexedDB.deleteDatabase(n)}catch(_){}});setTimeout(()=>location.reload(),300)};
+$('#nuke-btn').onclick=()=>{if(!confirm('Clear ALL data for this site and reload?'))return;leaveQuietly();localStorage.clear();sessionStorage.clear();if(window.caches)caches.keys().then(k=>k.forEach(x=>caches.delete(x)));loginsWipe();['williejet','__scramjet_controller','$scramjet'].forEach(n=>{try{indexedDB.deleteDatabase(n)}catch(_){}});setTimeout(()=>location.reload(),300)};
 $('#clear-bookmarks').onclick=()=>{if(!bookmarks.length)return;if(!confirm('Remove all bookmarks?'))return;bookmarks=[];put('bookmarks',bookmarks);renderBookmarks();syncControls();toast('Bookmarks cleared')};
 $('#clear-recent').onclick=$('#clear-recent-2').onclick=()=>{recentGames=[];put('recentGames',recentGames);renderRecent();toast('Recent games cleared')};
 
@@ -1182,7 +1185,7 @@ async function checkAuth(){try{const r=await fetch('/api/auth/me'),d=await r.jso
 $('#auth-card').addEventListener('submit',async e=>{e.preventDefault();const u=$('#auth-username').value.trim(),p=$('#auth-password').value,btn=$('#auth-submit');btn.disabled=true;try{const r=await fetch(authMode==='login'?'/api/auth/login':'/api/auth/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p})}),d=await r.json();if(!r.ok)throw new Error(d.error||'Authentication failed.');acceptAuth(d,true)}catch(err){$('#auth-error').textContent=err.message;window.motion?.shake($('#auth-card'))}finally{btn.disabled=false}});
 $('#guest-button').onclick=async()=>{try{const r=await fetch('/api/auth/guest',{method:'POST'}),d=await r.json();if(!r.ok)throw 0;acceptAuth(d)}catch(_){acceptAuth({username:'Guest',vmMinutes:30})}};
 $('#login-button').onclick=()=>setAuthMode(authMode==='login'?'register':'login');
-function logoutUser(){fetch('/api/auth/logout',{method:'POST'}).catch(()=>{});location.reload()}
+function logoutUser(){fetch('/api/auth/logout',{method:'POST'}).catch(()=>{});leaveQuietly();location.reload()}
 $('#logout-btn').onclick=logoutUser;
 
 /* ═══════════════════════════════════════════════════════════
@@ -1284,10 +1287,10 @@ $('#delete-acct-btn').onclick=()=>dcModal({
           {key:'password',label:'Password',type:'password'}],
   onOk:async v=>{
     await postJSON('/api/account/delete',{confirm:v.confirm.trim().toLowerCase(),password:v.password});
-    toast('Account deleted. Bye!','ok');setTimeout(()=>location.reload(),1200);
+    toast('Account deleted. Bye!','ok');leaveQuietly();setTimeout(()=>location.reload(),1200);
   }
 });
-$('#guest-upgrade-btn').onclick=()=>{fetch('/api/auth/logout',{method:'POST'}).catch(()=>{}).finally(()=>location.reload())};
+$('#guest-upgrade-btn').onclick=()=>{leaveQuietly();fetch('/api/auth/logout',{method:'POST'}).catch(()=>{}).finally(()=>location.reload())};
 async function fetchPlayerCount(){try{const c=new AbortController(),t=setTimeout(()=>c.abort(),5000),r=await fetch('/api/stats',{signal:c.signal,cache:'no-store'});clearTimeout(t);if(!r.ok)throw 0;const d=await r.json(),n=d.online??d.count??d.players;if(n!=null)$('#player-count-text').textContent=`${n} online`}catch(_){}}
 
 /* ═══════════════════════════════════════════════════════════
@@ -1451,7 +1454,7 @@ async function tabProxy(t){
   t.engine=id;t.stale=false;t.px=e.frame(t.frame);
   return t.px;
 }
-function proxyFailed(err,label='Error'){console.error(err);if(String(err?.message).includes('Refreshing once')){toast('Proxy installing — refreshing…');setTimeout(()=>location.reload(),700)}else bstatus(label+': '+(err?.message||err))}
+function proxyFailed(err,label='Error'){console.error(err);if(String(err?.message).includes('Refreshing once')){toast('Proxy installing — refreshing…');leaveQuietly();setTimeout(()=>location.reload(),700)}else bstatus(label+': '+(err?.message||err))}
 /* Settings changed the engine: open tabs reload in the new one */
 function proxyChanged(){
   const id=proxyId(),open=tabs.filter(t=>t.engine&&t.engine!==engineFor(t.url)&&t.url&&t.url!=='about:blank');
@@ -1936,7 +1939,7 @@ function connectChat(){
     if(ev.code===1008){chatState('err');return}
     if(ev.code===4003){chatState('err');dcSyncCompose();return} // banned: don't hammer the door
     if(ev.code===4005){ // signed out (password change, deletion, admin)
-      checkAuth().then(d=>{if(d&&d.loggedIn)scheduleChatRetry();else{toast('You were signed out.','err');setTimeout(()=>location.reload(),1500)}});
+      checkAuth().then(d=>{if(d&&d.loggedIn)scheduleChatRetry();else{toast('You were signed out.','err');leaveQuietly();setTimeout(()=>location.reload(),1500)}});
       return;
     }
     if(ev.code===4004){toast('You were kicked from chat. Reconnecting in a bit…','err');chatRetry=5}
@@ -3009,4 +3012,9 @@ if(!S.showlauncher){mainWin.style.display='none';$('#tb-home').classList.remove(
 checkAuth();
 if(S.startapp&&S.startapp!=='none')setTimeout(()=>{const fn=APPS[S.startapp];if(fn)fn()},600);
 requestIdleCallback?.(()=>{fetchPlayerCount();setInterval(fetchPlayerCount,30000);renderBookmarks();if(S.preload||proxyId()==='wj')proxyEngine().catch(()=>{})},{timeout:2000})??setTimeout(()=>{fetchPlayerCount();renderBookmarks()},500);
-window.addEventListener('beforeunload',e=>{if(containerId){e.preventDefault();e.returnValue=''}});
+/* "Leave site?" when you close or refresh the tab (Settings > Privacy & Cloak, on by default), and
+   always while a VM is running. Browsers show their own wording and only ask once you've
+   clicked or typed on the page. Our own reloads and the panic key skip it (leaveQuietly). */
+function leaveQuietly(){quietLeave=true}
+function askBeforeLeaving(e){if(quietLeave||!(S.confirmLeave||containerId))return;e.preventDefault();e.returnValue=''}
+window.addEventListener('beforeunload',askBeforeLeaving);
