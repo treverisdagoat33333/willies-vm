@@ -4,7 +4,7 @@
  * All rights reserved. Proprietary and confidential. See LICENSE.
  */
 /* ═══════════════════════════════════════════════════════════
-   VOICE CALLS + SCREEN SHARE (1:1, accounts only)
+   VOICE CALLS + CAMERA + SCREEN SHARE (1:1, accounts only)
    The chat socket carries the WebRTC handshake (call.* messages, relayed
    by chat.js); audio and screen go straight between the two browsers, or,
    when the network won't let them (see "the relay" below), through our server.
@@ -17,7 +17,7 @@
 const C=$('#call');
 let call=null; // {id, peer, dir:'out'|'in', state, pc, mic, screen, screenSenders, polite, makingOffer, ignoreOffer, gotOffer, started}
 let ringer=null,timerI=null,iceCache=null;
-const CAN_SHARE=!!navigator.mediaDevices?.getDisplayMedia;
+const CAN_SHARE=!!navigator.mediaDevices?.getDisplayMedia,CAN_CAM=!!navigator.mediaDevices?.getUserMedia;
 const REASONS={declined:'declined the call','no answer':"didn't answer",busy:'is on another call',offline:'is offline',hangup:'hung up',
   disconnected:'got disconnected','answered elsewhere':'answered on another device',gone:'call ended'};
 
@@ -54,6 +54,24 @@ function ui(state,status){
   $('#cl-mute').classList.toggle('on',!!call.mic&&!call.mic.getAudioTracks()[0]?.enabled);
   $('#cl-share').classList.toggle('on',!!call.screen);
   $('#cl-share').hidden=!CAN_SHARE;
+  $('#cl-cam').classList.toggle('on',!!call.cam);
+  $('#cl-cam').hidden=!CAN_CAM;
+}
+/* their camera and their screen: the screen fills the panel with the camera in a
+   corner; either one alone fills it */
+function remoteVideo(kind,on){
+  const had=C.classList.contains('has-video');
+  C.classList.toggle(kind==='cam'?'has-cam':'has-screen',on);
+  const any=C.classList.contains('has-cam')||C.classList.contains('has-screen');
+  C.classList.toggle('has-video',any);
+  if(any&&!had)C.classList.add('big');
+}
+/* your own camera (mirrored, like a mirror) or, without one, the screen you share */
+function selfPreview(){
+  const s=call?.cam||call?.screen,el=$('#cl-self');
+  el.srcObject=s?new MediaStream(s.getVideoTracks()):null;
+  el.classList.toggle('mirror',!!call?.cam);
+  C.classList.toggle('self-video',!!s);
 }
 function startTimer(){
   const t0=Date.now();clearInterval(timerI);
@@ -65,14 +83,15 @@ function reset(){
   if(call){
     clearTimeout(call.directT);
     try{call.pc?.close()}catch(_){}
-    if(call.relay){clearInterval(call.relay.frameT);try{call.relay.ws?.close(1000)}catch(_){}call.relay.ctx?.close().catch(()=>{})}
+    if(call.relay){for(const f of Object.values(call.relay.frames))clearInterval(f);try{call.relay.ws?.close(1000)}catch(_){}call.relay.ctx?.close().catch(()=>{})}
     call.mic?.getTracks().forEach(t=>t.stop());
     call.screen?.getTracks().forEach(t=>t.stop());
+    call.cam?.getTracks().forEach(t=>t.stop());
   }
   call=null;
-  $('#cl-remote-video').srcObject=null;$('#cl-self').srcObject=null;
+  $('#cl-remote-video').srcObject=null;$('#cl-remote-cam').srcObject=null;$('#cl-self').srcObject=null;
   $$('#cl-audio audio').forEach(a=>{a.srcObject=null;a.remove()});
-  C.classList.remove('has-video','self-video','big','relay-video');
+  C.classList.remove('has-video','has-screen','has-cam','self-video','big','relay');
   C.dataset.state='off';
 }
 function finish(msg,type){
@@ -116,10 +135,11 @@ async function makePeer(){
       track.onended=()=>a.remove();
       return;
     }
-    const v=$('#cl-remote-video');v.srcObject=new MediaStream([track]);
-    const show=on=>{C.classList.toggle('has-video',on);if(on)C.classList.add('big')};
-    show(true);
-    track.onmute=()=>show(false);track.onunmute=()=>show(true);track.onended=()=>show(false);
+    // which video it is (camera or screen) was signalled ahead of it, by stream id
+    const kind=call.remoteKinds?.[streams[0]?.id]||'screen';
+    $(kind==='cam'?'#cl-remote-cam':'#cl-remote-video').srcObject=new MediaStream([track]);
+    remoteVideo(kind,true);
+    track.onmute=()=>remoteVideo(kind,false);track.onunmute=()=>remoteVideo(kind,true);track.onended=()=>remoteVideo(kind,false);
   };
   pc.onconnectionstatechange=()=>{
     if(!call||call.pc!==pc)return;
@@ -132,7 +152,8 @@ async function makePeer(){
 }
 /* one message at a time: a candidate must not race the offer it belongs to */
 function queueSignal(data){const c=call;if(!c)return;c.sig=(c.sig||Promise.resolve()).then(()=>call===c&&onSignal(data))}
-async function onSignal({description,candidate}){
+async function onSignal({description,candidate,media}){
+  if(media&&typeof media==='object'&&call){call.remoteKinds={...call.remoteKinds,...media};return} // {streamId: 'cam'|'screen'}
   const pc=call?.pc;if(!pc)return;
   try{
     if(description){
@@ -157,16 +178,21 @@ async function onSignal({description,candidate}){
    and without a TURN server that's the end of it. So after RELAY_AFTER without
    a connection (or right away, if this device needed the relay in the last
    day), both sides open /call-relay/ on our server (chat.js) and send their
-   voice as 16 kHz μ-law (js/call-worklet.js), 20 ms at a time, and a shared
-   screen as JPEG frames, 3 a second. Messages: [kind, ...bytes]. */
+   voice as 16 kHz μ-law (js/call-worklet.js), 20 ms at a time, a shared screen
+   as JPEG frames 3 a second, and a camera as smaller ones about 6 a second.
+   Messages: [kind, ...bytes]. */
 const RELAY_AFTER=9000,RELAY_MEMORY=24*3600e3;
-const KIND={voice:1,frame:2,frameEnd:3};
+const KIND={voice:1};
+const FRAMES={
+  screen:{kind:2,end:3,w:1280,h:720,every:333,q:.6,canvas:'#cl-remote-canvas'},
+  cam:{kind:4,end:5,w:480,h:360,every:160,q:.55,canvas:'#cl-remote-cam-canvas'},
+};
 const ULAW=new Float32Array(256).map((_,u)=>{u=~u&0xff;const e=(u>>4)&7;const x=((((u&15)<<3)+0x84)<<e)-0x84;return(u&0x80?-x:x)/32768});
 const relayFirst=()=>{try{return localStorage.getItem('wvm.callRelay')==='always'||Date.now()<+localStorage.getItem('wvm.callRelayUntil')}catch(_){return false}};
 async function goRelay(why){
   const c=call;
   if(!c||c.relay||!c.mic)return;
-  c.relay={ws:null,ctx:null,playAt:0,frameT:null,shown:0,stats:{sent:0,got:0,peak:0,frames:0}};
+  c.relay={ws:null,ctx:null,playAt:0,frames:{},shown:{screen:0,cam:0},stats:{sent:0,got:0,peak:0,frames:0,camFrames:0}};
   clearTimeout(c.directT);
   if(!why.startsWith('peer'))signal({relay:true,why}); // the other side follows
   // the direct path didn't work (for either of us): go straight to the relay next time
@@ -174,7 +200,8 @@ async function goRelay(why){
   try{c.pc?.close()}catch(_){}
   c.pc=null;
   $$('#cl-audio audio').forEach(a=>{a.srcObject=null;a.remove()});
-  $('#cl-remote-video').srcObject=null;C.classList.remove('has-video');
+  $('#cl-remote-video').srcObject=null;$('#cl-remote-cam').srcObject=null;
+  C.classList.remove('has-video','has-screen','has-cam');C.classList.add('relay');
   ui('active','Connecting through our server…');
   try{
     let ctx;
@@ -195,14 +222,16 @@ function openRelay(c,tries){
   ws.onmessage=({data})=>{
     if(call!==c)return;
     if(typeof data==='string'){
-      if(data==='ready'){if(!c.started){c.started=true;stopRing();startTimer()}ui('active');if(c.screen)startFrames(c)}
+      if(data==='ready'){if(!c.started){c.started=true;stopRing();startTimer()}ui('active');if(c.screen)startFrames(c,'screen');if(c.cam)startFrames(c,'cam')}
       else if(data==='gone')ui('active','Reconnecting…');
       return;
     }
-    const b=new Uint8Array(data);
-    if(b[0]===KIND.voice)playVoice(c,b.subarray(1));
-    else if(b[0]===KIND.frame)showFrame(c,b.subarray(1));
-    else if(b[0]===KIND.frameEnd){c.relay.shown++;relayVideo(false)} // frames still being decoded are too late now
+    const b=new Uint8Array(data),k=b[0];
+    if(k===KIND.voice)return playVoice(c,b.subarray(1));
+    for(const[name,f]of Object.entries(FRAMES)){
+      if(k===f.kind)showFrame(c,name,b.subarray(1));
+      else if(k===f.end){c.relay.shown[name]++;remoteVideo(name,false)} // frames still being decoded are too late now
+    }
   };
   ws.onclose=e=>{
     if(call!==c||c.relay?.ws!==ws||e.code===1000||e.code===4003)return;
@@ -225,36 +254,37 @@ function playVoice(c,bytes){
   if(r.playAt<now+.02||r.playAt>now+.5)r.playAt=now+.08;
   const s=ctx.createBufferSource();s.buffer=buf;s.connect(ctx.destination);s.start(r.playAt);r.playAt+=buf.duration;
 }
-function relayVideo(on){C.classList.toggle('relay-video',on);C.classList.toggle('has-video',on);if(on)C.classList.add('big')}
-async function showFrame(c,bytes){
-  const gen=c.relay.shown;
+async function showFrame(c,name,bytes){
+  const gen=c.relay.shown[name];
   try{
     const img=await createImageBitmap(new Blob([bytes],{type:'image/jpeg'}));
-    if(call!==c||c.relay?.shown!==gen)return img.close();
-    const cv=$('#cl-remote-canvas');
+    if(call!==c||c.relay?.shown[name]!==gen)return img.close();
+    const cv=$(FRAMES[name].canvas);
     if(cv.width!==img.width||cv.height!==img.height){cv.width=img.width;cv.height=img.height}
     cv.getContext('2d').drawImage(img,0,0);img.close();
-    c.relay.stats.frames++;
-    if(!C.classList.contains('relay-video'))relayVideo(true);
+    c.relay.stats[name==='cam'?'camFrames':'frames']++;
+    if(!C.classList.contains(name==='cam'?'has-cam':'has-screen'))remoteVideo(name,true);
   }catch(_){}
 }
-function startFrames(c){
-  if(!c.relay||c.relay.frameT||!c.screen)return;
-  const v=document.createElement('video');v.muted=true;v.playsInline=true;v.srcObject=new MediaStream(c.screen.getVideoTracks());v.play().catch(()=>{});
+/* a video (screen or camera) as JPEG pictures on a timer; a slow network gets fewer */
+function startFrames(c,name){
+  const f=FRAMES[name],stream=name==='cam'?c.cam:c.screen;
+  if(!c.relay||c.relay.frames[name]||!stream)return;
+  const v=document.createElement('video');v.muted=true;v.playsInline=true;v.srcObject=new MediaStream(stream.getVideoTracks());v.play().catch(()=>{});
   const cv=document.createElement('canvas');let busy=false;
-  c.relay.frameT=setInterval(async()=>{
+  c.relay.frames[name]=setInterval(async()=>{
     const ws=c.relay?.ws;
-    if(busy||!ws||ws.readyState!==1||ws.bufferedAmount>256*1024||!v.videoWidth)return; // a slow network gets fewer frames
-    const sc=Math.min(1,1280/v.videoWidth,720/v.videoHeight);
+    if(busy||!ws||ws.readyState!==1||ws.bufferedAmount>256*1024||!v.videoWidth)return;
+    const sc=Math.min(1,f.w/v.videoWidth,f.h/v.videoHeight);
     cv.width=Math.round(v.videoWidth*sc);cv.height=Math.round(v.videoHeight*sc);
     cv.getContext('2d').drawImage(v,0,0,cv.width,cv.height);
     busy=true;
-    const blob=await new Promise(r=>cv.toBlob(r,'image/jpeg',.6));
+    const blob=await new Promise(r=>cv.toBlob(r,'image/jpeg',f.q));
     busy=false;
-    if(blob&&call===c&&c.relay?.frameT)relaySend(c,KIND.frame,new Uint8Array(await blob.arrayBuffer()));
-  },333);
+    if(blob&&call===c&&c.relay?.frames[name])relaySend(c,f.kind,new Uint8Array(await blob.arrayBuffer()));
+  },f.every);
 }
-function stopFrames(c){if(!c.relay)return;clearInterval(c.relay.frameT);c.relay.frameT=null;relaySend(c,KIND.frameEnd,new Uint8Array(0))}
+function stopFrames(c,name){if(!c.relay)return;clearInterval(c.relay.frames[name]);delete c.relay.frames[name];relaySend(c,FRAMES[name].end,new Uint8Array(0))}
 
 /* ---- starting and answering ---- */
 async function start(peer){
@@ -263,6 +293,7 @@ async function start(peer){
   if(!chatMeAccount){toast('Make an account to make calls.','err');return}
   if(call){toast("You're already in a call.",'err');return}
   if(peer===chatMe){toast("You can't call yourself.",'err');return}
+  if(window.voice?.active){window.voice.leave(true);toast('You left voice for the call')} // one mic, one conversation
   const id=crypto.randomUUID();
   call={id,peer,dir:'out',polite:false};
   ui('outgoing','Starting your mic…');
@@ -276,6 +307,7 @@ async function start(peer){
 async function accept(){
   if(!call||call.dir!=='in'||call.state==='answering')return;
   call.state='answering';stopRing();
+  if(window.voice?.active){window.voice.leave(true);toast('You left voice for the call')}
   ui('active','Starting your mic…');
   const id=call.id;
   let mic;
@@ -308,21 +340,41 @@ async function toggleShare(){
   catch(e){if(e.name!=='NotAllowedError')toast("Couldn't share the screen.",'err');return}
   if(!call?.pc&&!call?.relay){stream.getTracks().forEach(t=>t.stop());return}
   call.screen=stream;
-  if(call.relay)startFrames(call); // through our server: a picture a third of a second, no sound
-  else call.screenSenders=stream.getTracks().map(t=>call.pc.addTrack(t,stream));
+  if(call.relay)startFrames(call,'screen'); // through our server: a picture a third of a second, no sound
+  else{signal({media:{[stream.id]:'screen'}});call.screenSenders=stream.getTracks().map(t=>call.pc.addTrack(t,stream))}
   stream.getVideoTracks()[0].onended=stopShare; // the browser's own "Stop sharing" button
-  $('#cl-self').srcObject=new MediaStream(stream.getVideoTracks());
-  C.classList.add('self-video');
+  selfPreview();
   ui('active');toast('Sharing your screen','ok');
 }
 function stopShare(){
   if(!call?.screen)return;
-  if(call.relay)stopFrames(call);
+  if(call.relay)stopFrames(call,'screen');
   else for(const s of call.screenSenders||[])try{call.pc.removeTrack(s)}catch(_){}
   call.screen.getTracks().forEach(t=>t.stop());
   call.screen=null;call.screenSenders=null;
-  $('#cl-self').srcObject=null;C.classList.remove('self-video');
+  selfPreview();
   ui('active');
+}
+async function toggleCam(){
+  if(!call?.pc&&!call?.relay)return;
+  if(call.cam)return stopCam();
+  let stream;
+  try{stream=await navigator.mediaDevices.getUserMedia({video:{width:{ideal:640},height:{ideal:480},frameRate:{ideal:24}},audio:false})}
+  catch(e){toast(e.name==='NotAllowedError'?'Camera blocked. Allow it in the browser to turn it on.':e.name==='NotFoundError'?'No camera found.':"Couldn't start the camera.",'err');return}
+  if(!call?.pc&&!call?.relay||call.cam){stream.getTracks().forEach(t=>t.stop());return}
+  call.cam=stream;
+  if(call.relay)startFrames(call,'cam'); // through our server: small pictures, about 6 a second
+  else{signal({media:{[stream.id]:'cam'}});call.camSenders=stream.getTracks().map(t=>call.pc.addTrack(t,stream))}
+  stream.getVideoTracks()[0].onended=stopCam; // unplugged
+  selfPreview();ui('active');
+}
+function stopCam(){
+  if(!call?.cam)return;
+  if(call.relay)stopFrames(call,'cam');
+  else for(const s of call.camSenders||[])try{call.pc.removeTrack(s)}catch(_){}
+  call.cam.getTracks().forEach(t=>t.stop());
+  call.cam=null;call.camSenders=null;
+  selfPreview();ui('active');
 }
 
 /* ---- messages from chat.js ---- */
@@ -364,6 +416,7 @@ $('#cl-decline').onclick=()=>{click();decline()};
 $('#cl-end').onclick=()=>{click();hangup()};
 $('#cl-mute').onclick=()=>{click();toggleMute()};
 $('#cl-share').onclick=()=>{click();toggleShare()};
+$('#cl-cam').onclick=()=>{click();toggleCam()};
 $('#cl-size').onclick=()=>{click();C.classList.toggle('big')};
 $('#cl-fs').onclick=async()=>{try{document.fullscreenElement?await document.exitFullscreen():await $('#cl-video').requestFullscreen()}catch(_){}};
 $('#dc-call').onclick=()=>{click();start($('#dc-call').dataset.to)};
@@ -371,5 +424,9 @@ window.addEventListener('beforeunload',()=>{if(call)dcSend({type:call.dir==='in'
 
 window.calls={start,onMessage,hangup,get active(){return !!call},
   /* how the call is going: direct, or through our server with what's been sent and received */
-  stats(){return !call?null:call.relay?{id:call.id,mode:'relay',...call.relay.stats}:{id:call.id,mode:call.pc?'direct':'none',state:call.pc?.connectionState}}};
+  stats(){
+    if(!call)return null;
+    const video={cam:C.classList.contains('has-cam'),screen:C.classList.contains('has-screen')};
+    return call.relay?{id:call.id,mode:'relay',video,...call.relay.stats}:{id:call.id,mode:call.pc?'direct':'none',state:call.pc?.connectionState,video};
+  }};
 })();

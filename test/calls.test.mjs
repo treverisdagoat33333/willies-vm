@@ -14,7 +14,7 @@ const browser = await chromium.launch({
 });
 const stamp = Date.now().toString(36).slice(-5);
 async function person(name, extra = {}) {
-  const ctx = await browser.newContext({ baseURL: BASE, permissions: ["microphone"] });
+  const ctx = await browser.newContext({ baseURL: BASE, permissions: ["microphone", "camera"] });
   const page = await ctx.newPage();
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
@@ -53,6 +53,14 @@ const a = await person("ann" + stamp), b = await person("bob" + stamp);
 await connect(a, b, "direct");
 await b.page.waitForFunction(() => document.querySelectorAll("#cl-audio audio").length > 0, null, { timeout: 10000 }).catch(() => {});
 ok(await b.page.$$eval("#cl-audio audio", (x) => x.length) > 0, "direct: the other side's voice arrives");
+// camera
+await a.page.click("#cl-cam");
+await b.page.waitForFunction(() => document.querySelector("#cl-remote-cam").videoWidth > 0 && window.calls.stats()?.video.cam, null, { timeout: 10000 }).catch(() => {});
+ok((await stats(b))?.video.cam && await b.page.$eval("#cl-remote-cam", (v) => v.videoWidth > 0 && getComputedStyle(v).display !== "none"), "direct: turning the camera on shows it on the other side", JSON.stringify(await stats(b)));
+ok(await a.page.$eval("#cl-self", (v) => v.classList.contains("mirror") && !!v.srcObject) && await a.page.$eval("#cl-cam", (b) => b.classList.contains("on")), "…and you see yourself, mirrored");
+await a.page.click("#cl-cam");
+await b.page.waitForFunction(() => !window.calls.stats()?.video.cam, null, { timeout: 10000 }).catch(() => {});
+ok(!(await stats(b))?.video.cam, "…and turning it off takes it away", JSON.stringify(await stats(b)));
 await a.page.click("#cl-end");
 await b.page.waitForFunction(() => document.querySelector("#call").dataset.state === "off", null, { timeout: 10000 }).catch(() => {});
 ok(await state(a) === "off" && await state(b) === "off", "hanging up ends it on both sides");
@@ -78,10 +86,19 @@ if (canShare) {
   await a.page.click("#cl-share");
   await b.page.waitForFunction(() => (window.calls.stats()?.frames || 0) >= 2, null, { timeout: 10000 }).catch(() => {});
   sb = await stats(b);
-  ok(sb.frames >= 2 && await b.page.$eval("#call", (c) => c.classList.contains("relay-video")), "relay: a shared screen shows on the other side", JSON.stringify(sb));
+  ok(sb.frames >= 2 && sb.video.screen, "relay: a shared screen shows on the other side", JSON.stringify(sb));
+  // the camera at the same time: the screen stays big, the camera goes in the corner
+  await a.page.click("#cl-cam");
+  await b.page.waitForFunction(() => (window.calls.stats()?.camFrames || 0) >= 3, null, { timeout: 10000 }).catch(() => {});
+  sb = await stats(b);
+  ok(sb.camFrames >= 3 && sb.video.cam && sb.video.screen, "relay: the camera comes through too, alongside the screen", JSON.stringify(sb));
+  ok(await b.page.$eval("#cl-remote-cam-canvas", (c) => getComputedStyle(c).position === "absolute" && c.width > 0), "…in the corner, over the screen");
+  await a.page.click("#cl-cam");
+  await b.page.waitForFunction(() => !window.calls.stats()?.video.cam, null, { timeout: 5000 }).catch(() => {});
+  ok(!(await stats(b)).video.cam && (await stats(b)).video.screen, "…and turning the camera off leaves the screen", JSON.stringify(await stats(b)));
   await a.page.click("#cl-share");
-  await b.page.waitForFunction(() => !document.querySelector("#call").classList.contains("relay-video"), null, { timeout: 5000 }).catch(() => {});
-  ok(!(await b.page.$eval("#call", (c) => c.classList.contains("relay-video"))), "…and goes away when sharing stops");
+  await b.page.waitForFunction(() => !window.calls.stats()?.video.screen, null, { timeout: 5000 }).catch(() => {});
+  ok(!(await stats(b)).video.screen, "…and the screen goes away when sharing stops");
 }
 // nobody else can join the call's relay
 const c = await person("cat" + stamp);

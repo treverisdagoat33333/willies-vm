@@ -151,15 +151,20 @@ html[data-tbside="top"] #call[data-state="active"],html[data-tbhide="on"] #call[
 #cl-mute .x{display:none}#cl-mute.on .x{display:inline}
 #call[data-state="incoming"] #cl-accept,#call[data-state="incoming"] #cl-decline,
 #call[data-state="outgoing"] #cl-end,
-#call[data-state="active"] #cl-mute,#call[data-state="active"] #cl-share:not([hidden]),#call[data-state="active"] #cl-end,
+#call[data-state="active"] #cl-mute,#call[data-state="active"] #cl-share:not([hidden]),#call[data-state="active"] #cl-cam:not([hidden]),#call[data-state="active"] #cl-end,
 #call[data-state="active"].has-video #cl-size{display:grid}
 #call[data-state="incoming"] .cl-b{width:52px;height:52px}
 .cl-video{display:none;position:relative;border-radius:var(--r-lg);overflow:hidden;background:#000;aspect-ratio:16/9}
 #call.has-video .cl-video{display:block}
 .cl-video video{width:100%;height:100%;object-fit:contain;display:block}
-#cl-remote-canvas{display:none;width:100%;height:100%;object-fit:contain}
-#call.relay-video #cl-remote-video{display:none}
-#call.relay-video #cl-remote-canvas{display:block}
+/* their screen fills the panel; their camera does too when it's on its own, else it sits in a corner */
+#cl-remote-canvas,#cl-remote-cam-canvas,#cl-remote-cam{display:none;width:100%;height:100%;object-fit:contain}
+#call.has-cam #cl-remote-cam{display:block}
+#call.has-cam:not(.has-screen) #cl-remote-video{display:none}
+#call.relay #cl-remote-video,#call.relay #cl-remote-cam{display:none}
+#call.relay.has-screen #cl-remote-canvas,#call.relay.has-cam #cl-remote-cam-canvas{display:block}
+#call.has-cam.has-screen #cl-remote-cam,#call.has-cam.has-screen #cl-remote-cam-canvas{position:absolute;right:10px;bottom:10px;width:26%;height:auto;aspect-ratio:4/3;object-fit:cover;border-radius:10px;box-shadow:0 4px 18px rgba(0,0,0,.5)}
+#cl-self.mirror{transform:scaleX(-1)}
 .cl-fs{position:absolute;top:8px;right:8px;width:32px;height:32px;display:grid;place-items:center;border-radius:8px;background:rgba(0,0,0,.55);color:#fff;opacity:0;transition:opacity .15s}
 .cl-video:hover .cl-fs{opacity:1}
 .cl-fs .i{width:16px;height:16px}
@@ -225,3 +230,68 @@ html[data-tbside="top"] #call[data-state="active"],html[data-tbhide="on"] #call[
 #cm-acct.on::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--ok);flex:0 0 auto}
 @media(max-width:700px){#cloud-toolbar .cm-server{display:none}}
 #cloud-load-cancel{pointer-events:auto;margin-top:4px}
+
+/* ── voice channels (js/voice.js) ──────────── */
+#dc-voice{display:flex;align-items:center;gap:4px}
+#dc-voice[hidden]{display:none}
+#dc-voice .n{font-size:.75em;font-weight:700}
+#dc-voice.on{color:#22c55e}
+.dc-vc{display:inline-flex;align-items:center;gap:3px;margin-left:auto;padding:1px 6px;border-radius:99px;background:rgba(34,197,94,.16);color:#22c55e;font-size:.72em;font-weight:700}
+.dc-vc .i{width:12px;height:12px}
+.dc-vc+.dot{margin-left:6px}
+#vc{position:fixed;z-index:9590;left:16px;bottom:calc(var(--tb-h) + 12px);width:min(300px,calc(100vw - 32px));display:flex;flex-direction:column;gap:10px;padding:12px 14px;border-radius:var(--r-xl);
+  background:var(--glass);backdrop-filter:var(--blur);border:1px solid rgba(34,197,94,.45);box-shadow:var(--shadow);animation:rise .3s var(--spring)}
+#vc[hidden]{display:none}
+html[data-tbside="top"] #vc,html[data-tbhide="on"] #vc{bottom:16px}
+.vc-top{display:flex;align-items:center;gap:8px;min-width:0}
+.vc-dot{width:8px;height:8px;border-radius:50%;background:#22c55e;box-shadow:0 0 0 4px rgba(34,197,94,.2);flex:0 0 auto}
+#vc-name{font-weight:700;color:var(--text);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#vc-name:hover{text-decoration:underline}
+#vc-status{margin-left:auto;color:var(--text-2);font-size:.78em;white-space:nowrap}
+.vc-people{display:flex;flex-wrap:wrap;gap:10px}
+.vc-p{position:relative;display:flex;flex-direction:column;align-items:center;gap:4px;width:52px}
+.vc-av{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:800;text-transform:uppercase;transition:box-shadow .12s}
+.vc-p.talking .vc-av{box-shadow:0 0 0 3px #22c55e}
+.vc-n{max-width:52px;font-size:.7em;color:var(--text-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vc-muted{position:absolute;top:24px;right:2px;width:18px;height:18px;display:grid;place-items:center;border-radius:50%;background:#ef4444;color:#fff}
+.vc-muted .i{width:11px;height:11px}
+.vc-btns{display:flex;justify-content:center;gap:10px}
+#vc .cl-b{display:grid}
+#vc-mute .x{display:none}#vc-mute.on .x{display:inline}
+
+/* ── pictures and files in chat ──────────── */
+.dc-compose .box .attach{flex:0 0 auto;width:34px;height:34px;display:grid;place-items:center;border-radius:8px;color:var(--text-2)}
+.dc-compose .box .attach:hover{background:var(--glass-3);color:var(--text)}
+.dc-compose .box .attach[hidden]{display:none}
+.dc-att-stage{display:flex;align-items:center;gap:10px;margin:0 0 8px;padding:8px 10px;border:1px solid var(--border);border-radius:12px;background:var(--glass-2);font-size:.85em}
+.dc-att-stage[hidden]{display:none}
+.dc-att-stage img{width:44px;height:44px;object-fit:cover;border-radius:8px}
+.dc-att-stage .ic{font-size:1.4em}
+.dc-att-stage .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
+.dc-att-stage small{color:var(--text-3);white-space:nowrap}
+.dc-att-stage button{width:26px;height:26px;border-radius:50%;color:var(--text-2)}
+.dc-att-stage button:hover{background:var(--glass-3);color:var(--text)}
+.dc-img{display:block;margin-top:6px;padding:0;border:0;border-radius:10px;overflow:hidden;background:var(--glass-2);cursor:zoom-in;max-width:min(360px,100%)}
+.dc-img img{display:block;max-width:100%;max-height:280px;height:auto;object-fit:contain}
+.dc-att{display:inline-flex;align-items:center;gap:9px;margin-top:6px;padding:9px 12px;border:1px solid var(--border);border-radius:10px;background:var(--glass-2);color:var(--text);text-decoration:none;max-width:min(360px,100%)}
+.dc-att:hover{background:var(--glass-3)}
+.dc-att .i{width:20px;height:20px;color:var(--accent);flex:0 0 auto}
+.dc-att .nm{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;font-size:.9em}
+.dc-att small{color:var(--text-3);white-space:nowrap}
+.dc-att.gone{color:var(--text-3);font-size:.85em;font-style:italic}
+.dc-main.dropping{outline:2px dashed var(--accent);outline-offset:-8px}
+#dc-viewer{position:fixed;inset:0;z-index:9700;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:20px;background:rgba(0,0,0,.85)}
+#dc-viewer[hidden]{display:none}
+#dc-viewer img{max-width:100%;max-height:calc(100% - 60px);object-fit:contain;border-radius:8px}
+#dc-viewer .bar{display:flex;align-items:center;gap:10px;color:#fff;max-width:100%}
+#dc-viewer .nm{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* with chat open, the voice bar sits in the channel list, above your name (or above the message box on narrow screens) */
+@media(min-width:901px){
+  html:has(#chat-window.show) #vc{left:8px;width:216px;bottom:calc(var(--tb-h) + 60px);padding:10px;gap:8px;border-radius:14px;box-shadow:none}
+  html[data-tbside="top"]:has(#chat-window.show) #vc,html[data-tbhide="on"]:has(#chat-window.show) #vc{bottom:60px}
+  html:has(#chat-window.show) .vc-people{gap:6px}
+  html:has(#chat-window.show) .vc-p{width:44px}
+  html:has(#chat-window.show) .vc-av{width:34px;height:34px}
+  html:has(#chat-window.show) #vc .cl-b{width:38px;height:38px}
+}
+@media(max-width:900px){html:has(#chat-window.show) #vc{bottom:calc(var(--tb-h) + 100px)}}

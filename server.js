@@ -42,6 +42,9 @@ import {
 import {
   handleChatUpgrade,
   handleCallRelayUpgrade,
+  handleVoiceUpgrade,
+  chatMayPost,
+  chatMayRead,
   onlineCount,
   onlineList,
   kickUser,
@@ -60,6 +63,7 @@ import {
 import { clientIp, createLimiter, limitByIp, formatWait } from "./security.js";
 import { musicRouter } from "./music.js";
 import { aiRouter } from "./ai.js";
+import { filesRouter } from "./files.js";
 import { hasBadWords } from "./profanity.js";
 import { fastnetHandler } from "./fastnet.js";
 
@@ -108,6 +112,13 @@ server.on("upgrade", (req, socket, head) => {
     const session = getSessionFromCookieHeader(req.headers.cookie);
     if (!session) return refuseUpgrade(socket, 401, "Unauthorized");
     handleChatUpgrade(req, socket, head, session, clientIp(req));
+    return;
+  }
+
+  if (upgradePath === "/voice/") {
+    const session = getSessionFromCookieHeader(req.headers.cookie);
+    if (!session) return refuseUpgrade(socket, 401, "Unauthorized");
+    handleVoiceUpgrade(req, socket, head, session, clientIp(req));
     return;
   }
 
@@ -805,6 +816,23 @@ const musicLimiter = createLimiter({ windowMs: 60_000, max: 90 });
 app.use(
   "/api/music",
   musicRouter({ requireSession, limiter: limitByIp(musicLimiter, "Too many music requests from your network.") })
+);
+
+/*
+|--------------------------------------------------------------------------
+| Pictures and files in chat (see files.js)
+|--------------------------------------------------------------------------
+*/
+const filesLimiter = createLimiter({ windowMs: 10 * 60_000, max: 40 }); // uploads per person (and network)
+app.use(
+  "/api/chat/files",
+  filesRouter({
+    requireSession,
+    requireAccount,
+    limiter: limitByIp(filesLimiter, "You're uploading a lot. Wait a few minutes.", (req) => req.vmSession?.username || ""),
+    mayPost: chatMayPost,
+    mayRead: chatMayRead,
+  })
 );
 
 /*

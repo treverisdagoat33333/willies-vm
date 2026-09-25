@@ -100,6 +100,25 @@ addColumn("messages", "channel", "TEXT NOT NULL DEFAULT 'general'");
 addColumn("messages", "deleted", "INTEGER NOT NULL DEFAULT 0");
 addColumn("messages", "reply_to", "INTEGER");
 addColumn("messages", "edited_at", "INTEGER");
+addColumn("messages", "file_id", "TEXT");
+
+/* pictures and files posted in chat (files.js); the bytes live in DATA_DIR/files/<id> */
+db.exec(`
+  CREATE TABLE IF NOT EXISTS files (
+    id         TEXT PRIMARY KEY,
+    username   TEXT NOT NULL,
+    channel    TEXT NOT NULL,
+    name       TEXT NOT NULL,
+    type       TEXT NOT NULL,
+    size       INTEGER NOT NULL,
+    width      INTEGER,
+    height     INTEGER,
+    created_at INTEGER NOT NULL,
+    message_id INTEGER
+  )
+`);
+export const FILES_DIR = path.join(DATA_DIR, "files");
+fs.mkdirSync(FILES_DIR, { recursive: true });
 // bumped to invalidate every token issued before (password change, sign out everywhere)
 addColumn("users", "token_version", "INTEGER NOT NULL DEFAULT 0");
 
@@ -165,16 +184,29 @@ const q = {
   messageCount: db.prepare("SELECT COUNT(*) AS n FROM messages WHERE deleted = 0"),
 
   addMessage: db.prepare(
-    "INSERT INTO messages (username, account, text, created_at, channel, reply_to) VALUES (?, ?, ?, ?, ?, ?)"
+    "INSERT INTO messages (username, account, text, created_at, channel, reply_to, file_id) VALUES (?, ?, ?, ?, ?, ?, ?)"
   ),
+  addFile: db.prepare(
+    "INSERT INTO files (id, username, channel, name, type, size, width, height, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+  ),
+  getFile: db.prepare("SELECT * FROM files WHERE id = ?"),
+  attachFile: db.prepare("UPDATE files SET message_id = ? WHERE id = ? AND message_id IS NULL"),
+  deleteFile: db.prepare("DELETE FROM files WHERE id = ?"),
+  // uploads never sent within the grace period, and files whose message is gone
+  staleFiles: db.prepare(
+    "SELECT f.id FROM files f LEFT JOIN messages m ON m.id = f.message_id" +
+      " WHERE (f.message_id IS NULL AND f.created_at < ?) OR (f.message_id IS NOT NULL AND (m.id IS NULL OR m.deleted = 1))"
+  ),
+  oldestFiles: db.prepare("SELECT id, size FROM files ORDER BY created_at ASC LIMIT 50"),
+  fileBytes: db.prepare("SELECT COALESCE(SUM(size), 0) AS n FROM files"),
   editMessage: db.prepare("UPDATE messages SET text = ?, edited_at = ? WHERE id = ?"),
   getMessage: db.prepare("SELECT * FROM messages WHERE id = ?"),
   channelMessages: db.prepare(
-    "SELECT id, username, account, text, created_at, channel, reply_to, edited_at, deleted FROM messages" +
+    "SELECT id, username, account, text, created_at, channel, reply_to, edited_at, deleted, file_id FROM messages" +
       " WHERE channel = ? AND deleted = 0 ORDER BY id DESC LIMIT ?"
   ),
   olderMessages: db.prepare(
-    "SELECT id, username, account, text, created_at, channel, reply_to, edited_at, deleted FROM messages" +
+    "SELECT id, username, account, text, created_at, channel, reply_to, edited_at, deleted, file_id FROM messages" +
       " WHERE channel = ? AND deleted = 0 AND id < ? ORDER BY id DESC LIMIT ?"
   ),
   softDelete: db.prepare("UPDATE messages SET deleted = 1 WHERE id = ?"),
@@ -443,10 +475,11 @@ export function dmsFor(username) {
 
 /* ---- messages ---- */
 
-export function saveMessage({ username, account, text, channel, replyTo = null }) {
+export function saveMessage({ username, account, text, channel, replyTo = null, fileId = null }) {
   const createdAt = Date.now();
-  const info = q.addMessage.run(username, account ? 1 : 0, text, createdAt, channel, replyTo);
+  const info = q.addMessage.run(username, account ? 1 : 0, text, createdAt, channel, replyTo, fileId);
   const id = Number(info.lastInsertRowid);
+  if (fileId) q.attachFile.run(id, fileId);
   if (id % 50 === 0) q.trimChannel.run(channel, channel);
   return shape(q.getMessage.get(id));
 }
@@ -456,7 +489,40 @@ function replyPreview(id) {
   if (!id) return null;
   const p = q.getMessage.get(id);
   if (!p || p.deleted) return { id, missing: true };
-  return { id: p.id, username: p.username, text: p.text.slice(0, 140) };
+  const f = p.file_id && !p.text ? q.getFile.get(p.file_id) : null;
+  return { id: p.id, username: p.username, text: f ? `📎 ${f.name}` : p.text.slice(0, 140) };
+}
+
+/* what a message's file looks like to the page ({missing} once it's been cleared away) */
+function fileShape(id) {
+  if (!id) return null;
+  const f = q.getFile.get(id);
+  if (!f) return { id, missing: true };
+  return { id: f.id, name: f.name, size: f.size, image: f.type.startsWith("image/"), w: f.width || null, h: f.height || null };
+}
+
+/* ---- files (files.js) ---- */
+export function addFile({ id, username, channel, name, type, size, width = null, height = null }) {
+  q.addFile.run(id, username, channel, name, type, size, width, height, Date.now());
+}
+export function getFile(id) {
+  return q.getFile.get(id) || null;
+}
+export function messageAlive(id) {
+  const m = id ? q.getMessage.get(id) : null;
+  return !!m && !m.deleted;
+}
+export function staleFiles(unsentBefore) {
+  return q.staleFiles.all(unsentBefore).map((r) => r.id);
+}
+export function oldestFiles() {
+  return q.oldestFiles.all();
+}
+export function fileBytes() {
+  return q.fileBytes.get().n;
+}
+export function deleteFileRecord(id) {
+  q.deleteFile.run(id);
 }
 
 export function reactionsOf(id) {
@@ -478,6 +544,7 @@ const shape = (m) => ({
   editedAt: m.edited_at || null,
   replyTo: replyPreview(m.reply_to),
   reactions: reactionsOf(m.id),
+  file: fileShape(m.file_id),
 });
 
 export function channelMessages(channel, limit = 60) {

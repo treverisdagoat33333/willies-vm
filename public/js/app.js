@@ -1905,6 +1905,7 @@ let dcActive='general',dcActiveIsDM=false,dcMessages=[],dcOldest=null;
 let dcTypers=new Map(),dcTypingSent=null,dcTypingT=null;
 let dcAtBottom=true,dcUnread={},dcLastSeen=store('dcLastSeen',{});
 let dcReply=null,dcEdit=null,dcFresh=new Set(),dcBump=null,dcBanned=null;
+let dcFile=null; // a picture or file waiting to be sent: {file, id, pct, xhr, url, send, channel}
 const DC_EMOJI=['👍','❤️','😂','🔥','😮','😢','🎉','👀','💯','🙏','😎','🤯','👎','✅','❌','🤣','😭','🥳','🤔','💀','🫡','⚡','🍿','🐐'];
 const ROLE_COLOR={owner:'#f5b301',admin:'#ef4444',mod:'#3b82f6',member:'',guest:''};
 const ROLE_RANK={owner:4,admin:3,mod:2,member:1,guest:0};
@@ -1961,6 +1962,7 @@ function dcHandle(d){
       dcMessages=d.messages||[];
       dcSend({type:'directory'});
       dcRenderAll();dcScroll(true);
+      window.voice?.setRooms(d.voice||{});
       break;
     case 'directory': dcProfiles=d.profiles||[];dcRenderMembers();dcRenderMessages();break;
     case 'channels':
@@ -1988,6 +1990,7 @@ function dcHandle(d){
       }
       break;
     case 'msg': dcOnMessage(d);break;
+    case 'voice': window.voice?.setRoom(d.channel,d.members);break; // who's in a channel's voice (js/voice.js)
     case 'deleted':
       if(d.channel===dcActive){
         dcMessages=dcMessages.filter(m=>m.id!==d.id);
@@ -2060,15 +2063,17 @@ function dcOnMessage(m){
     chatPing(mention);
     const open=$('#chat-window').classList.contains('show');
     if(!open)bumpBadge();
-    if(mention&&(!open||m.channel!==dcActive))toast(`${nameOf(m.username)} mentioned you: ${m.text.slice(0,80)}`,'ok');
+    const say=m.text||(m.file?(m.file.image?'📷 sent a picture':'📎 sent a file'):'');
+    if(mention&&(!open||m.channel!==dcActive))toast(`${nameOf(m.username)} mentioned you: ${say.slice(0,80)}`,'ok');
     const dm=m.channel.startsWith('dm:');
-    if(dm||mention)notify(dm?nameOf(m.username):`${nameOf(m.username)} mentioned you`,m.text,{tag:m.channel,onclick:()=>{openChat();if(m.channel!==dcActive)dcOpen(m.channel)}});
+    if(dm||mention)notify(dm?nameOf(m.username):`${nameOf(m.username)} mentioned you`,say,{tag:m.channel,onclick:()=>{openChat();if(m.channel!==dcActive)dcOpen(m.channel)}});
   }
 }
 
 /* channel + DM list ------------------------------------------- */
 function dcOpen(slug){
   if(!slug)return;
+  if(slug!==dcActive)dcUnstage(); // a staged file belongs to the channel it was uploaded into
   dcActive=slug;dcActiveIsDM=slug.startsWith('dm:');
   dcSetMode(null);
   dcTypers.clear();dcRenderTyping();
@@ -2092,6 +2097,7 @@ function dcRenderChannels(){
     if(c.locked){
       const l=document.createElement('span');l.className='lock';l.textContent='🔒';b.appendChild(l);
     }
+    const vb=window.voice?.badge(c.slug);if(vb)b.appendChild(vb);
     const dot=document.createElement('span');dot.className='dot';b.appendChild(dot);
     b.onclick=()=>{click();dcOpen(c.slug)};
     frag.appendChild(b);
@@ -2130,6 +2136,7 @@ function dcRenderHeader(){
   $('#dc-del-channel').hidden=dm||rank(chatMeRole)<3||dcChannels.length<=1;
   const label=dm?'@'+nameOf(partner||''):'#'+(ch?ch.name:dcActive);
   $('#dc-input').placeholder='Message '+label;
+  window.voice?.header();
 }
 
 /* messages ---------------------------------------------------- */
@@ -2262,14 +2269,17 @@ function dcRenderMessages(){
       head.appendChild(when);
       body.appendChild(head);
     }
-    const txt=document.createElement('div');txt.className='dc-text';
-    dcRichText(txt,m.text);
-    if(m.editedAt){
-      const ed=document.createElement('span');ed.className='dc-edited';ed.textContent='(edited)';
-      ed.title='Edited '+new Date(m.editedAt).toLocaleString();
-      txt.appendChild(ed);
+    if(m.text||!m.file){
+      const txt=document.createElement('div');txt.className='dc-text';
+      dcRichText(txt,m.text);
+      if(m.editedAt){
+        const ed=document.createElement('span');ed.className='dc-edited';ed.textContent='(edited)';
+        ed.title='Edited '+new Date(m.editedAt).toLocaleString();
+        txt.appendChild(ed);
+      }
+      body.appendChild(txt);
     }
-    body.appendChild(txt);
+    if(m.file)body.appendChild(dcFileEl(m.file));
 
     if(m.reactions&&m.reactions.length){
       const rx=document.createElement('div');rx.className='dc-reacts';
@@ -2356,7 +2366,7 @@ function dcSetMode(mode,m){
   }else{
     $('#dc-reply-label').textContent=mode==='edit'?'Editing your message':'Replying to';
     $('#dc-reply-name').textContent=mode==='edit'?'':nameOf(m.username);
-    $('#dc-reply-snip').textContent=m.text.slice(0,120);
+    $('#dc-reply-snip').textContent=(m.text||(m.file?'📎 '+(m.file.name||'file'):'')).slice(0,120);
     bar.classList.toggle('editing',mode==='edit');
     bar.classList.remove('show');void bar.offsetWidth;bar.classList.add('show');
     if(mode==='edit'){input.value=m.text;dcGrow()}
@@ -2589,7 +2599,8 @@ function dcSyncCompose(){
   const locked=!dcActiveIsDM&&ch&&ch.locked&&rank(chatMeRole)<2;
   const input=$('#dc-input');
   input.disabled=!chatReady||locked||!!dcBanned;
-  $('#dc-send').disabled=input.disabled||!input.value.trim();
+  $('#dc-send').disabled=input.disabled||(!input.value.trim()&&!dcFile);
+  $('#dc-attach').hidden=!chatMeAccount;$('#dc-attach').disabled=input.disabled||!!dcEdit;
   $('#dc-hint').textContent=dcBanned?(dcBanned.until?`You're banned from chat until ${new Date(dcBanned.until).toLocaleString()}.`:"You're banned from chat.")
     :!chatReady?'Connecting…'
     :locked?'This channel is locked. Only moderators and above can post.'
@@ -2607,19 +2618,99 @@ function dcSignalTyping(on){
 }
 function sendChat(){
   const i=$('#dc-input'),t=i.value.trim();
-  if(!t)return;
+  if(!t&&!(dcFile&&!dcEdit))return;
   if(!chatReady)return toast('Not connected yet.','err');
   if(dcEdit){
+    if(!t)return;
     if(t!==dcEdit.text&&!dcSend({type:'edit',id:dcEdit.id,text:t}))return;
     i.value='';dcSetMode(null);dcGrow();return;
   }
-  if(!dcSend({type:'msg',channel:dcActive,text:t,replyTo:dcReply?dcReply.id:undefined}))return;
+  if(dcFile&&!dcFile.id){dcFile.send=true;dcRenderStage();return} // goes as soon as the upload is done
+  if(!dcSend({type:'msg',channel:dcActive,text:t,replyTo:dcReply?dcReply.id:undefined,file:dcFile?.id}))return;
+  if(dcFile){if(dcFile.url)URL.revokeObjectURL(dcFile.url);dcFile=null;dcRenderStage()}
   dcSignalTyping(false);clearTimeout(dcTypingT);
   i.value='';dcGrow();
   if(dcReply)dcSetMode(null);else dcSyncCompose();
   window.motion?.pop($('#dc-send'));
 }
 $('#dc-send').onclick=sendChat;
+
+/* pictures and files (files.js on the server): picked, pasted or dropped in, uploaded
+   straight away into this channel, and sent with the next message (with or without text) */
+const DC_MAX_FILE=8*1024*1024;
+const dcFmtSize=n=>n<1024?n+' B':n<1048576?Math.round(n/1024)+' KB':(n/1048576).toFixed(1)+' MB';
+function dcStage(file){
+  if(!file)return;
+  if(!chatMeAccount)return toast('Make an account to share pictures and files.','err');
+  if(dcEdit)return toast('Finish editing first.','err');
+  if($('#dc-input').disabled)return;
+  if(file.size>DC_MAX_FILE)return toast('Files can be up to 8 MB.','err');
+  dcUnstage();
+  const f={file,id:null,pct:0,xhr:null,url:/^image\//.test(file.type)?URL.createObjectURL(file):null,send:false,channel:dcActive};
+  dcFile=f;dcRenderStage();dcSyncCompose();
+  const x=new XMLHttpRequest();f.xhr=x;
+  x.open('POST',`/api/chat/files?channel=${encodeURIComponent(dcActive)}&name=${encodeURIComponent(file.name||'pasted-picture.png')}`);
+  x.setRequestHeader('content-type','application/octet-stream');
+  x.upload.onprogress=e=>{if(dcFile===f&&e.lengthComputable){f.pct=Math.round(e.loaded*100/e.total);dcRenderStage()}};
+  x.onload=()=>{
+    if(dcFile!==f)return;
+    let d={};try{d=JSON.parse(x.responseText)}catch(_){}
+    if(x.status!==200||!d.id){toast(d.error||`Upload failed (${x.status}).`,'err');dcUnstage();return}
+    f.id=d.id;f.pct=100;f.xhr=null;dcRenderStage();dcSyncCompose();
+    if(f.send)sendChat();
+  };
+  x.onerror=()=>{if(dcFile===f){toast('Upload failed. Check your connection.','err');dcUnstage()}};
+  x.send(file);
+  $('#dc-input').focus();
+}
+function dcUnstage(){
+  if(!dcFile)return;
+  try{dcFile.xhr?.abort()}catch(_){}
+  if(dcFile.url)URL.revokeObjectURL(dcFile.url);
+  dcFile=null;dcRenderStage();dcSyncCompose();
+}
+function dcRenderStage(){
+  const box=$('#dc-att-stage');box.hidden=!dcFile;
+  if(!dcFile){box.replaceChildren();return}
+  box.innerHTML=`${dcFile.url?'<img alt="">':'<span class="ic">📎</span>'}<span class="nm"></span><small></small><button type="button" title="Remove" aria-label="Remove">✕</button>`;
+  if(dcFile.url)box.querySelector('img').src=dcFile.url;
+  box.querySelector('.nm').textContent=dcFile.file.name||'picture';
+  box.querySelector('small').textContent=dcFile.id?dcFmtSize(dcFile.file.size):dcFile.send?`Sending when uploaded… ${dcFile.pct}%`:`Uploading ${dcFile.pct}%`;
+  box.querySelector('button').onclick=()=>{click();dcUnstage()};
+}
+/* a message's picture (shown, tap for full size) or file (a download) */
+function dcFileEl(f){
+  if(f.missing){const d=document.createElement('div');d.className='dc-att gone';d.textContent='This file is no longer available.';return d}
+  const url='/api/chat/files/'+encodeURIComponent(f.id);
+  if(f.image){
+    const b=document.createElement('button');b.className='dc-img';b.title=f.name;
+    const img=document.createElement('img');img.alt=f.name;img.loading='lazy';img.src=url;
+    if(f.w&&f.h){const sc=Math.min(1,360/f.w,280/f.h);img.width=Math.max(1,Math.round(f.w*sc));img.height=Math.max(1,Math.round(f.h*sc))}
+    img.onload=()=>{if(dcAtBottom)dcScroll()};
+    img.onerror=()=>{b.replaceWith(dcFileEl({missing:true}))};
+    b.appendChild(img);b.onclick=()=>dcViewImage(f,url);
+    return b;
+  }
+  const a=document.createElement('a');a.className='dc-att';a.href=url+'?download=1';a.download=f.name;
+  a.innerHTML='<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M12 18v-6M9 15l3 3 3-3"/></svg><span class="nm"></span><small></small>';
+  a.querySelector('.nm').textContent=f.name;a.querySelector('small').textContent=dcFmtSize(f.size||0);
+  return a;
+}
+function dcViewImage(f,url){
+  const v=$('#dc-viewer');
+  v.querySelector('img').src=url;v.querySelector('img').alt=f.name;
+  v.querySelector('.nm').textContent=f.name;
+  const dl=v.querySelector('a');dl.href=url+'?download=1';dl.download=f.name;
+  v.hidden=false;
+}
+$('#dc-viewer').addEventListener('click',e=>{if(e.target===e.currentTarget||e.target.id==='dc-viewer-x')$('#dc-viewer').hidden=true});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('#dc-viewer').hidden){e.stopPropagation();$('#dc-viewer').hidden=true}},true);
+$('#dc-attach').onclick=()=>{click();$('#dc-file').click()};
+$('#dc-file').onchange=e=>{dcStage(e.target.files[0]);e.target.value=''};
+$('#dc-input').addEventListener('paste',e=>{const f=[...(e.clipboardData?.files||[])][0];if(f){e.preventDefault();dcStage(f)}});
+$('.dc-main').addEventListener('dragover',e=>{if([...(e.dataTransfer?.types||[])].includes('Files')){e.preventDefault();$('.dc-main').classList.add('dropping')}});
+$('.dc-main').addEventListener('dragleave',e=>{if(!e.currentTarget.contains(e.relatedTarget))$('.dc-main').classList.remove('dropping')});
+$('.dc-main').addEventListener('drop',e=>{const f=e.dataTransfer?.files?.[0];$('.dc-main').classList.remove('dropping');if(f){e.preventDefault();dcStage(f)}});
 $('#dc-input').addEventListener('input',()=>{
   dcGrow();dcSyncCompose();dcSuggest();
   if(dcEdit)return; // editing isn't typing a new message

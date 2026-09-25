@@ -20,7 +20,7 @@ import path from "node:path";
 const root = path.resolve(import.meta.dirname, "..");
 const bench = process.argv.includes("--bench");
 const only = process.argv.slice(2).filter((a) => !a.startsWith("--"));
-const SUITES = ["cache", "engines", "menu", "compat", "williejet", "fastnet", "sw-restart", "nextday", "ai", "calls"];
+const SUITES = ["cache", "engines", "menu", "compat", "williejet", "fastnet", "sw-restart", "nextday", "ai", "calls", "voice", "files"];
 const children = [];
 const temps = [];
 

@@ -128,7 +128,7 @@ node willies-agent.mjs --url ws://localhost:3000 --key $REMOTE_KEY --name "My PC
 ## Architecture
 
 ### One HTTP server, three WebSocket endpoints
-Other server modules: `music.js` (the `/api/music` router), `ai.js` (the `/api/ai` router), `security.js` (rate limiters, `clientIp`, `safeEqual`).
+Other server modules: `music.js` (the `/api/music` router), `ai.js` (the `/api/ai` router), `files.js` (the `/api/chat/files` router), `security.js` (rate limiters, `clientIp`, `safeEqual`).
 
 `server.js` owns the Express app and a single `http.Server`. Its `upgrade` handler dispatches by path:
 - `/wisp/`: the Wisp transport every proxy engine uses.
@@ -272,7 +272,22 @@ Voice calls ride the same socket (`chat.js` relays; audio and screen go peer to 
   - Voice is 16 kHz G.711 μ-law in 20 ms frames (`js/call-worklet.js`, an AudioWorklet), played with 80 ms of slack; a shared screen is JPEG frames, 3 a second, up to 1280×720, skipped while the socket is backed up. Messages are `[kind, ...bytes]` (1 voice, 2 frame, 3 frame end). No screen sound on the relay.
   - Only the call's two accounts can join a call's relay (checked at upgrade and on connection), each side has a byte budget (600 KB/s, 1.5 MB burst), and ending the call closes it.
   - Both devices remember a failed direct path for a day (`wvm.callRelayUntil`) and go straight to the relay. `wvm.callRelay=always` does that permanently; `blocked` fakes a network that blocks direct calls (tests).
-  - `window.calls.stats()` reports the mode and what's been sent and received. `test/calls.test.mjs` covers direct calls, the relay, the fallback and an outsider trying to join.
+  - `window.calls.stats()` reports the mode, which videos are showing, and what's been sent and received. `test/calls.test.mjs` covers direct calls, the camera, the relay, the fallback and an outsider trying to join.
+- **Camera (`#cl-cam`):** a second video next to screen share. Directly, each video's stream id is signalled first (`{media:{<streamId>:'cam'|'screen'}}`) so the other side knows which is which. On the relay it's frames of kind 4 (camera, 480×360, about 6 a second) and 5 (camera end). With both on, the screen fills the panel and the camera sits in a corner (`has-screen`, `has-cam`); your own camera shows mirrored in `#cl-self`. The relay's budget is 1 MB/s per side.
+
+**Voice channels (`public/js/voice.js`, `/voice/` in `chat.js`):** "Join voice" (`#dc-voice`) in a text channel's header, accounts only, up to 6 people (`VOICE_MAX`).
+- Always through our server: the client sends 20 ms μ-law frames (the same worklet as the call relay), and the server sends each to the rest of the room as `[speaker index, ...bytes]`, with a byte budget per socket. Text messages: `{t:'mute'}` from the client, `{t:'roster', you, members}` from the server.
+- Each speaker gets their own playback timeline, and their avatar lights up while they talk (`.talking`). The voice bar (`#vc`) floats bottom-left, or sits in the channel list while chat is open.
+- Everyone connected to chat gets `{type:'voice', channel, members}` on each change (and `voice` in `ready`), shown as a count next to the channel.
+- Guests can't join. Kicks, bans, timeouts and deleted channels close the voice socket (`dropFromVoice`, plus a 10 s sweep). Starting or answering a call leaves voice; you can't join voice mid-call.
+- `test/voice.test.mjs` covers three people talking, the badge, a guest refused, mute, leave and calls.
+
+**Pictures and files in chat (`files.js`, the `FILES` part of `app.js`):**
+- The paperclip, pasting, or dropping a file uploads it straight away (`POST /api/chat/files?channel=&name=`, raw body, accounts who may post there, 8 MB, no program files). The next message carries `{file: id}`; a message can be just a file. `chat.js` checks the file is yours, unsent, and for that channel.
+- The kind is read from the first bytes: only PNG, JPEG, GIF and WebP show as pictures (with their size, so the chat doesn't jump). Everything else is served as `application/octet-stream` with `Content-Disposition: attachment`; every file gets `nosniff` and `Content-Security-Policy: default-src 'none'; sandbox`, so nothing uploaded runs on our site.
+- `GET /api/chat/files/<id>` checks each time (`no-cache`): whoever can read the channel (only the two people for a DM), while the message exists; an unsent upload only for its uploader.
+- Bytes live in `DATA_DIR/files/<id>` (table `files`, `messages.file_id`), wiped with the database on Render's free plan. A sweep each minute removes unsent uploads after 15 minutes and files whose message is gone, and the oldest once they pass 400 MB. Limits: 40 uploads per person per 10 minutes, 60 MB an hour.
+- `test/files.test.mjs` covers sharing, downloads, a fake picture, blocked and oversized files, guests, DMs, unsent uploads, deleting, and pasting.
 
 Close codes: `4003` banned, `4004` kicked, `4005` signed out.
 

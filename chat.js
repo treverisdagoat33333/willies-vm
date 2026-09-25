@@ -34,6 +34,7 @@ import {
   sanction,
   liftSanction,
   activeSanction,
+  getFile,
 } from "./db.js";
 import { censor } from "./profanity.js";
 
@@ -248,6 +249,7 @@ wss.on("connection", (ws, _req, session, ip) => {
     messages: channelMessages(channels[0]?.slug || "general", 60),
     channel: channels[0]?.slug || "general",
     typing: [],
+    voice: voiceSnapshot(),
   });
 
   broadcast({ type: "join", name, at: Date.now() });
@@ -293,8 +295,15 @@ wss.on("connection", (ws, _req, session, ip) => {
       /* ---- posting ---- */
       case "msg": {
         const ch = String(d.channel || "");
-        const text = tidy(ws, st, clean(d.text));
-        if (!text) return;
+        // a picture or file comes up first (files.js), then rides a message in the same channel
+        let fileId = null;
+        if (d.file) {
+          const f = getFile(String(d.file));
+          if (!f || f.username !== st.name || f.channel !== ch || f.message_id != null) return fail(ws, "That file isn't available any more. Attach it again.");
+          fileId = f.id;
+        }
+        const text = d.text ? tidy(ws, st, clean(d.text)) : "";
+        if (!text && !fileId) return;
         if (!mayPost(st, ch)) return fail(ws, "You can't post in that channel.");
 
         const mute = muteOf(st);
@@ -312,7 +321,7 @@ wss.on("connection", (ws, _req, session, ip) => {
           broadcast({ type: "typing", name: st.name, channel: st.typing, on: false });
           st.typing = null;
         }
-        const saved = saveMessage({ username: st.name, account: st.account, text, channel: ch, replyTo });
+        const saved = saveMessage({ username: st.name, account: st.account, text, channel: ch, replyTo, fileId });
         broadcast({ type: "msg", ...saved }, ch);
         return;
       }
@@ -431,6 +440,7 @@ wss.on("connection", (ws, _req, session, ip) => {
         if (!can(st, "manageChannels")) return fail(ws, "Only admins can delete channels.");
         const slug = String(d.channel || "");
         if (!deleteChannel(slug)) return fail(ws, "You can't delete the last channel.");
+        dropFromVoice((_, room) => room === slug, 4000, "channel deleted");
         broadcast({ type: "channels", channels: listChannels(), removed: slug });
         return;
       }
@@ -588,6 +598,7 @@ function clean(text) {
 
 /* Close every socket a name holds. */
 export function kickUser(username, code = 4004, reason = "kicked") {
+  dropFromVoice((name) => name === username, code, reason);
   let n = 0;
   for (const [ws, st] of clients) {
     if (st.name !== username) continue;
@@ -604,6 +615,7 @@ function ipOf(username) {
 }
 
 export function muteUser(username, { minutes = 5, reason = "", by }) {
+  dropFromVoice((name) => name === username, 4003, "timed out");
   sanction({
     username,
     kind: "mute",
@@ -617,6 +629,7 @@ export function muteUser(username, { minutes = 5, reason = "", by }) {
 export function banUser(username, { hours = null, reason = "", by }) {
   // a guest's ban also follows their address, or a fresh guest id walks around it
   const ip = ipOf(username);
+  dropFromVoice((name) => name === username, 4003, "banned");
   sanction({ username, kind: "ban", until: hours ? Date.now() + hours * 3_600_000 : null, reason, by, ip });
   for (const [ws, st] of clients) {
     if (st.name === username || (ip && !st.account && st.ip === ip)) {
@@ -674,8 +687,8 @@ heartbeat.unref?.();
  * people can join, and each socket gets a byte budget.
  */
 const relayWss = new WebSocketServer({ noServer: true, maxPayload: 512 * 1024 });
-const RELAY_RATE = 600 * 1024; // bytes a second each side may send, on average
-const RELAY_BURST = 1.5 * 1024 * 1024;
+const RELAY_RATE = 1024 * 1024; // bytes a second each side may send, on average (voice, screen and camera)
+const RELAY_BURST = 2 * 1024 * 1024;
 
 relayWss.on("connection", (ws, _req, name, callId) => {
   const c = calls.get(callId);
@@ -707,6 +720,104 @@ relayWss.on("connection", (ws, _req, name, callId) => {
   });
 });
 
+/*
+ * Voice channels: talk in a text channel with up to VOICE_MAX people, like
+ * Discord. Everyone's voice goes through here (/voice/?channel=<slug>), so it
+ * works on networks that block WebRTC:
+ *   client -> server  binary: 20 ms of 16 kHz μ-law voice
+ *                     text:   {"t":"mute","on":bool}
+ *   server -> client  binary: [speaker index, ...voice]
+ *                     text:   {"t":"roster","you":i,"members":[{i,name,muted}]}
+ * Everyone connected to chat hears who's in which channel's voice ({type:"voice"}).
+ */
+const voiceWss = new WebSocketServer({ noServer: true, maxPayload: 4096 });
+const voiceRooms = new Map(); // slug -> Map(name -> { ws, i, muted, state })
+const VOICE_MAX = 6;
+const VOICE_RATE = 48 * 1024; // voice is 16 KB/s; this leaves room for jitter
+
+function voiceMembers(slug) {
+  return [...(voiceRooms.get(slug)?.entries() || [])].map(([name, m]) => ({ i: m.i, name, muted: m.muted }));
+}
+function voiceSnapshot() {
+  const out = {};
+  for (const slug of voiceRooms.keys()) out[slug] = voiceMembers(slug).map(({ name, muted }) => ({ name, muted }));
+  return out;
+}
+function voiceChanged(slug) {
+  const members = voiceMembers(slug);
+  for (const m of voiceRooms.get(slug)?.values() || []) {
+    if (m.ws.readyState === 1) m.ws.send(JSON.stringify({ t: "roster", you: m.i, members }));
+  }
+  if (!members.length) voiceRooms.delete(slug);
+  broadcast({ type: "voice", channel: slug, members: members.map(({ name, muted }) => ({ name, muted })) });
+}
+/* someone kicked, banned or timed out (or a channel gone): out of voice too */
+function dropFromVoice(pred, code = 4003, reason = "removed") {
+  for (const [slug, room] of voiceRooms) {
+    for (const [name, m] of room) if (pred(name, slug, m)) try { m.ws.close(code, reason); } catch (_) {}
+  }
+}
+const voiceSweep = setInterval(() => {
+  dropFromVoice((name, slug, m) => !channelExists(slug) || !!banOf(name, true, null) || !!muteOf(m.state));
+}, 10_000);
+voiceSweep.unref?.();
+
+voiceWss.on("connection", (ws, _req, name, slug, ip) => {
+  let room = voiceRooms.get(slug);
+  if (!room) voiceRooms.set(slug, (room = new Map()));
+  const old = room.get(name);
+  if (old) try { old.ws.close(4000, "joined from somewhere else"); } catch (_) {}
+  const used = new Set([...room.values()].map((m) => m.i));
+  let i = 0;
+  while (used.has(i)) i++;
+  const me = { ws, i, muted: false, state: { name, account: true, ip } };
+  room.set(name, me);
+  voiceChanged(slug);
+  let tokens = VOICE_RATE, at = Date.now();
+  ws.on("message", (data, isBinary) => {
+    if (room.get(name) !== me) return;
+    if (!isBinary) {
+      try {
+        const d = JSON.parse(String(data));
+        if (d?.t === "mute" && typeof d.on === "boolean" && d.on !== me.muted) { me.muted = d.on; voiceChanged(slug); }
+      } catch (_) {}
+      return;
+    }
+    const now = Date.now();
+    tokens = Math.min(VOICE_RATE, tokens + ((now - at) / 1000) * VOICE_RATE);
+    at = now;
+    if (me.muted || data.length > tokens || data.length > 2048) return;
+    tokens -= data.length;
+    const out = Buffer.allocUnsafe(data.length + 1);
+    out[0] = me.i;
+    data.copy(out, 1);
+    for (const [other, m] of room) if (other !== name && m.ws.readyState === 1 && m.ws.bufferedAmount < 256 * 1024) m.ws.send(out, { binary: true });
+  });
+  ws.on("close", () => {
+    if (room.get(name) === me) {
+      room.delete(name);
+      voiceChanged(slug);
+    }
+  });
+});
+
+export function handleVoiceUpgrade(req, socket, head, session, ip) {
+  const slug = new URL(req.url ?? "/", "http://localhost").searchParams.get("channel") || "";
+  const name = session.type === "account" ? session.username : null;
+  const state = { name, account: true, ip };
+  const why = !name ? "Make an account to use voice."
+    : slug.startsWith("dm:") || !channelExists(slug) ? "No such channel."
+    : banOf(name, true, null) ? "You're banned from chat."
+    : muteOf(state) ? "You're timed out right now."
+    : (voiceRooms.get(slug)?.size || 0) >= VOICE_MAX && !voiceRooms.get(slug)?.has(name) ? `Voice is full (${VOICE_MAX} people).`
+    : null;
+  if (why) {
+    socket.write(`HTTP/1.1 403 ${why.replace(/[^\x20-\x7e]/g, "")}\r\nConnection: close\r\n\r\n`);
+    return socket.destroy();
+  }
+  voiceWss.handleUpgrade(req, socket, head, (ws) => voiceWss.emit("connection", ws, req, name, slug, ip));
+}
+
 export function handleCallRelayUpgrade(req, socket, head, session) {
   const callId = new URL(req.url ?? "/", "http://localhost").searchParams.get("id") || "";
   const c = calls.get(callId);
@@ -716,6 +827,16 @@ export function handleCallRelayUpgrade(req, socket, head, session) {
     return socket.destroy();
   }
   relayWss.handleUpgrade(req, socket, head, (ws) => relayWss.emit("connection", ws, req, name, callId));
+}
+
+/* For files.js: may this account post a file in the channel, and may this session see one? */
+export function chatMayPost(username, channel) {
+  const st = { name: username, account: true, ip: null };
+  return mayPost(st, channel) && !muteOf(st) && !banOf(username, true, null);
+}
+export function chatMayRead(session, channel) {
+  const account = session.type === "account";
+  return mayRead({ name: account ? session.username : `guest-${String(session.guestId || "").slice(0, 6)}`, account }, channel);
 }
 
 export function handleChatUpgrade(req, socket, head, session, ip) {
