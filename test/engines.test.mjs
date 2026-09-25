@@ -19,11 +19,12 @@ await page.click("#guest-button");
 await page.waitForSelector("#auth-wrap.hidden", { state: "attached" });
 
 // default engine
-ok(await page.evaluate(() => S.proxy === "sj2" && proxyId() === "sj2"), "default engine is Scramjet v2");
+ok(await page.evaluate(() => S.proxy === "wj" && proxyId() === "wj"), "default engine is WillieJet");
+ok(await page.evaluate(() => S.wjFast === true && S.wjAds === true && S.saveLogins === true), "…with fast mode, the ad blocker and saved logins on");
 await page.evaluate(() => openSettings());
 await page.click('#snav [data-page="browser"]');
-ok(await page.$eval('select[data-setting="proxy"]', (s) => s.value) === "sj2", "Settings shows Scramjet v2 selected");
-ok(JSON.stringify(await page.$$eval('select[data-setting="proxy"] option', (o) => o.map((x) => x.value))) === '["sj2","wj","sj1","uv"]', "Settings offers all four engines");
+ok(await page.$eval('select[data-setting="proxy"]', (s) => s.value) === "wj", "Settings shows WillieJet selected");
+ok(JSON.stringify(await page.$$eval('select[data-setting="proxy"] option', (o) => o.map((x) => x.value))) === '["wj","sj2","sj1","uv"]', "Settings offers all four engines");
 await page.evaluate(() => closePanel("settings-panel"));
 
 const PREFIX = { sj2: "/~/sj/", wj: "/~/wj/", sj1: "/~/sj1/", uv: "/~/uv/" };
@@ -83,11 +84,11 @@ async function pickEngine(engine) {
   await page.evaluate(() => closePanel("settings-panel"));
 }
 
-// Scramjet v2 (default)
+// WillieJet (default)
 await page.evaluate((u) => openBrowser(u), SITE + "/");
-await checkSite("sj2", "Scramjet v2");
+await checkSite("wj", "WillieJet");
 
-for (const [engine, name] of [["wj", "WillieJet"], ["sj1", "Scramjet v1"], ["uv", "Ultraviolet"]]) {
+for (const [engine, name] of [["sj2", "Scramjet v2"], ["sj1", "Scramjet v1"], ["uv", "Ultraviolet"]]) {
   // switching in Settings reloads the open tab on the new engine
   await pickEngine(engine);
   ok(await page.evaluate(() => S.proxy) === engine, `${name}: setting saved`);
@@ -109,6 +110,17 @@ await checkSite("uv", "Ultraviolet (after reload)");
 // back to v2
 await pickEngine("sj2");
 await checkSite("sj2", "Scramjet v2 (switched back)");
+
+// someone still on the old defaults (Scramjet v2, fast mode off) moves over once; a pick made after that sticks
+phase = "defaults move";
+await page.evaluate(() => { localStorage.setItem("wvm.settings.v1", JSON.stringify({ ...S, proxy: "sj2", wjFast: false })); localStorage.removeItem("wvm.defaults.v2"); });
+await page.reload();
+await page.waitForFunction(() => typeof S !== "undefined");
+ok(await page.evaluate(() => S.proxy === "wj" && S.wjFast === true), "old defaults move to WillieJet with fast mode, once");
+await page.evaluate(() => { S.proxy = "sj2"; S.wjFast = false; save(); });
+await page.reload();
+await page.waitForFunction(() => typeof S !== "undefined");
+ok(await page.evaluate(() => S.proxy === "sj2" && S.wjFast === false), "…and picking Scramjet v2 again afterwards sticks");
 
 const hits = await (await fetch(SITE + "/hits")).json();
 ok(hits.filter((h) => h === "/").length >= 10, "the site was actually reached through wisp", hits.length);

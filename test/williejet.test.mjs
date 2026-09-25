@@ -72,10 +72,13 @@ ok(left === 0, "Clear WillieJet cache empties both caches", left);
 ok(/0 files from cache/.test(await page.textContent("#wj-stats")), "…and resets the stats", await page.textContent("#wj-stats"));
 
 // ---- fast mode
-ok(await page.$eval('.switch[data-setting="wjFast"]', (b) => b.getAttribute("aria-checked") !== "true" && !b.classList.contains("on")) && await page.evaluate(() => S.wjFast === false), "fast mode is off by default");
+ok(await page.$eval('.switch[data-setting="wjFast"]', (b) => b.getAttribute("aria-checked") === "true" || b.classList.contains("on")) && await page.evaluate(() => S.wjFast === true), "fast mode is on by default");
 await page.click('.switch[data-setting="wjFast"]');
 await page.waitForTimeout(300);
-ok(await page.evaluate(() => S.wjFast === true), "fast mode switches on");
+ok(await page.evaluate(() => S.wjFast === false), "fast mode switches off");
+await page.click('.switch[data-setting="wjFast"]');
+await page.waitForTimeout(300);
+ok(await page.evaluate(() => S.wjFast === true), "…and back on");
 await page.evaluate(() => closePanel("settings-panel"));
 const netReqs = [];
 page.on("request", (r) => { if (r.url().endsWith("/wj-net")) netReqs.push(r.url()); });
@@ -171,6 +174,110 @@ ok(/location navigation to "\/undefined"/.test(report), "the debug info names th
 ok(/goNext \(http:\/\/127\.0\.0\.1:\d+\/t\/undef\.js:\d+:\d+\)/.test(report), "…points at the site's function, script and line that did it", report.slice(0, 900));
 ok(/code there: .*cfg\.next/.test(report), "…and shows that line of the site's code", report.slice(0, 1200));
 await page.click("#dc-modal-ok").catch(() => {});
+
+// ---- ad blocker (on by default)
+const R = async (path, want = (r) => true, ms = 20000) => {
+  await page.evaluate((u) => navigate(u, getTab()), SITE + path);
+  const end = Date.now() + ms;
+  while (Date.now() < end) {
+    try {
+      const f = await frame();
+      if ((await f.url()).includes(encodeURIComponent(path))) { // this page, not the one before it
+        const r = JSON.parse(await f.$eval("#r", (e) => e.textContent));
+        if (want(r)) return r;
+      }
+    } catch (_) {}
+    await page.waitForTimeout(150);
+  }
+  return null;
+};
+const pre0 = (await page.evaluate(() => proxies.wj.then((e) => e.stats()))).preload.started;
+let r = await R("/t/ads?1", (x) => x.hidden !== undefined);
+ok(r && r.script === "loaded" && r.img === 1 && r.beacon === 204 && !r.timeout, "ad blocker: an ad script, a pixel and a tracker beacon get harmless empty answers", JSON.stringify(r));
+ok(r?.hidden === true && r?.ga === "undefined", "…the ad script never ran, and its empty box is hidden", JSON.stringify(r));
+const adFrame = page.frames().find((f) => f.url().includes("doubleclick.net"));
+ok(!!adFrame && await adFrame.evaluate(() => !document.querySelector("h2")), "…an ad frame inside the page stays blank");
+let adStats = (await page.evaluate(() => proxies.wj.then((e) => e.stats()))).ads;
+ok(adStats.byHost["127.0.0.1"] >= 4, "…and all four were counted for the site", JSON.stringify(adStats));
+ok((await page.evaluate(() => proxies.wj.then((e) => e.stats()))).preload.started === pre0, "…and preloading didn't fetch the ad script either");
+await page.click("#b-engine");
+await page.waitForTimeout(500);
+ok(await page.$$eval("#b-engine-pop button.item", (b) => b.some((x) => /Block ads on this site.*blocked.*✓/.test(x.textContent))), "the badge menu shows the ad blocker on for this site, with its count", await page.$$eval("#b-engine-pop button.item", (b) => b.map((x) => x.textContent).join(" | ")));
+await page.click('#b-engine-pop button.item:has-text("Block ads on this site")');
+await page.waitForTimeout(1000);
+const counted = adStats.byHost["127.0.0.1"];
+r = await R("/t/ads?2", (x) => x.hidden !== undefined, 25000);
+ok(r?.hidden === false, "switched off for the site, ads load again", JSON.stringify(r));
+adStats = (await page.evaluate(() => proxies.wj.then((e) => e.stats()))).ads;
+ok(adStats.byHost["127.0.0.1"] === counted && JSON.parse(await page.evaluate(() => localStorage.getItem("wvm.siteAdsOff"))).includes("127.0.0.1"), "…nothing more is blocked there, and that's remembered", JSON.stringify(adStats));
+await page.click("#b-engine");
+await page.click('#b-engine-pop button.item:has-text("Block ads on this site")');
+await page.waitForTimeout(1000);
+// following a link to a tracker's own site: a notice, and "Open anyway"
+await R("/t/adlink");
+await (await frame()).click("#l");
+let notice = null;
+for (let i = 0; i < 40 && !notice; i++) { await page.waitForTimeout(200); notice = await (await frame())?.$eval("h2", (e) => e.textContent).catch(() => null); }
+ok(notice === "Ad or tracker site blocked", "a link to an ad or tracker site shows a notice instead", notice);
+await (await frame()).click("button");
+let gone = false;
+for (let i = 0; i < 50 && !gone; i++) { await page.waitForTimeout(200); gone = !(await (await frame())?.$("h2:has-text('Ad or tracker site blocked')").catch(() => null)); }
+ok(gone, "…and Open anyway opens it");
+
+// ---- preloading: next visit, a page's scripts all start at once
+// (fast mode is off here: the test site is plain HTTP/1.1, where fast mode shares 6 connections)
+const timeOf = async (path) => (await R(path, (x) => x.t > 0))?.t ?? null;
+await timeOf("/t/chunks?a");
+await timeOf("/t/modules?a");
+await page.waitForTimeout(16000); // what each page used is remembered 15 s after it loads
+const p0 = (await page.evaluate(() => proxies.wj.then((e) => e.stats()))).preload;
+const chunksOn = await timeOf("/t/chunks?b"), modulesOn = await timeOf("/t/modules?b");
+const p1 = (await page.evaluate(() => proxies.wj.then((e) => e.stats()))).preload;
+ok(p1.used - p0.used >= 9 && p1.wasted === p0.wasted, "the second visit's files were preloaded, and all used", JSON.stringify({ p0, p1 }));
+ok(await page.evaluate(() => getTab().engine) === "wj", "…still on WillieJet");
+await page.evaluate(() => proxies.wj.then((e) => e.setPreload(false)));
+const chunksOff = await timeOf("/t/chunks?c"), modulesOff = await timeOf("/t/modules?c");
+await page.evaluate(() => proxies.wj.then((e) => e.setPreload(true)));
+console.log(`      preloading: chunks ${chunksOn} ms vs ${chunksOff} ms without, modules ${modulesOn} ms vs ${modulesOff} ms`);
+ok(chunksOn && chunksOff && chunksOn < chunksOff * 0.7, "a script-loads-script page (like a webpack app) loads much faster", `${chunksOn} vs ${chunksOff}`);
+ok(modulesOn && modulesOff && modulesOn < modulesOff * 0.7, "…and so does a chain of modules", `${modulesOn} vs ${modulesOff}`);
+
+// ---- saved logins
+r = await R("/t/login");
+let lf = await frame();
+await lf.fill("#u", "william@example.com");
+await lf.fill("#p", "hunter2-secret");
+await lf.click("#go");
+await page.waitForSelector("#login-ask.show", { timeout: 10000 }).catch(() => {});
+const ask = await page.textContent("#login-ask").catch(() => "");
+ok(/Save your login for 127\.0\.0\.1/.test(ask) && /william@example\.com/.test(ask), "signing in offers to save the login", ask);
+await page.click('#login-ask [data-a="save"]');
+await page.waitForTimeout(600);
+const vault = await page.evaluate(async () => { const v = await kvGet(await loginsDb(), "vault"); return v ? new TextDecoder().decode(new Uint8Array(v.data)) : null; });
+ok(!!vault && !vault.includes("hunter2-secret") && !vault.includes("william@"), "…and saves it encrypted");
+r = await R("/t/login?again");
+await page.waitForSelector("#b-key:not([hidden])", { timeout: 8000 }).catch(() => {});
+ok(await page.isVisible("#b-key"), "back on the sign-in page, the key button shows");
+await page.click("#b-key");
+await page.click('#b-key-pop button.item:has-text("william@example.com")');
+lf = await frame();
+ok(await lf.inputValue("#u") === "william@example.com" && await lf.inputValue("#p") === "hunter2-secret", "…and fills in the saved login");
+r = await R("/t/login?fail");
+lf = await frame();
+await lf.fill("#u", "someone@example.com");
+await lf.fill("#p", "wrong-password");
+await lf.click("#go");
+await page.waitForTimeout(3000);
+ok(!(await page.isVisible("#login-ask")), "a sign-in that didn't go through (the form stays up) isn't offered");
+await page.evaluate(() => openSettings());
+await page.click('#snav [data-page="browser"]');
+await page.waitForTimeout(500);
+ok(/1 saved/.test(await page.textContent("#logins-count")) && /william@example\.com/.test(await page.textContent("#logins-list")), "Settings lists the saved login", await page.textContent("#logins-count"));
+page.once("dialog", (d) => d.accept());
+await page.click("#logins-clear");
+await page.waitForTimeout(500);
+ok(/None yet/.test(await page.textContent("#logins-count")), "…and Delete all removes it", await page.textContent("#logins-count"));
+await page.evaluate(() => closePanel("settings-panel"));
 
 // ---- panic wipe clears the WillieJet cache
 await page.evaluate(async () => { await (await caches.open("wj-http-v1")).put("https://x.test/a", new Response("a")); wjWipe(); await new Promise((r) => setTimeout(r, 300)); });

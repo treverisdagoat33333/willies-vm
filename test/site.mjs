@@ -34,6 +34,7 @@ try{const ws=new WebSocket("ws://"+location.host+"/ws");ws.onopen=()=>ws.send("p
   const page = (title, body) => { res.writeHead(200, { "content-type": "text/html" }); res.end(`<!doctype html><html><head><meta charset="utf-8"><title>${title}</title></head><body><pre id="r">waiting</pre><script>const R={};const done=()=>{document.getElementById("r").textContent=JSON.stringify(R)};</script>${body}</body></html>`); };
   const js = (code, extra = {}) => { res.writeHead(200, { "content-type": "application/javascript", ...extra }); res.end(code); };
   if (u.pathname.startsWith("/bench/")) return bench(u, res);
+  if (u.pathname.startsWith("/t/c/")) return chunk(u, res);
   switch (u.pathname) {
     case "/t/iframe": return page("iframe", `<iframe id="f" src="/t/child"></iframe><iframe id="b"></iframe><script>
       const b=document.getElementById("b");b.contentDocument.open();b.contentDocument.write("<p id=w>written</p>");b.contentDocument.close();
@@ -44,6 +45,20 @@ try{const ws=new WebSocket("ws://"+location.host+"/ws");ws.onopen=()=>ws.send("p
       history.replaceState({key:1},"");R.omitted=here();
       history.pushState({key:2},"",null);R.nulled=here();
       history.replaceState({key:3},"","?q=1#h");R.given=here();R.state=history.state.key;done()</script>`);
+    case "/t/chunks": return page("chunks", `<script src="/t/c/main.js"></script>`);
+    case "/t/modules": return page("modules", `<script type="module" src="/t/c/m0.mjs"></script>`);
+    case "/t/ads": return page("ads", `<ins class="adsbygoogle" id="slot" style="display:block;height:90px"></ins>
+      <script>let n=0;const fin=()=>{if(++n===4){R.hidden=getComputedStyle(document.getElementById("slot")).display==="none";R.ga=typeof window.adsbygoogle;done()}};setTimeout(()=>{if(n<4){R.timeout=true;n=3;fin()}},6000)</script>
+      <script src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js" onload="R.script='loaded';fin()" onerror="R.script='error';fin()"></script>
+      <img src="https://ad.doubleclick.net/ddm/px.gif" onload="R.img=this.naturalWidth;fin()" onerror="R.img='error';fin()">
+      <iframe id="adf" src="https://googleads.g.doubleclick.net/pagead/ads?client=x" width="300" height="250" onload="fin()"></iframe>
+      <script>fetch("https://www.google-analytics.com/g/collect?v=2",{method:"POST",body:"x"}).then(r=>{R.beacon=r.status}).catch(()=>{R.beacon="error"}).finally(fin)</script>`);
+    case "/t/adlink": return page("adlink", `<a id="l" href="https://www.googletagmanager.com/">a tracker's own site</a><script>R.ready=true;done()</script>`);
+    case "/t/login": { // a sign-in form; ?fail keeps the form up with "Wrong password"
+      const ok = !u.searchParams.has("fail");
+      return page("login", `<form id="f"><input id="u" name="username" autocomplete="username"><input id="p" type="password" name="password"><button id="go">Sign in</button></form><p id="msg"></p>
+      <script>document.getElementById("f").onsubmit=(e)=>{e.preventDefault();${ok ? `const n=document.getElementById("u").value;document.getElementById("f").remove();document.getElementById("msg").textContent="Welcome "+n` : `document.getElementById("msg").textContent="Wrong password"`}};R.ready=true;done()</script>`);
+    }
     case "/t/undef": return page("undef", `<p>about to go somewhere undefined</p><script src="/t/undef.js"></script>`);
     case "/undefined": return page("undefined", `<h1>nothing here</h1>`);
     case "/t/undef.js": return js(`const cfg = {};\nsetTimeout(function goNext() { location.href = "/" + cfg.next; }, 300);`);
@@ -78,6 +93,24 @@ try{const ws=new WebSocket("ws://"+location.host+"/ws");ws.onopen=()=>ws.send("p
     case "/t/big.js": { let code = "var bigValue=0;"; for (let i = 0; i < 20000; i++) code += `function f${i}(a){return a+${i}}bigValue+=f${i}(1)-${i};\n`; return js(code); }
   }
   res.writeHead(404); res.end("nope");
+}
+/* A site whose scripts load more scripts, like a webpack app: main.js adds a1-a2
+   and each of those adds its b, so the browser only finds them one level at a
+   time (five files, so all fit in the 6 connections allowed to one HTTP/1.1 site). The modules m0-m3 import each other. Nothing is cacheable and every
+   file takes CHUNK_DELAY ms, so the waterfall shows (preloading tests). */
+const CHUNK_DELAY = +process.env.CHUNK_DELAY || 150;
+function chunk(u, res) {
+  const name = u.pathname.slice("/t/c/".length);
+  const code = {
+    "main.js": `window.C=[];for(let i=1;i<=2;i++){const s=document.createElement("script");s.src="/t/c/a"+i+".js";document.head.appendChild(s)}`,
+    "m0.mjs": `import {a} from "./m1.mjs";import {b} from "./m2.mjs";R.mods=a+b;R.t=Math.round(performance.now());done();`,
+    "m1.mjs": `import {c} from "./m3.mjs";export const a="a"+c;`,
+    "m2.mjs": `export const b="b";`,
+    "m3.mjs": `export const c="c";`,
+  }[name] ?? (/^a[12]\.js$/.test(name) ? `C.push("${name}");{const s=document.createElement("script");s.src="/t/c/b${name.slice(1)}";document.head.appendChild(s)}`
+    : /^b[12]\.js$/.test(name) ? `C.push("${name}");if(C.length===4){R.n=C.length;R.t=Math.round(performance.now());done()}` : null);
+  if (code == null) { res.writeHead(404); return res.end(); }
+  setTimeout(() => { res.writeHead(200, { "content-type": "application/javascript", "cache-control": "no-store" }); res.end(code); }, CHUNK_DELAY);
 }
 /* A heavy page for timing: 30 scripts, 10 stylesheets, 20 images, each
    delayed like a real server far away. Assets are cacheable for an hour. */

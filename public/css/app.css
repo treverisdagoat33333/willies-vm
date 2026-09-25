@@ -539,6 +539,16 @@ html[data-tbhide="on"] #browser-wrap{bottom:0}
 .b-engine:hover{background:rgba(var(--accent-rgb),.18)}
 #b-engine-pop button.item .ck{margin-left:auto;color:var(--accent);font-weight:800}
 #b-engine-pop button.item small{color:var(--text-3);font-size:.85em}
+.b-key{display:grid;place-items:center;padding:0 7px}
+.b-key[hidden]{display:none}
+.b-key svg{width:14px;height:14px}
+#login-ask{width:320px;max-width:calc(100vw - 16px);padding:10px 12px 12px}
+#login-ask h4{padding:2px 0 4px;font-size:.86rem;letter-spacing:0;text-transform:none;color:var(--text)}
+#login-ask .la-user{font-size:.82em;color:var(--text-2);margin-bottom:10px;word-break:break-all}
+#login-ask .la-btns{display:flex;gap:6px;flex-wrap:wrap}
+#logins-list .lg{display:flex;align-items:center;gap:10px;padding:7px 16px;border-top:1px solid var(--border);font-size:.86em}
+#logins-list .lg-host{font-weight:700;min-width:0;overflow:hidden;text-overflow:ellipsis}
+#logins-list .lg-user{flex:1;min-width:0;color:var(--text-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .omni:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px rgba(var(--accent-rgb),.2)}
 .omni img{width:16px;height:16px;border-radius:3px}
 .omni input{flex:1;min-width:0;background:none;border:0;color:var(--text);font-size:.92em;user-select:text}

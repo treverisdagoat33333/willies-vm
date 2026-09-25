@@ -20,6 +20,7 @@ import * as SJ from "/scramjet/scramjet.mjs";
 import LibcurlClient from "/libcurl/index.mjs";
 import { CachingTransport, RewriteCache } from "/wj/cache.mjs";
 import { FastTransport } from "/wj/fast.mjs";
+import { isAdHost, blockedResponse } from "/wj/adblock.mjs";
 
 const CORE = "/scramjet/scramjet.js";
 const INJECT = "/wj/inject.js";
@@ -37,6 +38,7 @@ let context = null;
 let fast = null; // FastTransport: /wj-net when fast mode is on, libcurl otherwise
 let httpCache = null; // CachingTransport, unless caching is off (incognito)
 let rewrites = null; // RewriteCache
+const ads = { on: false, skip: new Set(), blocked: 0, byHost: {} }; // the ad blocker; skip: sites it's off for
 let ready = null;
 const REWRITABLE = new Set(["script", "style", "worker", "sharedworker"]);
 const rewriteKey = (url) => url.replace(`/~/wj/${page}/`, "/~/wj/_/"); // the same in every desktop tab and session
@@ -128,14 +130,21 @@ const client=new S.ScramjetClient(globalThis,{context:{config:${JSON.stringify(s
 
 /* ---------- start up ---------- */
 
-async function init({ page: p, wisp, cache, fast: fastOn, fastSkip }) {
+async function init({ page: p, wisp, cache, fast: fastOn, fastSkip, ads: adsOn, adsSkip, preload: preloadAtStart = true }) {
   page = p;
+  preloadOn = !!preloadAtStart;
+  ads.on = !!adsOn;
+  ads.skip = new Set(adsSkip || []);
   prefix = `/~/wj/${page}/`;
   SJ.setWasm(await (await fetch(WASM)).arrayBuffer());
 
   jar = new SJ.CookieJar();
   const saved = await kvGet("cookies").catch(() => null);
   if (typeof saved === "string") jar.load(saved);
+  if (cache) {
+    const learned = await kvGet("preload").catch(() => null);
+    if (Array.isArray(learned)) manifests = new Map(learned);
+  }
 
   fast = new FastTransport(new LibcurlClient({ wisp }), !!fastOn, fastSkip || [], (origin) => self.postMessage({ t: "fastBlocked", origin }));
   httpCache = cache ? new CachingTransport(fast) : null;
@@ -193,8 +202,292 @@ tell({wj:"failed",error:${JSON.stringify(msg)},network:${network}});</script>`;
   };
 }
 
+/* ---------- the ad blocker ---------- */
+
+/* the site whose page made this request */
+function pageHostOf(req) {
+  for (const u of [req.clientUrl, req.referrer]) {
+    if (!u || !String(u).includes(prefix)) continue;
+    try { return new URL(SJ.unrewriteUrl(u, context)).hostname; } catch (_) {}
+  }
+  return "";
+}
+
+/* Pages you open yourself are never blocked: a document (a popup you opened), or a
+   frame with no page behind it (your own tab, when you type an address). Returns
+   the real address and the page's site when a request is to be blocked. */
+function adTarget(req) {
+  if (!ads.on || req.destination === "document") return null;
+  let target;
+  try { target = new URL(SJ.unrewriteUrl(req.url, context)); } catch (_) { return null; }
+  if (!isAdHost(target.hostname)) return null;
+  const host = pageHostOf(req);
+  if (!host && (req.destination === "iframe" || req.destination === "frame")) return null;
+  if (host && (ads.skip.has(host) || isAdHost(host))) return null; // switched off there, or you're on that site
+  return { target, host };
+}
+function adBlock(req) {
+  const hit = adTarget(req);
+  if (!hit) return null;
+  const { target, host } = hit;
+  ads.blocked++;
+  if (host) ads.byHost[host] = (ads.byHost[host] || 0) + 1;
+  return blockedResponse(req.destination, target.href);
+}
+
+/* ---------- preloading: a page's scripts and styles, before the browser asks ---------- */
+
+/* A page's own scripts load more scripts, which load more (the HTML, then the main
+   bundle, then the chunks it adds, then theirs), and each level waits for the
+   last. WillieJet cuts that short two ways:
+   - It remembers which scripts and styles each page used (the first 15 s after
+     it loads) and, next visit, starts them all at once, as soon as the page's
+     own response starts coming in.
+   - As a page's HTML and module scripts come through, it starts the files they
+     name right away.
+   The browser's own requests then take what's already fetched and rewritten. */
+const PRELOAD_KEEP = 10000; // an unclaimed preload is dropped after this
+const LEARN_FOR = 15000; // how long after a page loads its files are remembered
+const LEARN_MAX = 80; // files remembered per page
+let preloadOn = true;
+const preloads = new Map(); // `${url}|${destination}|${mode}` -> { promise }
+const preloadStats = { started: 0, used: 0, wasted: 0 };
+const learning = new Map(); // a loading page, by client id and by address -> { keys, list, seen }
+const noHash = (u) => String(u || "").split("#")[0];
+let manifests = new Map(); // page address -> [{ u, d, m }], most recently used last
+const MANIFEST_MAX = 200;
+const headerTemplates = {}; // destination -> the headers of the last real request of that kind
+const asked = new Set(); // requests the browser has made and are still going: no preloading those
+const isDoc = (req) => req.method === "GET" && (req.destination === "document" || req.destination === "iframe" || req.destination === "frame");
+const toKey = (url) => { const u = new URL(url); return (u.pathname + u.search).replace(prefix, "/~/wj/_/"); };
+const fromKey = (key) => new URL(key.replace("/~/wj/_/", prefix), self.location.origin).href;
+
+/* A page's remembered list is kept under its address (no query or fragment) and
+   under its site plus the first part of its path, for pages of the same app not
+   visited yet (discord.com/channels/… all share one set of files). */
+function pageKeys(url) {
+  try {
+    const u = new URL(SJ.unrewriteUrl(url, context));
+    return [u.origin + u.pathname, u.origin + "/" + (u.pathname.split("/")[1] || "") + "/*"];
+  } catch (_) { return []; }
+}
+const manifestFor = (url) => { const [exact, app] = pageKeys(url); return manifests.get(exact) || manifests.get(app) || null; };
+
+let saveManifestsT = null;
+function remember(keys, list) {
+  for (const k of keys) { manifests.delete(k); manifests.set(k, list); }
+  while (manifests.size > MANIFEST_MAX) manifests.delete(manifests.keys().next().value);
+  if (!httpCache) return; // incognito: nothing kept on disk
+  clearTimeout(saveManifestsT);
+  saveManifestsT = setTimeout(async () => {
+    try { (await idb()).transaction("kv", "readwrite").objectStore("kv").put([...manifests], "preload"); } catch (_) {}
+  }, 2000);
+}
+
+/* the scripts and styles a page asks for while it loads */
+function learn(req) {
+  if (req.preload || req.method !== "GET" || (req.destination !== "script" && req.destination !== "style")) return;
+  // Chrome doesn't always give a page's requests the client id its navigation had,
+  // so a page is found by its address too
+  const l = learning.get("id:" + req.clientId) || learning.get("url:" + noHash(req.clientUrl));
+  if (!l || l.list.length >= LEARN_MAX) return;
+  const u = toKey(req.url);
+  if (l.seen.has(u)) return;
+  l.seen.add(u);
+  l.list.push({ u, d: req.destination, m: req.mode });
+}
+function startLearning(req) {
+  const keys = pageKeys(req.url);
+  if (!keys.length) return;
+  const l = { keys, list: [], seen: new Set() };
+  const ids = [req.clientId && "id:" + req.clientId, "url:" + noHash(req.url)].filter(Boolean);
+  for (const id of ids) learning.set(id, l);
+  setTimeout(() => {
+    for (const id of ids) if (learning.get(id) === l) learning.delete(id);
+    if (l.list.length) remember(l.keys, l.list);
+  }, LEARN_FOR);
+}
+
+/* How many preloads run at once. Over HTTP/1.1 (fast mode without HTTP/2) the
+   browser allows only 6 connections to our server, and preloads mustn't take
+   them all from the page; HTTP/2 and libcurl's one wisp connection have no
+   such limit. */
+let h2 = null;
+function preloadLimit() {
+  if (!fast?.on) return 16;
+  if (h2 === null) {
+    const e = performance.getEntriesByType("resource").find((r) => r.name.endsWith("/wj-net") && r.nextHopProtocol);
+    if (e) h2 = /^h[23]/.test(e.nextHopProtocol);
+  }
+  return (h2 ?? self.location.protocol === "https:") ? 16 : 4;
+}
+let running = 0;
+const queued = []; // preloads waiting for a slot, in the order the page used them
+function pump() {
+  while (running < preloadLimit() && queued.length) queued.shift()();
+}
+
+/* Fetches (and rewrites) one file the way the browser is about to ask for it. */
+function preload(url, destination, mode, from) {
+  const key = `${url}|${destination}|${mode}`;
+  if (!preloadOn || preloads.has(key) || asked.has(key) || preloads.size >= 300) return;
+  const headers = headerTemplates[destination] || [
+    ...(from.headers || []).filter(([k]) => /^(user-agent|accept-language|sec-ch-ua.*)$/i.test(k)),
+    ["accept", destination === "style" ? "text/css,*/*;q=0.1" : "*/*"],
+  ];
+  const req = { url, method: "GET", headers, body: null, destination, mode, referrer: from.url, cache: "default", clientUrl: from.clientUrl || from.url, clientId: from.clientId, preload: true };
+  if (adTarget(req)) return; // the ad blocker would stop the page's own request: don't contact it either
+  let go;
+  const entry = { waiting: true, dropped: false };
+  entry.begin = () => {
+    if (!entry.waiting || entry.dropped) return;
+    entry.waiting = false;
+    running++;
+    go();
+  };
+  entry.promise = new Promise((resolve) => (go = resolve))
+    .then(() => fetchOne(req))
+    .then(async (out) => ({ ...out, body: out.body == null ? null : await new Response(out.body).arrayBuffer() }))
+    .finally(() => { running--; pump(); });
+  entry.promise.catch(() => {});
+  preloads.set(key, entry);
+  preloadStats.started++;
+  queued.push(entry.begin);
+  pump();
+  setTimeout(() => {
+    if (preloads.get(key) !== entry) return;
+    preloads.delete(key);
+    entry.dropped = true;
+    preloadStats.wasted++;
+  }, PRELOAD_KEEP);
+}
+
+/* The browser asking for something already preloaded (or on its way) takes it. */
+async function takePreload(req) {
+  if (req.preload || req.method !== "GET" || (req.cache && req.cache !== "default")) return null;
+  const key = `${req.url}|${req.destination}|${req.mode}`;
+  const entry = preloads.get(key);
+  if (!entry) return null;
+  preloads.delete(key);
+  entry.begin(); // still queued: the page needs it now
+  const out = await entry.promise.catch(() => null);
+  if (!out) return null;
+  preloadStats.used++;
+  return { ...out, body: out.body ? out.body.slice(0) : null };
+}
+
+const TAG = /<(script|link)\b[^>]*>/gi;
+const ATTR = /([^\s=/>"']+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>"']+)))?/g;
+const JS_TYPE = /^(|module|(text|application)\/(x-)?(java|ecma)script)$/i;
+const unescapeAttr = (v) => v.replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&#0*39;|&#x0*27;/gi, "'");
+
+/* a <script> or <link> worth preloading: [url, destination, mode] */
+function candidate(tag) {
+  const name = tag.slice(1, 7).toLowerCase().startsWith("script") ? "script" : "link";
+  const a = {};
+  for (const m of tag.replace(/^<\w+/, "").replace(/\/?>$/, "").matchAll(ATTR)) a[m[1].toLowerCase()] = unescapeAttr(m[2] ?? m[3] ?? m[4] ?? "");
+  let url, destination, mode = "crossorigin" in a ? "cors" : "no-cors";
+  if (name === "script") {
+    if (!a.src || "nomodule" in a || !JS_TYPE.test((a.type || "").trim())) return null;
+    url = a.src;
+    destination = "script";
+    if ((a.type || "").trim().toLowerCase() === "module") mode = "cors";
+  } else {
+    const rel = (a.rel || "").toLowerCase().split(/\s+/);
+    if (!a.href || rel.includes("alternate")) return null;
+    url = a.href;
+    if (rel.includes("stylesheet")) destination = "style";
+    else if (rel.includes("modulepreload")) { destination = "script"; mode = "cors"; }
+    else if (rel.includes("preload") && (a.as === "script" || a.as === "style")) destination = a.as;
+    else return null;
+  }
+  try { url = new URL(url, self.location.origin); } catch (_) { return null; }
+  if (url.origin !== self.location.origin || !url.pathname.startsWith(prefix)) return null; // only the site's files, not ours
+  return [url.href, destination, mode];
+}
+
+/* Reads a copy of a response as text, a chunk at a time, leaving `out.body` for the page. */
+async function eachText(out, limit, onText) {
+  const b = out.body;
+  if (b == null) return;
+  if (!(b instanceof ReadableStream)) {
+    const text = typeof b === "string" ? b : new TextDecoder().decode(b);
+    return void onText(text.slice(0, limit));
+  }
+  const [a, copy] = b.tee();
+  out.body = a;
+  const reader = copy.getReader(), dec = new TextDecoder();
+  let seen = 0;
+  try {
+    while (seen < limit) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      seen += value.byteLength ?? value.length;
+      onText(typeof value === "string" ? value : dec.decode(value, { stream: true }));
+    }
+  } catch (_) {} finally {
+    reader.cancel().catch(() => {});
+  }
+}
+
+const headerOf = (out, name) => out.headers.find(([k]) => k.toLowerCase() === name)?.[1] || "";
+const MODULE_IMPORT = /(?:\bfrom|\bimport)\s*["']((?:https?:\/\/[^/"']+)?\/~\/wj\/[^"']+)["']/g;
+
+/* After a response: a page starts its remembered files and has its HTML scanned;
+   a module script has its static imports started. */
+function preloadFrom(req, out) {
+  try { startPreloads(req, out); } catch (e) { console.warn("WillieJet preload:", e); } // never at the page's expense
+}
+function startPreloads(req, out) {
+  if (!preloadOn || out.status !== 200) return;
+  if (isDoc(req)) {
+    if (!req.preload) startLearning(req);
+    for (const f of manifestFor(req.url) || []) preload(fromKey(f.u), f.d, f.m, req);
+    if (!/text\/html/i.test(headerOf(out, "content-type"))) return;
+    let rest = "";
+    eachText(out, 1024 * 1024, (text) => {
+      rest += text;
+      const end = rest.lastIndexOf(">");
+      if (end < 0) { if (rest.length > 65536) rest = ""; return; }
+      const whole = rest.slice(0, end + 1);
+      rest = rest.slice(end + 1);
+      for (const [tag] of whole.matchAll(TAG)) {
+        const c = candidate(tag);
+        if (c) preload(c[0], c[1], c[2], req);
+      }
+    });
+  } else if (req.destination === "script" && req.url.includes("%24module=module")) {
+    let text = "";
+    eachText(out, 8 * 1024 * 1024, (t) => { text += t; }).then(() => {
+      for (const m of text.matchAll(MODULE_IMPORT)) {
+        try {
+          const url = new URL(m[1], self.location.origin);
+          if (url.origin === self.location.origin && url.pathname.startsWith(prefix)) preload(url.href, "script", "cors", { ...req, url: req.url });
+        } catch (_) {}
+      }
+    });
+  }
+}
+
 async function handleRequest(req) {
   await ready;
+  const blocked = adBlock(req);
+  if (blocked) return blocked;
+  if (req.headers && req.destination) headerTemplates[req.destination] = req.headers.filter(([k]) => /^(accept|accept-language|user-agent|sec-ch-ua.*)$/i.test(k));
+  learn(req);
+  const pre = await takePreload(req);
+  if (pre) return pre;
+  const key = `${req.url}|${req.destination}|${req.mode}`;
+  asked.add(key);
+  try {
+    return await fetchOne(req);
+  } finally {
+    asked.delete(key);
+  }
+}
+
+/* One request through the rewrite cache, or the network and the rewriter. */
+async function fetchOne(req) {
   const rawUrl = new URL(req.url);
   // a script or stylesheet whose download is still fresh: reuse the rewritten copy
   let real = null;
@@ -202,7 +495,7 @@ async function handleRequest(req) {
     try { real = SJ.unrewriteUrl(req.url, context); } catch (_) {}
     if (real) {
       const hit = await rewrites.get(rewriteKey(req.url), await httpCache.freshVersion(real, req.headers), page);
-      if (hit) return hit;
+      if (hit) { preloadFrom(req, hit); return hit; }
     }
   }
   try {
@@ -227,6 +520,7 @@ async function handleRequest(req) {
     };
     const version = real && res.status === 200 ? httpCache.versionOf(real) : null;
     if (version) out.body = rewrites.keep(rewriteKey(req.url), version, out, page);
+    preloadFrom(req, out);
     return out;
   } catch (e) {
     console.error("WillieJet request failed:", e);
@@ -329,11 +623,17 @@ self.onmessage = ({ data, ports }) => {
     }
     return;
   }
+  if (data?.t === "preload") { preloadOn = !!data.on; return; }
+  if (data?.t === "ads") {
+    ads.on = !!data.on;
+    if (Array.isArray(data.skip)) ads.skip = new Set(data.skip);
+    return;
+  }
   if (data?.t === "warm") return void ready?.then(() => warm(data.url)).catch(() => {});
   if (data?.t === "stats") {
     return void Promise.resolve(ready).then(() => self.postMessage({
       t: "stats", id: data.id,
-      stats: { cache: !!httpCache, http: httpCache?.stats || null, rewrites: rewrites?.stats || null, fast: fast ? { on: fast.on, ...fast.stats } : null },
+      stats: { cache: !!httpCache, http: httpCache?.stats || null, rewrites: rewrites?.stats || null, fast: fast ? { on: fast.on, ...fast.stats } : null, ads: { on: ads.on, blocked: ads.blocked, byHost: ads.byHost }, preload: { on: preloadOn, ...preloadStats, pages: manifests.size } },
     }));
   }
   if (data?.t === "raw") {
@@ -354,6 +654,9 @@ self.onmessage = ({ data, ports }) => {
     });
   }
   if (data?.t === "clear") {
+    manifests.clear();
+    preloads.clear();
+    idb().then((db) => db.transaction("kv", "readwrite").objectStore("kv").delete("preload")).catch(() => {});
     return void Promise.all([httpCache?.clear(), rewrites?.clear()]).then(() => self.postMessage({ t: "cleared", id: data.id }));
   }
   if (data?.t === "init") {

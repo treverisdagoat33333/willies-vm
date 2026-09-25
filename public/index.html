@@ -251,14 +251,15 @@
         <h2>Browser</h2><p class="sub">Defaults for the built-in proxy browser.</p>
         <div class="card">
           <h3>Navigation</h3>
-          <div class="row"><div class="lab"><b>Proxy engine</b><small>What loads sites in the browser. If a site breaks, try another one; open tabs switch over right away.</small></div><div class="ctl"><select class="field" data-setting="proxy"><option value="sj2">Scramjet v2 (alpha)</option><option value="wj">WillieJet (ours)</option><option value="sj1">Scramjet v1</option><option value="uv">Ultraviolet</option></select></div></div>
+          <div class="row"><div class="lab"><b>Proxy engine</b><small>What loads sites in the browser. If a site breaks, try another one; open tabs switch over right away.</small></div><div class="ctl"><select class="field" data-setting="proxy"><option value="wj">WillieJet (ours, default)</option><option value="sj2">Scramjet v2 (alpha)</option><option value="sj1">Scramjet v1</option><option value="uv">Ultraviolet</option></select></div></div>
           <div class="row"><div class="lab"><b>Homepage</b><small>Opens in every new tab.</small></div><div class="ctl"><input class="field" data-setting="homepage" type="url" placeholder="https://www.google.com/"></div></div>
           <div class="row"><div class="lab"><b>Search engine</b><small>Used when you type something that isn't a URL.</small></div><div class="ctl"><select class="field" data-setting="engine"><option value="google">Google</option><option value="ddg">DuckDuckGo</option><option value="bing">Bing</option><option value="brave">Brave</option><option value="startpage">Startpage</option></select></div></div>
           <div class="row"><div class="lab"><b>Start on blank page</b><small>New tabs open about:blank instead of the homepage.</small></div><div class="ctl"><button class="switch" role="switch" data-setting="autoblank"></button></div></div>
         </div>
         <div class="card" id="wj-card">
           <h3>WillieJet</h3>
-          <div class="row"><div class="lab"><b>Fast mode</b><small>Our server fetches pages for WillieJet, for quicker first visits. While it's on, the server can see the pages you visit and what you send them.</small></div><div class="ctl"><button class="switch" role="switch" data-setting="wjFast"></button></div></div>
+          <div class="row"><div class="lab"><b>Fast mode</b><small>Our server fetches pages for WillieJet, for quicker first visits. While it's on, the server can see the pages you load. Sign-ins and forms still go end-to-end encrypted.</small></div><div class="ctl"><button class="switch" role="switch" data-setting="wjFast"></button></div></div>
+          <div class="row"><div class="lab"><b>Block ads and trackers</b><small>Stops known ad and tracker sites from loading, so pages are cleaner and faster. Ads a site serves itself (like YouTube's) still show. Turn it off for one site from the engine badge in the address bar.</small></div><div class="ctl"><button class="switch" role="switch" data-setting="wjAds"></button></div></div>
           <div class="row"><div class="lab"><b>Cache</b><small id="wj-stats">Open the browser with WillieJet to see how the cache is doing.</small></div><div class="ctl"><button class="btn sm danger" id="wj-clear">Clear WillieJet cache</button></div></div>
           <div class="row st-row"><div class="lab"><b>Speed test</b><small>Times real sites on every engine, from your own browser. One site per line. Run it twice: the second run shows cached visits.</small></div><textarea class="field" id="st-sites" rows="4" spellcheck="false">https://www.google.com/
 https://en.wikipedia.org/wiki/Main_Page
@@ -266,6 +267,12 @@ https://www.youtube.com/
 https://www.reddit.com/
 https://github.com/
 https://discord.com/</textarea><div class="ctl"><button class="btn sm" id="st-run">Run speed test</button></div><div id="st-results"></div></div>
+        </div>
+        <div class="card" id="logins-card">
+          <h3>Saved logins</h3>
+          <div class="row"><div class="lab"><b>Offer to save logins</b><small>When you sign in to a site in WillieJet, it offers to remember the login, and the key button in the address bar fills it in next time. Saved logins stay on this device, encrypted, and never go to our server.</small></div><div class="ctl"><button class="switch" role="switch" data-setting="saveLogins"></button></div></div>
+          <div class="row"><div class="lab"><b>Saved</b><small id="logins-count">None yet.</small></div><div class="ctl"><button class="btn sm danger" id="logins-clear">Delete all</button></div></div>
+          <div id="logins-list"></div>
         </div>
         <div class="card">
           <h3>Interface</h3>
@@ -486,6 +493,8 @@ https://discord.com/</textarea><div class="ctl"><button class="btn sm" id="st-ru
 
 <div class="dc-pop" id="dc-user-pop"></div>
 <div class="dc-pop" id="b-engine-pop" role="menu"></div>
+<div class="dc-pop" id="b-key-pop" role="menu"></div>
+<div class="dc-pop" id="login-ask" role="dialog" aria-label="Save login"></div>
 <div class="dc-emoji" id="dc-emoji" role="dialog" aria-label="Pick a reaction"></div>
 
 <div class="dc-modal" id="dc-modal">
@@ -509,7 +518,7 @@ https://discord.com/</textarea><div class="ctl"><button class="btn sm" id="st-ru
     <button id="b-fwd" title="Forward"><svg class="i" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
     <button id="b-reload" title="Reload"><svg class="i" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg></button>
     <button id="b-home" title="Home"><svg class="i" viewBox="0 0 24 24"><path d="M3 11l9-8 9 8v10a2 2 0 0 1-2 2h-4v-7H9v7H5a2 2 0 0 1-2-2z"/></svg></button>
-    <div class="omni"><img id="browser-favicon" alt="" style="display:none"><input id="browser-address" type="text" placeholder="Search or enter a URL" autocomplete="off" spellcheck="false"><button id="b-engine" class="b-engine" title="Proxy engine for this site" aria-haspopup="menu">WJ</button></div>
+    <div class="omni"><img id="browser-favicon" alt="" style="display:none"><input id="browser-address" type="text" placeholder="Search or enter a URL" autocomplete="off" spellcheck="false"><button id="b-key" class="b-engine b-key" title="Fill a saved login" aria-haspopup="menu" hidden><svg class="i i-sm" viewBox="0 0 24 24"><circle cx="7.5" cy="15.5" r="4.5"/><path d="M10.7 12.3L21 2M16 7l3 3M18.5 4.5l2 2"/></svg></button><button id="b-engine" class="b-engine" title="Proxy engine for this site" aria-haspopup="menu">WJ</button></div>
     <button id="b-bm" title="Bookmark"><svg class="i" viewBox="0 0 24 24"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg></button>
     <button id="b-hist" title="History"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></button>
     <button id="b-fs" title="Fullscreen"><svg class="i" viewBox="0 0 24 24"><path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"/></svg></button>

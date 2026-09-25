@@ -138,8 +138,9 @@ Other server modules: `music.js` (the `/api/music` router), `security.js` (rate 
 Each WS module creates `WebSocketServer({ noServer: true })` and exports a `handle*Upgrade` function. Authentication happens in `server.js` before the upgrade.
 
 **Proxy browser engines:** Settings > Browser > Proxy engine (`S.proxy`, device-local, not synced) picks one of four.
-- `sj2`, Scramjet v2 alpha, the default: its own controller, with libcurl-transport 2.x (`/libcurl/`).
-- `wj`, **WillieJet**, our own engine (`public/wj/`), built on the unmodified Scramjet v2 core (`/scramjet/scramjet.mjs` and `scramjet.js`). It replaces Scramjet's controller with ours; see below.
+- `wj`, **WillieJet**, our own engine (`public/wj/`) and the default, with fast mode, the ad blocker and saved logins on. It's built on the unmodified Scramjet v2 core (`/scramjet/scramjet.mjs` and `scramjet.js`) and replaces Scramjet's controller with ours; see below.
+  - Anyone whose saved settings still had the old defaults (`sj2`, fast mode off) is moved over once, flagged by `localStorage` `wvm.defaults.v2`. A pick made after that sticks.
+- `sj2`, Scramjet v2 alpha: its own controller, with libcurl-transport 2.x (`/libcurl/`).
 - `sj1`, Scramjet v1 (`/sj1/`), and `uv`, Ultraviolet (`/uv/`): both go through bare-mux (`/baremux/`). bare-mux runs the same libcurl 2.x through `public/js/libcurl-bare.mjs`, which converts headers between the two formats. The 1.x libcurl build has a startup race, and epoxy sends WebSocket handshakes in absolute form (`GET ws://host/path`), which the `ws` library rejects.
 - `public/sw.js` is the one service worker for all three, routed by prefix: `/~/sj/`, `/~/sj1/`, `/~/uv/`. A scope only gets one worker.
 - **v1 quirks the worker handles:**
@@ -161,9 +162,25 @@ Each WS module creates `WebSocketServer({ noServer: true })` and exports a `hand
     - It also holds `RewriteCache`: the core's rewritten scripts and styles (`wj-rewrite-v1`), tied to the download version they came from (`meta.version`).
     - The rewrite cache is keyed with the tab id replaced by `/~/wj/_/`, so it still matches in the next session. Within one session, Chrome's own memory cache usually answers first. The rewrite cache pays off after a browser restart.
     - Incognito turns both caches off.
-  - `fast.mjs`: fast mode, off by default (`S.wjFast`, this device only). HTTP requests go to `/wj-net` (`fastnet.js`) instead of libcurl; WebSockets always stay on `/wisp/`. It falls back to libcurl on 401, 404 or 429.
+  - `fast.mjs`: fast mode, on by default (`S.wjFast`, this device only). GET and HEAD requests go to `/wj-net` (`fastnet.js`) instead of libcurl. Anything with a body (sign-ins, forms, uploads) and WebSockets always stay on the end-to-end encrypted `/wisp/` path, so passwords never reach our server readable. It falls back to libcurl on 401, 404 or 429.
     - Some sites (Cloudflare bot protection especially) answer our server's own connections with a challenge (403, 429 or 503 plus `cf-mitigated`). That reply is retried on libcurl, and the origin skips fast mode for the rest of the session (`fastBlocked`, which triggers a toast).
     - The engine badge menu can switch fast mode off for one site. Those sites are stored in `wvm.siteNoFast` and passed to the worker as `fastSkip`.
+  - `adblock.mjs`: the ad and tracker blocker (`S.wjAds`, on by default). The worker's `adBlock()` answers requests to listed domains before any network: an empty script or stylesheet, a transparent GIF, a blank frame, or a 204. Only whole ad/tracker domains are listed (plus a few exact hosts), so sites keep working.
+    - Never blocked: documents (popups you opened), a frame with no page behind it (your own tab, when you type an address), anything on a site that is itself on the list, and sites switched off in the badge menu (`wvm.siteAdsOff`, sent as `adsSkip`).
+    - A tab sent to a listed site by a link gets a notice with "Open anyway" (`{wj:'open'}` to the desktop, which reloads it without a referrer, so it isn't blocked).
+    - `HIDE_CSS` hides leftover ad boxes: `engine.mjs` hands it out through `window[Symbol.for('wj.ads')](host)`, and `inject.js` adds it as a constructed stylesheet.
+    - Counts per site are in the worker's `stats` (`ads.byHost`), shown in the badge menu.
+- **Preloading (`worker.mjs`, on unless `setPreload(false)`):** the worker remembers which scripts and styles each page asked for in the 15 s after it loaded (`learn`). Lists are kept under the page's address and under its site plus the first part of its path (`/channels/*`), and saved in IndexedDB `williejet` (`preload`, 200 pages; not in incognito).
+  - Next visit, it fetches and rewrites all of them as soon as the page's response headers arrive, in the order the page used them. The browser's requests take the results (`takePreload`, matched on URL, destination and mode). It also starts the scripts and styles named in a page's HTML, and a module's static imports, as they stream past.
+  - At most 4 run at once when fast mode is on over HTTP/1.1 (the browser gives our server 6 connections); 16 over HTTP/2 or libcurl. A request the page makes for a still-queued preload moves it to the front. An unclaimed preload is dropped after 10 s.
+  - Pages are linked to their requests by client id and by address, because Chrome doesn't always give a page's requests the client id its navigation had.
+  - Errors in preloading are caught, never failing the page. Beware: WillieJet's own failures fall back to Ultraviolet on their own, which can hide a bug in tests; check `getTab().engine`.
+  - Measured on the test site (150 ms per file, fast mode off): a script-loads-script page 520 → 200 ms, a module chain 510 → 185 ms on the second visit.
+- **Saved logins (`app.js`, WillieJet tabs, `S.saveLogins`):** `inject.js` watches submit, button clicks and Enter in each page, and reports sign-ins (or the name on a two-step sign-in's first page) to `window[Symbol.for('wj.logins')]` on the desktop.
+  - The desktop waits until the password is gone from the page (the sign-in went through), then asks Save / Not now / Never for this site (`wvm.loginsNever`). Nothing is offered in incognito.
+  - Logins are stored only on this device, in IndexedDB `wvm-logins`: one AES-GCM-encrypted vault, with a non-extractable key in the same database. They're never synced or sent to our server.
+  - The key button (`#b-key`) shows on sign-in pages of sites with saved logins. It fills only frames whose real host matches the saved one, and only when clicked, typing the value through the page's own input setter so React-style sites see it.
+  - Settings > Browser > Saved logins lists and deletes them. The panic wipe (`wjWipe`) and "Clear everything" delete them too.
 - `/wj/wasm.js` (server.js) serves the rewriter as `self.WASM=...` for workers that proxied sites start.
 - **Failures:** WillieJet's error page offers the other engines through `{wj:'switch'}` messages. A failure that isn't a network error falls back to Ultraviolet on its own (`{wj:'failed', network:false}`). The desktop only accepts these messages from its own tab frames.
 - **Fast mode's server side (`fastnet.js`):**
@@ -180,9 +197,9 @@ Each WS module creates `WebSocketServer({ noServer: true })` and exports a `hand
 - **History without a URL (core bug we work around):** the core's `pushState`/`replaceState` hook does `String(args[2])`, so `replaceState(state, "")` (claude.ai's router does it on startup) sends the page to `/undefined`, and a `null` URL sends it to `/null`. `keepUrlOnHistory` passes the current URL instead. It runs after `client.hook()`: in `wj/inject.js` for WillieJet, and through each v2 frame's `hooks.init.post` (a `ManagedPlugin` tap in `PROXY_START.sj2`) for Scramjet v2. The compat test `/t/history` checks it on both.
 - **Crash recovery (`engine.mjs`):** the worker is pinged every 4 s. After 20 s without an answer it's replaced, at most 3 times in 5 minutes, and WillieJet tabs reload.
 - **Settings > Browser > WillieJet:**
-  - Fast mode, cache stats (the worker's `stats` message) and "Clear WillieJet cache".
+  - Fast mode, the ad blocker, cache stats (the worker's `stats` message) and "Clear WillieJet cache", which also forgets the preload lists.
   - The speed test: real sites on every engine, in off-screen frames, from the user's own browser.
-  - The panic wipe (`wjWipe`) and "Clear everything" delete WillieJet's caches and its cookie database.
+  - The panic wipe (`wjWipe`) and "Clear everything" delete WillieJet's caches, its cookie database and saved logins.
 - **Instant start:** when WillieJet is the default engine, it starts while the desktop loads. Typing an address sends a cookie-less HEAD to that site, at most once a minute, so the connection is ready (`warm`).
 - **Measured against v2 on the local bench** (`npm run bench`, 60 ms per file):
   - Repeat visits are 2.5 to 6 times faster.
@@ -190,7 +207,7 @@ Each WS module creates `WebSocketServer({ noServer: true })` and exports a `hand
   - The desktop's main thread is never blocked.
   - document.cookie writes reach the next request, which v2 misses, and it survives service-worker restarts.
 - **Deploys that change `sw.js`:** the engines are tied to the worker they started with. When the browser starts, it calls `reg.update()` and waits for any new worker to take over. If one takes over mid-session, the engines restart and open tabs are marked `stale`; Reload or the next navigation moves them to the new worker.
-- **Testing against a local site:** wisp refuses loopback addresses by default, so set `options.allow_loopback_ips` from a `--import` preload. libcurl sends `Upgrade: h2c` on plain `http://`, so a test server's `upgrade` handler must let non-WebSocket upgrades through as normal requests.
+- **Testing against a local site:** wisp refuses loopback addresses by default, so set `options.allow_loopback_ips` from a `--import` preload. libcurl sends `Upgrade: h2c` on plain `http://`, so a test server's `upgrade` handler must let non-WebSocket upgrades through as normal requests. The test site and server are plain HTTP/1.1, so both libcurl and the browser (for fast mode's `/wj-net`) get 6 connections per host; timing tests have to fit inside that (the chunk page uses 5 files), while Render serves HTTP/2.
 
 **Cloud gaming (CloudMoon):**
 - CloudMoon publishes each version on jsDelivr (`gh/CloudMoonApp/web`) as `.html` pages plus tiny `.svg` launchers. A launcher's script fetches the real page from the CDN and writes it into a frame.

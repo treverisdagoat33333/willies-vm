@@ -16,9 +16,12 @@
  * so the desktop can reload its tabs. At most 3 restarts in 5 minutes, so a
  * site that kills it every time can't loop forever.
  */
+import { HIDE_CSS } from "/wj/adblock.mjs";
+
 const WASM_KEY = Symbol.for("wj.wasm");
 const ENGINE_KEY = Symbol.for("wj.engine");
 const DEBUG_KEY = Symbol.for("wj.debug");
+const ADS_KEY = Symbol.for("wj.ads");
 const PING_EVERY = 4000;
 const DEAD_AFTER = 20000;
 
@@ -32,12 +35,15 @@ function pageId() {
   }
 }
 
-export async function start({ wisp, cache = true, fast = false, fastSkip = [], onrestart = () => {}, onfastblocked = () => {} }) {
+export async function start({ wisp, cache = true, fast = false, fastSkip = [], ads = false, adsSkip = [], preload = true, onrestart = () => {}, onfastblocked = () => {} }) {
   const page = pageId();
   const prefix = `/~/wj/${page}/`;
   let worker = null;
   let fastOn = !!fast;
   let skip = [...fastSkip];
+  let adsOn = !!ads;
+  let adsOff = new Set(adsSkip); // sites the ad blocker is off for
+  let preloadOn = !!preload;
   let n = 0;
   const waiting = new Map(); // request id -> resolve, for stats/clear
   let lastPong = Date.now();
@@ -55,7 +61,7 @@ export async function start({ wisp, cache = true, fast = false, fastSkip = [], o
       });
       w.addEventListener("error", (e) => reject(new Error(e.message || "WillieJet worker failed to start")), { once: true });
     });
-    w.postMessage({ t: "init", page, wisp, cache, fast: fastOn, fastSkip: skip });
+    w.postMessage({ t: "init", page, wisp, cache, fast: fastOn, fastSkip: skip, ads: adsOn, adsSkip: [...adsOff], preload: preloadOn });
     worker = w;
     lastPong = Date.now();
     register();
@@ -81,6 +87,8 @@ export async function start({ wisp, cache = true, fast = false, fastSkip = [], o
   });
 
   window[ENGINE_KEY] = { page, connect: (port) => worker.postMessage({ t: "transport" }, [port]) };
+  // proxied pages ask this for the rules that hide empty ad boxes (wj/inject.js)
+  window[ADS_KEY] = (host) => (adsOn && !adsOff.has(host) ? HIDE_CSS : "");
 
   // what proxied pages did lately, for "Copy debug info" (wj/inject.js fills it)
   const debug = [];
@@ -128,6 +136,10 @@ export async function start({ wisp, cache = true, fast = false, fastSkip = [], o
     },
     /* fast mode on or off; `hosts` are sites it stays off for */
     setFast(on, hosts = skip) { fastOn = !!on; skip = [...hosts]; worker.postMessage({ t: "fast", on: fastOn, skip }); },
+    /* the ad blocker on or off; `hosts` are sites it stays off for */
+    setAds(on, hosts = [...adsOff]) { adsOn = !!on; adsOff = new Set(hosts); worker.postMessage({ t: "ads", on: adsOn, skip: [...adsOff] }); },
+    /* preloading pages' files on or off (on unless you're comparing) */
+    setPreload(on) { preloadOn = !!on; worker.postMessage({ t: "preload", on: preloadOn }); },
     warm(url) { worker.postMessage({ t: "warm", url }); },
     async stats() { return (await ask({ t: "stats" }))?.stats ?? null; },
     async clear() { await ask({ t: "clear" }); },

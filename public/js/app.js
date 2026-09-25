@@ -20,7 +20,7 @@ const DEFAULTS={
   panic:false,panicKey:'`',panicUrl:'https://classroom.google.com',panicAction:'redirect',panicWipe:false,
   blurunfocus:false,blurAmt:24,lock:false,lockMins:'5',
   perf:false,motion:false,bouncy:true,wallimg:true,preload:false,sound:false,soundpack:'soft',volume:0.5,chatsound:true,fps:false,notify:false,sync:true,
-  proxy:'sj2',wjFast:false
+  proxy:'wj',wjFast:true,wjAds:true,saveLogins:true
 };
 const KEY='wvm.settings.v1';
 let S=(()=>{
@@ -37,8 +37,11 @@ let S=(()=>{
   if(g('wallpaper')){m.wallpaper='custom';m.wallpaperUrl=g('wallpaper')}
   return m;
 })();
+/* WillieJet with fast mode became the default: anyone still on the old defaults (Scramjet v2,
+   fast mode off) moves over once. Picking something else afterwards sticks. */
+try{if(!localStorage.getItem('wvm.defaults.v2')){if(S.proxy==='sj2')S.proxy='wj';if(S.wjFast===false)S.wjFast=true;localStorage.setItem(KEY,JSON.stringify(S));localStorage.setItem('wvm.defaults.v2','1')}}catch(_){}
 /* settings sync state; the logic lives in SETTINGS SYNC further down */
-const SYNC_LOCAL_ONLY=['perf','wallimg','preload','fps','sync','proxy','wjFast']; // speed and engine settings belong to the device
+const SYNC_LOCAL_ONLY=['perf','wallimg','preload','fps','sync','proxy','wjFast','wjAds']; // speed and engine settings belong to the device
 const SYNC_KEYS=['bookmarks','favGames','music']; // localStorage keys that travel with the account
 let syncOn=false,syncApplying=false,syncT=null,syncPulledAt=0;
 let syncMeta=(()=>{try{return JSON.parse(localStorage.getItem('wvm.sync')||'null')}catch(_){return null}})()||{user:'',server:0,dirty:false};
@@ -174,7 +177,7 @@ function applyCloak(){
   }
 }
 document.addEventListener('visibilitychange',applyCloak);
-function set(k,v){S[k]=v;save();applyAll();syncControls();if(k==='wjFast')proxies.wj?.then(e=>e.setFast(v)).catch(()=>{})}
+function set(k,v){S[k]=v;save();applyAll();syncControls();if(k==='wjFast')proxies.wj?.then(e=>e.setFast(v)).catch(()=>{});if(k==='wjAds')proxies.wj?.then(e=>e.setAds(v,siteAdsOff)).catch(()=>{})}
 const pct=v=>Math.round(v*100)+'%';
 const RANGE_OUT={opacity:{el:'#opacity-val',fmt:pct},pcount:{el:'#pcount-val',fmt:v=>String(Math.round(v))},dim:{el:'#dim-val',fmt:pct},volume:{el:'#volume-val',fmt:pct},blurAmt:{el:'#bluramt-val',fmt:v=>Math.round(v)+'px'}};
 
@@ -262,7 +265,7 @@ $('#export-btn').onclick=()=>{const data={settings:S,bookmarks,favGames,recentGa
 $('#import-btn').onclick=()=>$('#import-file').click();
 $('#import-file').onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const d=JSON.parse(r.result);if(d.settings)S={...DEFAULTS,...d.settings};if(Array.isArray(d.bookmarks)){bookmarks=d.bookmarks;put('bookmarks',bookmarks)}if(Array.isArray(d.favGames)){favGames=d.favGames;put('favGames',favGames)}if(Array.isArray(d.recentGames)){recentGames=d.recentGames;put('recentGames',recentGames)}save();applyAll();syncControls();renderBookmarks();toast('Settings imported','ok')}catch(_){toast('Invalid settings file','err')}};r.readAsText(f);e.target.value=''};
 $('#reset-btn').onclick=()=>{if(!confirm('Reset all settings to defaults?'))return;S={...DEFAULTS};save();applyAll();syncControls();toast('Settings reset','ok')};
-$('#nuke-btn').onclick=()=>{if(!confirm('Clear ALL data for this site and reload?'))return;localStorage.clear();sessionStorage.clear();if(window.caches)caches.keys().then(k=>k.forEach(x=>caches.delete(x)));['williejet','__scramjet_controller','$scramjet'].forEach(n=>{try{indexedDB.deleteDatabase(n)}catch(_){}});setTimeout(()=>location.reload(),300)};
+$('#nuke-btn').onclick=()=>{if(!confirm('Clear ALL data for this site and reload?'))return;localStorage.clear();sessionStorage.clear();if(window.caches)caches.keys().then(k=>k.forEach(x=>caches.delete(x)));loginsWipe();['williejet','__scramjet_controller','$scramjet'].forEach(n=>{try{indexedDB.deleteDatabase(n)}catch(_){}});setTimeout(()=>location.reload(),300)};
 $('#clear-bookmarks').onclick=()=>{if(!bookmarks.length)return;if(!confirm('Remove all bookmarks?'))return;bookmarks=[];put('bookmarks',bookmarks);renderBookmarks();syncControls();toast('Bookmarks cleared')};
 $('#clear-recent').onclick=$('#clear-recent-2').onclick=()=>{recentGames=[];put('recentGames',recentGames);renderRecent();toast('Recent games cleared')};
 
@@ -1312,9 +1315,9 @@ function pollQueue(token){clearInterval(pollI);if(!token){setLaunching(false);re
 /* ═══════════════════════════════════════════════════════════
    BROWSER (proxy engines)
    Settings > Browser > Proxy engine picks one of four:
-     sj2  Scramjet v2 alpha, the default: its own controller + libcurl
-     wj   WillieJet, ours (public/wj/): the Scramjet v2 core with the work in
-          a background worker, a smart cache and a shared rewriter
+     sj2  Scramjet v2 alpha: its own controller + libcurl
+     wj   WillieJet, ours (public/wj/), the default (fast mode on): the Scramjet v2
+          core with the work in a background worker, a smart cache and a shared rewriter
      sj1  Scramjet v1
      uv   Ultraviolet
    sj1 and uv share one bare-mux connection running the same libcurl over /wisp/
@@ -1324,10 +1327,11 @@ function pollQueue(token){clearInterval(pollI);if(!token){setLaunching(false);re
    ═══════════════════════════════════════════════════════════ */
 const PROXIES={sj2:'Scramjet v2',wj:'WillieJet',sj1:'Scramjet v1',uv:'Ultraviolet'};
 const PROXY_SHORT={sj2:'v2',wj:'WJ',sj1:'v1',uv:'UV'};
-const proxyId=()=>PROXIES[S.proxy]?S.proxy:'sj2';
+const proxyId=()=>PROXIES[S.proxy]?S.proxy:'wj';
 /* per-site engine picks (toolbar menu, or a fallback after a failure); this device only */
 let siteEngines=store('wvm.siteEngines',{});
 let siteNoFast=store('wvm.siteNoFast',[]); // hosts WillieJet's fast mode stays off for
+let siteAdsOff=store('wvm.siteAdsOff',[]); // hosts WillieJet's ad blocker stays off for
 const hostOf=u=>{try{return new URL(u).hostname}catch(_){return''}};
 const engineFor=u=>{const e=siteEngines[hostOf(u)];return PROXIES[e]?e:proxyId()};
 function setSiteEngine(url,engine){const h=hostOf(url);if(!h)return;if(engine)siteEngines[h]=engine;else delete siteEngines[h];put('wvm.siteEngines',siteEngines)}
@@ -1405,7 +1409,7 @@ const PROXY_START={
     const{start}=await import('/wj/engine.mjs');
     return start({
       wisp:wispUrl(),cache:!S.incognito, // incognito leaves no cached files behind
-      fast:S.wjFast,fastSkip:siteNoFast,
+      fast:S.wjFast,fastSkip:siteNoFast,ads:S.wjAds,adsSkip:siteAdsOff,
       onfastblocked:origin=>toast(`${hostOf(origin)} turns away fast mode, so it loads the normal way`),
       onrestart:()=>{const open=tabs.filter(t=>t.engine==='wj'&&t.url&&t.url!=='about:blank');toast('WillieJet restarted itself'+(open.length?', reloading your tabs':''));open.forEach(t=>navigate(t.url,t,true))},
     });
@@ -1487,6 +1491,14 @@ $('#b-engine').onclick=e=>{
       proxies.wj?.then(e=>e.setFast(S.wjFast,siteNoFast)).then(()=>{toast(`Fast mode ${off?'on':'off'} for ${host}`,'ok');if(t)navigate(url,t,true)})};
     pop.appendChild(b);
   }
+  if(host&&cur==='wj'&&S.wjAds){
+    const off=siteAdsOff.includes(host),b=document.createElement('button');b.className='item';b.setAttribute('role','menuitem');
+    b.innerHTML=`<span>Block ads on this site <small></small></span>${off?'':'<span class="ck">✓</span>'}`;
+    proxies.wj?.then(e=>e.stats()).then(st=>{const n=st?.ads?.byHost?.[host];if(n)b.querySelector('small').textContent=`· ${n} blocked`}).catch(()=>{});
+    b.onclick=()=>{pop.classList.remove('show');siteAdsOff=off?siteAdsOff.filter(h=>h!==host):[...siteAdsOff,host];put('wvm.siteAdsOff',siteAdsOff);
+      proxies.wj?.then(e=>e.setAds(S.wjAds,siteAdsOff)).then(()=>{toast(`Ad blocker ${off?'on':'off'} for ${host}`,'ok');if(t)navigate(url,t,true)})};
+    pop.appendChild(b);
+  }
   if(cur==='wj'&&proxies.wj){const b=document.createElement('button');b.className='item';b.setAttribute('role','menuitem');b.textContent='Copy debug info';b.onclick=()=>{pop.classList.remove('show');wjDebugReport(t)};pop.appendChild(b)}
   if(pinned){const b=document.createElement('button');b.className='item';b.textContent='Use my default engine';b.onclick=()=>{pop.classList.remove('show');setSiteEngine(url,null);if(t)navigate(url,t,true)};pop.appendChild(b)}
   const r=e.currentTarget.getBoundingClientRect();pop.style.top=r.bottom+6+'px';pop.style.left=Math.max(8,Math.min(r.right-230,innerWidth-238))+'px';pop.classList.add('show');
@@ -1496,7 +1508,9 @@ document.addEventListener('pointerdown',e=>{const pop=$('#b-engine-pop');if(pop.
    engine itself (not the network) failed. Only from our own tabs' frames. */
 window.addEventListener('message',e=>{
   const d=e.data;if(e.origin!==location.origin||!d||typeof d!=='object'||typeof d.wj!=='string')return;
-  const t=tabs.find(x=>x.frame.contentWindow===e.source);if(!t||hostOf(d.url)!==hostOf(t.url))return;
+  const t=tabs.find(x=>x.frame.contentWindow===e.source);if(!t)return;
+  if(d.wj==='open'&&/^https?:/i.test(d.url)){navigate(d.url,t,true);return} // "Open anyway" on a site the ad blocker stopped
+  if(hostOf(d.url)!==hostOf(t.url))return;
   if(d.wj==='switch'&&PROXIES[d.engine]){setSiteEngine(d.url,d.engine);toast(`${hostOf(d.url)} now opens with ${PROXIES[d.engine]}`,'ok');navigate(d.url,t,true)}
   else if(d.wj==='failed'&&!d.network&&t.engine==='wj'&&t.retried!==d.url){t.retried=d.url;setSiteEngine(d.url,'uv');toast(`WillieJet couldn't load ${hostOf(d.url)}, trying Ultraviolet`);navigate(d.url,t,true)}
 });
@@ -1579,14 +1593,14 @@ async function wjDebugReport(t){
 }
 
 /* ── WillieJet in Settings: cache stats, clearing, the panic wipe, the speed test ── */
-function wjWipe(){try{caches.delete('wj-http-v1');caches.delete('wj-rewrite-v1');indexedDB.deleteDatabase('williejet')}catch(_){}}
+function wjWipe(){try{caches.delete('wj-http-v1');caches.delete('wj-rewrite-v1');indexedDB.deleteDatabase('williejet')}catch(_){}loginsWipe()}
 async function wjStats(){
   const el=$('#wj-stats');if(!proxies.wj)return;
   const st=await proxies.wj.then(e=>e.stats()).catch(()=>null);if(!st)return;
   if(!st.cache){el.textContent='Caching is off (incognito mode).';return}
   const h=st.http,r=st.rewrites,f=st.fast;
   const total=h.hits+h.revalidated+h.misses;
-  el.textContent=`This session: ${h.hits} files from cache, ${h.revalidated} rechecked, ${h.misses} downloaded${total?` (${Math.round((h.hits+h.revalidated)*100/total)}% reused)`:''}. ${r.hits} scripts skipped rewriting. `+(f.on?`Fast mode fetched ${f.fast}.`:'');
+  el.textContent=`This session: ${h.hits} files from cache, ${h.revalidated} rechecked, ${h.misses} downloaded${total?` (${Math.round((h.hits+h.revalidated)*100/total)}% reused)`:''}. ${r.hits} scripts skipped rewriting. `+(f.on?`Fast mode fetched ${f.fast}. `:'')+(st.ads?.on?`Blocked ${st.ads.blocked} ads and trackers. `:'')+(st.preload?.used?`${st.preload.used} files were ready before pages asked.`:'');
 }
 $('#snav').addEventListener('click',e=>{if(e.target.closest('[data-page="browser"]'))wjStats()});
 $('#wj-clear').onclick=async()=>{
@@ -1594,6 +1608,143 @@ $('#wj-clear').onclick=async()=>{
   if(proxies.wj)await proxies.wj.then(e=>e.clear()).catch(()=>{});
   toast('WillieJet cache cleared','ok');wjStats();
 };
+/* ── Saved logins (WillieJet tabs) ──
+   wj/inject.js tells us when you sign in. Once the sign-in went through (the password
+   left the page), we offer to save it. The key button in the address bar fills saved
+   logins back in, only on the site they're for, and only when you click it.
+   Stored on this device only: IndexedDB wvm-logins, encrypted with an AES key the
+   browser won't let even this page export, so a copy of the files can't be read.
+   Never synced and never sent to our server. */
+const LOGINS_KEY=Symbol.for('wj.logins');
+let loginsNever=store('wvm.loginsNever',[]); // sites you said "never" for
+const loginHints={}; // host -> {username, at}: the name typed on a two-step sign-in's first page
+let loginsCache=null,pendingLogin=null,loginAskT=null;
+function loginsDb(){return loginsDb.p||=new Promise((ok,no)=>{const r=indexedDB.open('wvm-logins',1);r.onupgradeneeded=()=>r.result.createObjectStore('kv');r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error)})}
+const kvGet=(db,k)=>new Promise((ok,no)=>{const q=db.transaction('kv').objectStore('kv').get(k);q.onsuccess=()=>ok(q.result);q.onerror=()=>no(q.error)});
+const kvPut=(db,k,v)=>new Promise((ok,no)=>{const t=db.transaction('kv','readwrite');t.objectStore('kv').put(v,k);t.oncomplete=()=>ok();t.onerror=()=>no(t.error)});
+async function loginsCrypto(db){let k=await kvGet(db,'key');if(!k){k=await crypto.subtle.generateKey({name:'AES-GCM',length:256},false,['encrypt','decrypt']);await kvPut(db,'key',k)}return k}
+async function loginsLoad(){
+  if(loginsCache)return loginsCache;
+  try{const db=await loginsDb(),v=await kvGet(db,'vault');loginsCache=v?JSON.parse(new TextDecoder().decode(await crypto.subtle.decrypt({name:'AES-GCM',iv:v.iv},await loginsCrypto(db),v.data))):[]}
+  catch(e){console.warn('Saved logins:',e);loginsCache=[]}
+  return loginsCache;
+}
+async function loginsStore(list){
+  const db=await loginsDb(),iv=crypto.getRandomValues(new Uint8Array(12));
+  await kvPut(db,'vault',{iv,data:await crypto.subtle.encrypt({name:'AES-GCM',iv},await loginsCrypto(db),new TextEncoder().encode(JSON.stringify(list)))});
+  loginsCache=list;renderLogins();
+}
+function loginsWipe(){loginsCache=[];const p=loginsDb.p;loginsDb.p=null;Promise.resolve(p).then(db=>db?.close()).catch(()=>{}).finally(()=>{try{indexedDB.deleteDatabase('wvm-logins')}catch(_){}})}
+/* a proxied page reports a sign-in (or a two-step sign-in's name) */
+window[LOGINS_KEY]=(e,win)=>{try{loginSeen(e,win)}catch(_){}};
+function loginSeen(e,win){
+  if(!e||typeof e!=='object'||!S.saveLogins||S.incognito)return;
+  const host=String(e.host||'').toLowerCase();if(!host||loginsNever.includes(host))return;
+  const username=String(e.username||'').slice(0,200);
+  if(e.kind==='user'){if(username)loginHints[host]={username,at:Date.now()};return}
+  const password=String(e.password||'');if(e.kind!=='login'||!password||password.length>512)return;
+  const hint=loginHints[host],c={host,username:username||(hint&&Date.now()-hint.at<600000?hint.username:''),password};
+  const t=tabs.find(x=>{try{for(let w=win;w;w=w.parent){if(w===x.frame.contentWindow)return true;if(w===w.parent)break}}catch(_){}return false});
+  if(t)waitForSignIn(t,c);
+}
+/* Offer only once the password isn't sitting in the page any more (the sign-in went
+   through: a new page, or the form went away), for up to 30 s. */
+function waitForSignIn(t,c){
+  const since=Date.now(),tick=async()=>{
+    if(!tabs.includes(t))return;
+    if(loginFields(t,c.host).some(f=>f.pw&&f.pw.value===c.password)){if(Date.now()-since<30000)setTimeout(tick,600);return}
+    const list=await loginsLoad(),same=list.find(l=>l.host===c.host&&l.username===c.username);
+    if(same?.password===c.password||(pendingLogin&&pendingLogin.host===c.host&&pendingLogin.username===c.username&&pendingLogin.password===c.password))return;
+    askToSave(c,!!same);
+  };
+  setTimeout(tick,600);
+}
+function askToSave(c,update){
+  pendingLogin=c;
+  const box=$('#login-ask');
+  box.innerHTML=`<h4></h4><div class="la-user"></div><div class="la-btns"><button class="btn sm primary" data-a="save"></button><button class="btn sm" data-a="no">Not now</button><button class="btn sm" data-a="never">Never for this site</button></div>`;
+  box.querySelector('h4').textContent=update?`Update your saved password for ${c.host}?`:`Save your login for ${c.host}?`;
+  box.querySelector('.la-user').textContent=c.username||'(no username)';
+  box.querySelector('[data-a=save]').textContent=update?'Update':'Save';
+  const r=$('.omni').getBoundingClientRect();
+  box.style.top=(r.height?r.bottom+8:64)+'px';box.style.left=Math.max(8,Math.min((r.width?r.right:innerWidth)-320,innerWidth-328))+'px';
+  box.classList.add('show');
+  clearTimeout(loginAskT);loginAskT=setTimeout(()=>{box.classList.remove('show');pendingLogin=null},60000);
+}
+$('#login-ask').addEventListener('click',async e=>{
+  const a=e.target.closest('[data-a]')?.dataset.a,c=pendingLogin;if(!a||!c)return;
+  $('#login-ask').classList.remove('show');pendingLogin=null;clearTimeout(loginAskT);
+  if(a==='never'){loginsNever=[...new Set([...loginsNever,c.host])];put('wvm.loginsNever',loginsNever);renderLogins();return}
+  if(a!=='save')return;
+  try{await loginsStore([...(await loginsLoad()).filter(l=>!(l.host===c.host&&l.username===c.username)),{...c,at:Date.now()}]);toast(`Login saved for ${c.host}`,'ok');updateKeyButton()}
+  catch(err){toast('Could not save the login: '+(err?.message||err),'err')}
+});
+/* sign-in fields on a tab's page (and its frames on the same site) */
+const USERISH=/user|e-?mail|login|account|identifier|phone/i;
+function loginFields(t,host){
+  const out=[],shown=i=>!i.disabled&&!i.readOnly&&(i.offsetWidth>0||i.offsetHeight>0);
+  const walk=(w,depth)=>{
+    let d,h='';try{d=w.document;const u=w[CLIENT_KEY]?.url;h=new URL(String(u?.href||u)).hostname}catch(_){return}
+    if(h===host){
+      const inputs=[...d.querySelectorAll('input')].filter(shown),pw=inputs.find(i=>i.type==='password')||null;
+      const text=inputs.filter(i=>/^(text|email|tel)$/i.test(i.type));
+      const user=text.find(i=>/username|email/i.test(i.autocomplete||''))||(pw?text.filter(i=>i.compareDocumentPosition(pw)&4).pop():text.find(i=>i.type==='email'||USERISH.test(`${i.name} ${i.id} ${i.placeholder||''} ${i.getAttribute('aria-label')||''}`)))||null;
+      if(pw||user)out.push({win:w,pw,user});
+    }
+    if(depth<3)for(const f of d.querySelectorAll('iframe,frame'))try{walk(f.contentWindow,depth+1)}catch(_){}
+  };
+  try{walk(t.frame.contentWindow,0)}catch(_){}
+  return out;
+}
+/* types a value the way a person would, so the site's own scripts (React too) see it */
+function typeInto(win,el,value){
+  el.focus();Object.getOwnPropertyDescriptor(win.HTMLInputElement.prototype,'value').set.call(el,value);
+  el.dispatchEvent(new win.Event('input',{bubbles:true}));el.dispatchEvent(new win.Event('change',{bubbles:true}));
+}
+function fillLogin(t,l){
+  if(hostOf(t.url)!==l.host)return;
+  let n=0;
+  for(const f of loginFields(t,l.host)){if(f.user&&l.username){typeInto(f.win,f.user,l.username);n++}if(f.pw){typeInto(f.win,f.pw,l.password);n++}}
+  toast(n?`Filled your login for ${l.host}`:'No sign-in form on this page',n?'ok':'err');
+}
+/* the key button shows on a sign-in page of a site with saved logins */
+async function updateKeyButton(){
+  const t=getTab(),b=$('#b-key'),host=hostOf(t?.url||'');
+  let show=false;
+  if(host&&t?.engine==='wj'&&(loginsCache||(await loginsLoad())).some(l=>l.host===host))show=loginFields(t,host).length>0;
+  b.hidden=!show;
+}
+setInterval(()=>{if($('#browser-wrap').style.display==='flex')updateKeyButton()},1500);
+$('#b-key').onclick=async e=>{
+  click();const pop=$('#b-key-pop'),t=getTab(),host=hostOf(t?.url||'');
+  if(pop.classList.contains('show')){pop.classList.remove('show');return}
+  pop.replaceChildren();
+  const h=document.createElement('h4');h.textContent=`Saved logins for ${host}`;pop.appendChild(h);
+  for(const l of (await loginsLoad()).filter(l=>l.host===host)){
+    const b=document.createElement('button');b.className='item';b.setAttribute('role','menuitem');b.textContent=l.username||'(no username)';
+    b.onclick=()=>{pop.classList.remove('show');fillLogin(t,l)};pop.appendChild(b);
+  }
+  const m=document.createElement('button');m.className='item';m.textContent='Manage saved logins';m.onclick=()=>{pop.classList.remove('show');openSettings();$('#snav [data-page="browser"]')?.click()};pop.appendChild(m);
+  const r=e.currentTarget.getBoundingClientRect();pop.style.top=r.bottom+6+'px';pop.style.left=Math.max(8,Math.min(r.right-230,innerWidth-238))+'px';pop.classList.add('show');
+};
+document.addEventListener('pointerdown',e=>{const pop=$('#b-key-pop');if(pop.classList.contains('show')&&!pop.contains(e.target)&&!$('#b-key').contains(e.target))pop.classList.remove('show')},true);
+/* Settings > Browser > Saved logins */
+async function renderLogins(){
+  const list=(await loginsLoad()).slice().sort((a,b)=>a.host.localeCompare(b.host)||a.username.localeCompare(b.username)),box=$('#logins-list');
+  $('#logins-count').textContent=(list.length?`${list.length} saved on this device.`:'None yet.')+(loginsNever.length?` Never saving for ${loginsNever.length} site${loginsNever.length>1?'s':''}.`:'');
+  box.replaceChildren(...list.map(l=>{
+    const row=document.createElement('div');row.className='lg';row.innerHTML=`<span class="lg-host"></span><span class="lg-user"></span><button class="btn sm danger" title="Delete this login">Delete</button>`;
+    row.querySelector('.lg-host').textContent=l.host;row.querySelector('.lg-user').textContent=l.username||'(no username)';
+    row.querySelector('button').onclick=async()=>{await loginsStore((await loginsLoad()).filter(x=>!(x.host===l.host&&x.username===l.username)));toast('Login deleted','ok')};
+    return row;
+  }));
+}
+$('#snav').addEventListener('click',e=>{if(e.target.closest('[data-page="browser"]'))renderLogins()});
+$('#logins-clear').onclick=async()=>{
+  if(!confirm('Delete every saved login on this device?'))return;
+  loginsWipe();loginsNever=[];put('wvm.loginsNever',[]);renderLogins();updateKeyButton();toast('Saved logins deleted','ok');
+};
+
 /* times real sites on each engine in an off-screen frame, from this browser */
 async function speedTest(){
   const sites=$('#st-sites').value.split('\n').map(s=>s.trim()).filter(Boolean).map(normalizeUrl).filter(u=>/^https?:/i.test(u)).slice(0,12);

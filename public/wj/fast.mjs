@@ -9,6 +9,10 @@
  * server says no (signed out, rate limited), requests take the normal path:
  * libcurl over /wisp/.
  *
+ * Only GET and HEAD use it. Anything with a body (sign-ins, forms, uploads)
+ * always takes the normal, end-to-end encrypted path, so passwords and form
+ * data never reach our server readable.
+ *
  * Some sites (Cloudflare's bot protection especially) turn away our server's
  * own connections with a challenge instead of the page. Such a reply is
  * retried on the normal path, and that site skips fast mode for the rest of
@@ -70,7 +74,8 @@ export class FastTransport {
   connect(...args) { return this.fallback.connect(...args); } // WebSockets always go over /wisp/
 
   async request(remote, method, body, headers, signal) {
-    if (!this.on || (remote.protocol !== "https:" && remote.protocol !== "http:") || this.skip.has(remote.hostname) || this.blocked.has(remote.origin)) {
+    const plain = /^(GET|HEAD)$/i.test(method);
+    if (!this.on || !plain || (remote.protocol !== "https:" && remote.protocol !== "http:") || this.skip.has(remote.hostname) || this.blocked.has(remote.origin)) {
       return this.fallback.request(remote, method, body, headers, signal);
     }
     const bytes = body == null ? null : new Uint8Array(await new Response(body).arrayBuffer());

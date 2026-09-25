@@ -16,6 +16,8 @@
   const WASM_KEY = Symbol.for("wj.wasm");
   const ENGINE_KEY = Symbol.for("wj.engine");
   const DEBUG_KEY = Symbol.for("wj.debug");
+  const ADS_KEY = Symbol.for("wj.ads");
+  const LOGINS_KEY = Symbol.for("wj.logins");
   const encode = (u) => (u ? encodeURIComponent(u) : u);
   const decode = (u) => (u ? decodeURIComponent(u) : u);
 
@@ -144,6 +146,64 @@
     }
   }
 
+  /* With the ad blocker on, the boxes blocked ads leave behind are hidden. A
+     constructed sheet, so the page's own DOM stays as the site built it. */
+  function hideAdBoxes(client, global) {
+    let css = "";
+    try { css = lookUp(ADS_KEY)?.(client.url.hostname) || ""; } catch (_) {}
+    if (!css) return;
+    try {
+      const sheet = new global.CSSStyleSheet();
+      sheet.replaceSync(css);
+      global.document.adoptedStyleSheets = [...global.document.adoptedStyleSheets, sheet];
+    } catch (_) {}
+  }
+
+  /* Sign-ins, so the desktop can offer to save them (Saved logins, in js/app.js).
+     They go only to the desktop page in this browser; nothing is sent anywhere.
+     Two-step sign-ins (name first, password on the next page) send the name as a
+     hint. The desktop waits until the sign-in went through before asking. */
+  function watchLogins(client, global) {
+    const sink = lookUp(LOGINS_KEY);
+    if (typeof sink !== "function") return;
+    const doc = global.document;
+    const host = () => { try { return client.url.hostname; } catch (_) { return ""; } };
+    const USERISH = /user|e-?mail|login|account|identifier|phone/i;
+    const typed = (scope) => [...scope.querySelectorAll("input")].filter((i) => /^(text|email|tel)$/i.test(i.type) && i.value);
+    function usernameIn(scope, pw) {
+      const inputs = typed(scope);
+      const auto = inputs.find((i) => /username|email/i.test(i.autocomplete || ""));
+      if (auto) return auto.value;
+      if (pw) {
+        const before = inputs.filter((i) => i.compareDocumentPosition(pw) & 4); // fields before the password
+        return before.length ? before[before.length - 1].value : "";
+      }
+      const named = inputs.find((i) => i.type === "email" || USERISH.test(`${i.name} ${i.id} ${i.placeholder || ""} ${i.getAttribute("aria-label") || ""}`));
+      return named ? named.value : "";
+    }
+    let last = "";
+    function check(scope) {
+      const pws = [...scope.querySelectorAll('input[type="password"]')].filter((p) => p.value);
+      // "new password" + "confirm": the one typed twice
+      const pw = pws.length >= 2 && pws[pws.length - 1].value === pws[pws.length - 2].value ? pws[pws.length - 1] : pws[0] || null;
+      const username = usernameIn(scope, pw).slice(0, 200);
+      const e = pw ? { kind: "login", host: host(), username, password: pw.value } : username ? { kind: "user", host: host(), username } : null;
+      if (!e) return;
+      const sig = e.kind + "\n" + e.username + "\n" + (e.password || "");
+      if (sig === last) return;
+      last = sig;
+      setTimeout(() => { if (last === sig) last = ""; }, 3000);
+      try { sink(e, global); } catch (_) {}
+    }
+    const scopeOf = (el) => el?.closest?.("form") || doc;
+    doc.addEventListener("submit", (ev) => check(ev.target instanceof global.HTMLFormElement ? ev.target : doc), true);
+    doc.addEventListener("click", (ev) => {
+      const b = ev.target?.closest?.('button,input[type="submit"],input[type="button"],[role="button"]');
+      if (b) check(scopeOf(b));
+    }, true);
+    doc.addEventListener("keydown", (ev) => { if (ev.key === "Enter" && ev.target?.tagName === "INPUT") check(scopeOf(ev.target)); }, true);
+  }
+
   /* One hooked window (the page itself, or an about:blank frame inside it). */
   function attach(global, init) {
     const S = self.$scramjet;
@@ -182,6 +242,8 @@
     });
     client.hook();
     keepUrlOnHistory(client, global);
+    hideAdBoxes(client, global);
+    watchLogins(client, global);
     watch(client, global);
     return client;
   }
