@@ -20,7 +20,7 @@ import path from "node:path";
 const root = path.resolve(import.meta.dirname, "..");
 const bench = process.argv.includes("--bench");
 const only = process.argv.slice(2).filter((a) => !a.startsWith("--"));
-const SUITES = ["cache", "engines", "menu", "compat", "williejet", "fastnet", "sw-restart", "nextday"];
+const SUITES = ["cache", "engines", "menu", "compat", "williejet", "fastnet", "sw-restart", "nextday", "ai"];
 const children = [];
 const temps = [];
 
@@ -65,7 +65,7 @@ let failed = 0;
 try {
   const [sitePort, port, strictPort] = [await freePort(), await freePort(), await freePort()];
   await startProcess("test site", ["test/site.mjs"], { SITE_PORT: String(sitePort) }, `http://127.0.0.1:${sitePort}/hits`);
-  await server(port, {});
+  await server(port, { AI_API_KEY: "test-ai-key", AI_BASE_URL: `http://127.0.0.1:${sitePort}/v1` }); // the AI app talks to the test site's pretend API
   await server(strictPort, { WJ_STRICT: "1" });
   const env = { BASE: `http://localhost:${port}`, STRICT_BASE: `http://localhost:${strictPort}`, SITE: `http://127.0.0.1:${sitePort}` };
 

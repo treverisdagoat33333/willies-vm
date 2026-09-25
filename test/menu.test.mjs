@@ -49,7 +49,8 @@ await heading();
 ok((await frameSrc()).includes("/~/wj/"), "'Use my default engine' goes back to WillieJet", await frameSrc());
 
 // a site that doesn't answer: the error page, no automatic retry (another engine wouldn't help)
-await page.evaluate(() => navigate("http://localhost:1/", getTab()));
+// the address syncs every 1.5 s; one landing before the next page replaces this one mustn't read the old address back
+ok(await page.evaluate(() => { const t = getTab(); navigate("http://localhost:1/", t); syncTab(t); return t.url; }) === "http://localhost:1/", "while the next page loads, the tab keeps the new address");
 let errText = null;
 for (let i = 0; i < 60 && !errText; i++) {
   await page.waitForTimeout(250);

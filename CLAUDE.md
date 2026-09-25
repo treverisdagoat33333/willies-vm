@@ -114,7 +114,7 @@ node --check server.js             # quick syntax check for any file
 - There is no build step, bundler or linter. The front end is served as-is from `public/`.
 - **Tests:** `npm test` runs the proxy and WillieJet suites in `test/` with Playwright. It starts `test/site.mjs` (a local test site), a server that may reach it, and a strict one that may not (for the fast-mode guard). In this sandbox, set `CHROMIUM_PATH=/opt/pw-browsers/chromium`. `npm test -- williejet` runs one suite, and `npm run bench` prints timings instead. `.github/workflows/test.yml` runs `npm test` on every push. Playwright is a devDependency, which Render skips because `NODE_ENV=production`.
 - To verify a change, run the server against a throwaway database (`DATA_DIR=/tmp/wvm-test`) and drive the HTTP and WebSocket endpoints from a script (`ws` is in `node_modules`), or load the page in Chromium.
-- Useful env vars: `DATA_DIR` (SQLite location, default `./data`, gitignored), `OWNER_USERNAME` (default `william`), `OWNER_PASSWORD` (see below), `REMOTE_KEY` (enables Remote PC; unset means it's off), `MAX_LIVE_VMS` (site-wide VM cap, default 20), `E2B_API_KEY`, `XENV_API_KEY`, `SOUNDCLOUD_CLIENT_ID` (optional; music finds the public one itself), `TURN_URL`/`TURN_USERNAME`/`TURN_CREDENTIAL` (optional relay for voice calls). `render.yaml` is the deploy config. On Render's free plan `DATA_DIR` is ephemeral, so the database is wiped on every redeploy.
+- Useful env vars: `DATA_DIR` (SQLite location, default `./data`, gitignored), `OWNER_USERNAME` (default `william`), `OWNER_PASSWORD` (see below), `REMOTE_KEY` (enables Remote PC; unset means it's off), `MAX_LIVE_VMS` (site-wide VM cap, default 20), `E2B_API_KEY`, `XENV_API_KEY`, `SOUNDCLOUD_CLIENT_ID` (optional; music finds the public one itself), `TURN_URL`/`TURN_USERNAME`/`TURN_CREDENTIAL` (optional relay for voice calls), `AI_API_KEY`/`AI_BASE_URL`/`AI_MODEL` (the AI app's OpenAI-compatible API; without a key the app says it isn't set up). `render.yaml` is the deploy config. On Render's free plan `DATA_DIR` is ephemeral, so the database is wiped on every redeploy.
 - No lockfile is committed; Render runs `npm install`. The Scramjet v2 packages are pinned to GitHub release tarballs in `package.json`; Scramjet v1 is installed under the alias `scramjet-v1`.
 
 - The sandbox usually can't reach SoundCloud, Deezer, E2B or XENV. To test those paths, patch `globalThis.fetch` in a file loaded with `node --import` before `server.js`.
@@ -128,7 +128,7 @@ node willies-agent.mjs --url ws://localhost:3000 --key $REMOTE_KEY --name "My PC
 ## Architecture
 
 ### One HTTP server, three WebSocket endpoints
-Other server modules: `music.js` (the `/api/music` router), `security.js` (rate limiters, `clientIp`, `safeEqual`).
+Other server modules: `music.js` (the `/api/music` router), `ai.js` (the `/api/ai` router), `security.js` (rate limiters, `clientIp`, `safeEqual`).
 
 `server.js` owns the Express app and a single `http.Server`. Its `upgrade` handler dispatches by path:
 - `/wisp/`: the Wisp transport every proxy engine uses.
@@ -189,7 +189,7 @@ Each WS module creates `WebSocketServer({ noServer: true })` and exports a `hand
   - Private, loopback and link-local addresses are refused, both as literal IPs and after DNS. `fastnetOptions.allowPrivate` exists only for the tests.
   - It needs a session and is limited to 6000 requests a minute per IP.
 - **All engines, in `app.js`:**
-  - **Following the page:** `realUrl()` reads the real address from the frame's Scramjet client (`Symbol.for('scramjet client global')`, which v2, WillieJet and v1 share) or decodes Ultraviolet's path. `syncTab()` updates the address bar, tab title, history and bookmarks on each load, and every 1.5 s for sites that change the address without reloading.
+  - **Following the page:** `realUrl()` reads the real address from the frame's Scramjet client (`Symbol.for('scramjet client global')`, which v2, WillieJet and v1 share) or decodes Ultraviolet's path. `syncTab()` updates the address bar, tab title, history and bookmarks on each load, and every 1.5 s for sites that change the address without reloading. `navigate()` marks the document it's leaving (`t.leaving`), and `syncTab()` skips a tab while that document is still showing (up to 30 s), or it would read the old page's address back.
   - **Blank pages:** `checkHealth()` runs 6 s after a page loads, on the visible tab only. If the page is blank, or nearly empty and throwing errors, it retries once on the next engine in `FALLBACK_ORDER` and remembers that choice for the site.
 - **"Copy debug info" (engine badge, WillieJet tabs):** for sites that misbehave where you can't reproduce them.
   - `inject.js` taps the core's `client.hooks.lifecycle.navigate` hook (with a stack trace) and the page's errors, and sends them to `window[Symbol.for('wj.debug')]` on the desktop.
@@ -315,8 +315,9 @@ No framework and no modules.
 - `index.html` holds all the markup.
 - `js/app.js` is one large classic script of global functions, written in a dense one-liner style, with `$`/`$$` query helpers.
 - `js/motion.js` loads first and exposes `window.motion` (`celebrate`, `pop`, `shake`, `countUp`, `emojiBurst`, and more).
-- After `app.js` come three feature scripts. Each is an IIFE that uses `app.js` globals and exposes one object:
+- After `app.js` come the feature scripts. Each is an IIFE that uses `app.js` globals and exposes one object:
   - `js/music.js` → `window.music`
+  - `js/ai.js` → `window.ai`
   - `js/calls.js` → `window.calls`
   - `js/remote-extra.js` → `window.rmx`
   - `app.js` calls into them through optional chaining (for example `window.calls?.onMessage(d)`).
@@ -324,6 +325,12 @@ No framework and no modules.
   - Plays in SoundCloud's official widget, in a `credentialless` iframe (the page's COEP would block it otherwise).
   - `/api/music` covers search, the Deezer charts, `resolve` (chart song → full SoundCloud upload), `art` (host-locked image proxy) and `widget.js`.
   - The library is localStorage `music`.
+- **AI** (taskbar, desktop, launcher, Alt+A): a chat window over `/api/ai` (`ai.js`).
+  - The API key stays on the server (`AI_API_KEY`, never in the repo or the browser). `/api/ai/status` lists the API's models and picks a default (`AI_MODEL`, else a general chat model from the list). `/api/ai/chat` adds our system message, caps history (40 messages, 32k characters) and replies (2048 tokens), and streams the reply to the page as JSON lines (`{t:'text'}`, `{t:'done'}`, `{t:'error'}`).
+  - Needs a session. Limited to 40 messages per person and 240 per network every 10 minutes.
+  - Replies are drawn as escaped Markdown (`md()` in `js/ai.js`): HTML in a message is shown, never run. Links open in the browser app.
+  - Chats live in localStorage `ai.chats` (50, this device only, not synced; not kept in incognito). The chosen model is `ai.model`.
+  - Tests use a pretend API on the test site (`/v1/*` in `test/site.mjs`); the main test server gets `AI_API_KEY=test-ai-key`, the strict one no key.
 - **Settings sync** (`SETTINGS SYNC` in `app.js`):
   - Stores `S`, `bookmarks`, `favGames` and `music` per account in the `user_settings` table.
   - `save()` and `put()` mark the local copy dirty; the newest copy wins.
@@ -335,7 +342,7 @@ No framework and no modules.
 
 Patterns to follow:
 - **Settings:** stored in `localStorage` under `wvm.settings.v1`, as object `S` merged over `DEFAULTS`. `set(k, v)` saves them, and `applyAll()` mirrors many onto `html[data-*]` attributes that the CSS keys off. Controls bind declaratively with a `data-setting` attribute (`.switch`, `.seg`, range or input). Adding a setting means a `DEFAULTS` entry, a control with `data-setting`, and, if CSS needs it, a line in `applyAll()`.
-- **Apps and panels:** `data-app="x"` launches `APPS.x`. Panels open with `openPanel(id)`; any element with `data-close="<id>"` closes one. Add new panel ids to `closeAllPanels()`. Full-screen apps (chat, browser, VM, cloud, remote, music) all sit at `z-index:60`. The music window hides itself when another one opens.
+- **Apps and panels:** `data-app="x"` launches `APPS.x`. Panels open with `openPanel(id)`; any element with `data-close="<id>"` closes one. Add new panel ids to `closeAllPanels()`. Full-screen apps (chat, browser, VM, cloud, remote, music, AI) all sit at `z-index:60`. The music and AI windows hide themselves when another one opens.
 - **Dialogs:** `dcModal({title, sub, fields, okLabel, onOk, danger})`. `onOk` may be async; throwing keeps the dialog open and shows the message.
 - **Chat rendering:** `dcRenderMessages()` rebuilds the whole list on every change. Only message ids in `dcFresh` get the entrance animation, so re-renders don't replay it.
 - **Animations** must stay off when `html[data-motion="off"]`, `[data-perf="on"]`, `[data-bouncy="off"]` or `prefers-reduced-motion` is set. `motion.js` writes only the individual `translate`/`rotate`/`scale` properties, never `transform`, so it stacks on the stylesheet's hover transforms. Keep it that way.

@@ -35,6 +35,7 @@ try{const ws=new WebSocket("ws://"+location.host+"/ws");ws.onopen=()=>ws.send("p
   const js = (code, extra = {}) => { res.writeHead(200, { "content-type": "application/javascript", ...extra }); res.end(code); };
   if (u.pathname.startsWith("/bench/")) return bench(u, res);
   if (u.pathname.startsWith("/t/c/")) return chunk(u, res);
+  if (u.pathname.startsWith("/v1/")) return aiMock(req, res, u);
   switch (u.pathname) {
     case "/t/iframe": return page("iframe", `<iframe id="f" src="/t/child"></iframe><iframe id="b"></iframe><script>
       const b=document.getElementById("b");b.contentDocument.open();b.contentDocument.write("<p id=w>written</p>");b.contentDocument.close();
@@ -94,6 +95,37 @@ try{const ws=new WebSocket("ws://"+location.host+"/ws");ws.onopen=()=>ws.send("p
   }
   res.writeHead(404); res.end("nope");
 }
+/* A pretend OpenAI-compatible API for the AI app (ai.test.mjs): the server is
+   started with AI_BASE_URL pointing here and AI_API_KEY=test-ai-key. It streams
+   "Hello **there**" plus a code block and what you said; "fail" in your message
+   gets a 500, "slow" streams slowly. /v1/_last shows the last request it got. */
+let aiLast = null;
+function aiMock(req, res, u) {
+  const json = (status, o) => { res.writeHead(status, { "content-type": "application/json" }); res.end(JSON.stringify(o)); };
+  if (u.pathname === "/v1/_last") return json(200, aiLast);
+  if (req.headers.authorization !== "Bearer test-ai-key") return json(401, { error: { message: "bad key" } });
+  if (u.pathname === "/v1/models") return json(200, { data: [{ id: "text-embedding-3-small" }, { id: "gpt-4o" }, { id: "gpt-4o-mini" }] });
+  if (u.pathname !== "/v1/chat/completions" || req.method !== "POST") return json(404, { error: { message: "no" } });
+  let body = "";
+  req.on("data", (c) => (body += c));
+  req.on("end", () => {
+    const b = JSON.parse(body || "{}");
+    aiLast = { auth: req.headers.authorization, ...b };
+    const said = b.messages?.[b.messages.length - 1]?.content || "";
+    if (/fail/.test(said)) return json(500, { error: { message: "mock failure" } });
+    res.writeHead(200, { "content-type": "text/event-stream" });
+    const parts = /slow/.test(said) ? Array.from({ length: 20 }, (_, i) => `word${i} `) : ["Hello ", "**there**", "\n\n```js\nconsole.log(1)\n```\n", `You said: ${said}`];
+    let i = 0;
+    const tick = () => {
+      if (res.destroyed) return;
+      if (i >= parts.length) { res.write("data: [DONE]\n\n"); return res.end(); }
+      res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: parts[i++] } }] })}\n\n`);
+      setTimeout(tick, /slow/.test(said) ? 300 : 20);
+    };
+    tick();
+  });
+}
+
 /* A site whose scripts load more scripts, like a webpack app: main.js adds a1-a2
    and each of those adds its b, so the browser only finds them one level at a
    time (five files, so all fit in the 6 connections allowed to one HTTP/1.1 site). The modules m0-m3 import each other. Nothing is cacheable and every

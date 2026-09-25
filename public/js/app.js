@@ -504,7 +504,7 @@ function closeAllPanels(){['links-panel','games-panel','settings-panel','history
 const APPS={
   browser:()=>openBrowser(),games:()=>openGames(),links:()=>openLinks(),chat:()=>toggleChat(),settings:()=>openSettings(),cloud:()=>toggleCloud(),remote:()=>toggleRemote(),
   vm1:()=>launchE2BVM(),vm2:()=>launchGPUVM(),vm:()=>(S.defaultVM==='gpu'?launchGPUVM():launchE2BVM()),
-  admin:()=>openAdmin(),music:()=>window.music?.toggle()
+  admin:()=>openAdmin(),music:()=>window.music?.toggle(),ai:()=>window.ai?.toggle()
 };
 document.addEventListener('click',e=>{const b=e.target.closest('[data-app]');if(!b)return;click();const fn=APPS[b.dataset.app];if(fn)fn()});
 $$('.tile').forEach(t=>t.addEventListener('pointermove',e=>{const r=t.getBoundingClientRect();t.style.setProperty('--mx',(e.clientX-r.left)+'px');t.style.setProperty('--my',(e.clientY-r.top)+'px')}));
@@ -515,7 +515,7 @@ const showTb=()=>{clearTimeout(tbT);tb.classList.add('visible')},hideTb=()=>{tbT
 $('#tb-zone').addEventListener('mouseenter',showTb);tb.addEventListener('mouseenter',showTb);tb.addEventListener('mouseleave',hideTb);
 
 /* start menu */
-const START_APPS=[['browser','<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>','Browser','c1'],['games','<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h4M8 10v4M15 13h.01M18 11h.01"/><path d="M17.32 5H6.68a4 4 0 0 0-3.98 3.6L2 16a2.5 2.5 0 0 0 4.5 1.5L8 15h8l1.5 2.5A2.5 2.5 0 0 0 22 16l-.7-7.4A4 4 0 0 0 17.32 5z"/></svg>','Games','c2'],['vm1','<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v10H4z"/><path d="M2 19h20"/></svg>','VM #1','c7'],['vm2','<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg>','VM #2','c3'],['links','<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>','Links','c4'],['remote','<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/><circle cx="12" cy="10" r="2.4"/></svg>','Remote PC','c7'],['cloud','<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg>','Cloud','c3'],['music','<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>','Music','c8'],['chat','<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>','Server','c6'],['settings','<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>','Settings','c5'],['admin','<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>','Admin','c7']];
+const START_APPS=[['browser','<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>','Browser','c1'],['games','<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h4M8 10v4M15 13h.01M18 11h.01"/><path d="M17.32 5H6.68a4 4 0 0 0-3.98 3.6L2 16a2.5 2.5 0 0 0 4.5 1.5L8 15h8l1.5 2.5A2.5 2.5 0 0 0 22 16l-.7-7.4A4 4 0 0 0 17.32 5z"/></svg>','Games','c2'],['vm1','<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v10H4z"/><path d="M2 19h20"/></svg>','VM #1','c7'],['vm2','<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg>','VM #2','c3'],['links','<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>','Links','c4'],['remote','<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/><circle cx="12" cy="10" r="2.4"/></svg>','Remote PC','c7'],['cloud','<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg>','Cloud','c3'],['music','<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>','Music','c8'],['ai','<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg>','AI','c9'],['chat','<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>','Server','c6'],['settings','<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>','Settings','c5'],['admin','<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>','Admin','c7']];
 function renderStart(q=''){
   q=q.toLowerCase().trim();const g=$('#start-grid');
   let html=START_APPS.filter(a=>(a[0]!=='admin'||currentRole==='owner')&&(!q||a[2].toLowerCase().includes(q))).map(a=>`<button class="dicon" data-app="${a[0]}"><div class="ic ${a[3]}">${a[1]}</div><span>${a[2]}</span></button>`).join('');
@@ -1525,6 +1525,8 @@ function realUrl(t){
 function renameHistory(url,title){const h=historyData.find(x=>x.url===url);if(h&&h.title!==title){h.title=title;put('history',historyData)}}
 /* clicking around inside a site: the address bar, tab, history and bookmarks follow along */
 function syncTab(t){
+  // the page we're navigating away from is still showing: its address isn't the tab's any more
+  if(t.leaving){let d=null;try{d=t.frame.contentDocument}catch(_){}if(d===t.leaving&&Date.now()-t.leavingAt<30000)return;t.leaving=null}
   const u=realUrl(t);let title='',changed=false;
   try{title=(t.frame.contentDocument?.title||'').trim().slice(0,80)}catch(_){}
   if(u&&/^https?:/i.test(u)&&u!==t.url){
@@ -1795,14 +1797,17 @@ async function navigate(value,tab,quiet){
   const t=tab||getTab();if(!t)return;
   try{
     const raw=typeof value==='string'?value.trim():$('#browser-address').value.trim();if(!raw)return;
-    const url=normalizeUrl(raw);t.url=url;t.title=(()=>{try{return new URL(url).hostname.replace(/^www\./,'')||'Loading…'}catch(_){return'Loading…'}})();renderTabs();
+    const url=normalizeUrl(raw);
+    // until the new page replaces the one on screen, syncTab mustn't read the old one's address back
+    try{t.leaving=t.frame.contentDocument;t.leavingAt=Date.now()}catch(_){t.leaving=null}
+    t.url=url;t.title=(()=>{try{return new URL(url).hostname.replace(/^www\./,'')||'Loading…'}catch(_){return'Loading…'}})();renderTabs();
     if(t.id===activeTab){$('#browser-address').value=url;setOmniIcon(url)}
     if(!S.incognito&&!quiet)addHistory(url);
     const px=await tabProxy(t);
     if(t.id===activeTab)engineLabel();
     bstatus('Loading…');px.go(url);setTimeout(()=>bstatus('',false),1200)
   }
-  catch(err){proxyFailed(err,'Navigation error')}
+  catch(err){t.leaving=null;proxyFailed(err,'Navigation error')}
 }
 $('#browser-address').addEventListener('keydown',e=>{if(e.key==='Enter')navigate()});
 /* warm up the connection to where you're typing, so the page starts sooner (WillieJet) */
@@ -2899,7 +2904,7 @@ document.addEventListener('keydown',e=>{
   if(e.key==='Escape'){closeAllPanels();$('#tb-settings').classList.remove('active');$('#tb-games').classList.remove('active');return}
   if(e.key==='/'&&$('#games-panel').classList.contains('show')&&!typing()){e.preventDefault();$('#games-search').focus();return}
   if(!e.altKey||e.ctrlKey||e.metaKey)return;
-  const k=e.key.toLowerCase();const map={b:()=>openBrowser(),g:()=>openGames(),v:()=>APPS.vm(),s:()=>openSettings(),l:()=>openLinks(),c:()=>toggleChat(),m:()=>APPS.music(),k:()=>{closeAllPanels();lockScreen()},' ':()=>toggleStart(),t:()=>{if($('#browser-wrap').style.display==='flex')newTab()},w:()=>{if($('#browser-wrap').style.display==='flex'&&activeTab)closeTab(activeTab)},d:()=>{if($('#browser-wrap').style.display==='flex'){$('#browser-address').focus()}}};
+  const k=e.key.toLowerCase();const map={b:()=>openBrowser(),g:()=>openGames(),v:()=>APPS.vm(),s:()=>openSettings(),l:()=>openLinks(),c:()=>toggleChat(),m:()=>APPS.music(),a:()=>APPS.ai(),k:()=>{closeAllPanels();lockScreen()},' ':()=>toggleStart(),t:()=>{if($('#browser-wrap').style.display==='flex')newTab()},w:()=>{if($('#browser-wrap').style.display==='flex'&&activeTab)closeTab(activeTab)},d:()=>{if($('#browser-wrap').style.display==='flex'){$('#browser-address').focus()}}};
   if(map[k]){e.preventDefault();map[k]()}
 });
 /* panel close → clear active state */

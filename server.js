@@ -58,6 +58,7 @@ import {
 } from "./remote.js";
 import { clientIp, createLimiter, limitByIp, formatWait } from "./security.js";
 import { musicRouter } from "./music.js";
+import { aiRouter } from "./ai.js";
 import { hasBadWords } from "./profanity.js";
 import { fastnetHandler } from "./fastnet.js";
 
@@ -796,6 +797,27 @@ const musicLimiter = createLimiter({ windowMs: 60_000, max: 90 });
 app.use(
   "/api/music",
   musicRouter({ requireSession, limiter: limitByIp(musicLimiter, "Too many music requests from your network.") })
+);
+
+/*
+|--------------------------------------------------------------------------
+| AI chat (see ai.js). The key stays here: AI_API_KEY, AI_BASE_URL, AI_MODEL.
+|--------------------------------------------------------------------------
+*/
+const aiIpLimiter = createLimiter({ windowMs: 10 * 60_000, max: 240 }); // per network (a school shares one)
+const aiUserLimiter = createLimiter({ windowMs: 10 * 60_000, max: 40 }); // per person
+app.use(
+  "/api/ai",
+  aiRouter({
+    requireSession,
+    limiter: limitByIp(aiIpLimiter, "Too many AI messages from your network."),
+    userLimiter: (req, res, next) => {
+      const wait = aiUserLimiter.hit(sessionLabel(req.vmSession));
+      if (!wait) return next();
+      res.set("Retry-After", String(wait));
+      res.status(429).json({ error: `You've sent a lot of AI messages. Try again in ${formatWait(wait)}.` });
+    },
+  })
 );
 
 /*

@@ -519,7 +519,7 @@ function hide(){
 }
 function toggle(){W.classList.contains('show')&&!W.classList.contains('closing')?hide():open()}
 /* another full-screen app opening covers the music window: step aside, keep playing */
-const OTHERS=['#chat-window','#browser-wrap','#vm-wrap','#cloud-wrap','#remote-wrap'].map(s=>$(s)).filter(Boolean);
+const OTHERS=['#chat-window','#browser-wrap','#vm-wrap','#cloud-wrap','#remote-wrap','#ai-window'].map(s=>$(s)).filter(Boolean);
 const shown=el=>getComputedStyle(el).display!=='none'&&!el.classList.contains('closing');
 let wasShown=new Map(OTHERS.map(el=>[el,shown(el)]));
 const appWatch=new MutationObserver(()=>{
