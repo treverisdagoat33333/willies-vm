@@ -40,6 +40,9 @@ try{const ws=new WebSocket("ws://"+location.host+"/ws");ws.onopen=()=>ws.send("p
       R.blank=b.contentDocument.getElementById("w")?.textContent;
       document.getElementById("f").onload=()=>{try{R.child=document.getElementById("f").contentDocument.getElementById("c").textContent;R.childHost=document.getElementById("f").contentWindow.location.host}catch(e){R.child="err "+e}done()};</script>`);
     case "/t/child": return page("child", `<p id="c">child ok</p>`);
+    case "/t/undef": return page("undef", `<p>about to go somewhere undefined</p><script src="/t/undef.js"></script>`);
+    case "/undefined": return page("undefined", `<h1>nothing here</h1>`);
+    case "/t/undef.js": return js(`const cfg = {};\nsetTimeout(function goNext() { location.href = "/" + cfg.next; }, 300);`);
     case "/t/cf": // acts like Cloudflare turning away our server's own (fast mode) fetches, told apart by their Accept-Encoding
       if (req.headers["accept-encoding"] === "gzip, deflate, br") { res.writeHead(403, { "content-type": "text/html", "cf-mitigated": "challenge" }); return res.end("<title>Just a moment...</title>"); }
       return page("cf", `<script>R.ok=true;done()</script>`);

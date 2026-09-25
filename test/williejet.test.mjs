@@ -158,6 +158,20 @@ const cells = await page.$$eval(".st-table tr", (rows) => rows.slice(1).map((r) 
 ok(cells.length === 2 && cells.every((r) => r.every((c) => / ms$/.test(c))), "speed test times every site on all 4 engines", JSON.stringify(cells));
 ok(await page.$$eval(".st-table td.best", (b) => b.length) === 2, "…and marks the fastest per site");
 
+// ---- "Copy debug info": a site whose own script sends it to /undefined (like claude.ai did)
+await page.evaluate(() => closePanel("settings-panel"));
+await page.evaluate((u) => navigate(u, getTab()), SITE + "/t/undef");
+await page.waitForFunction((u) => $("#browser-address").value === u, SITE + "/undefined", { timeout: 15000 }).catch(() => {});
+ok(await page.inputValue("#browser-address") === SITE + "/undefined", "the test page really does wander off to /undefined", await page.inputValue("#browser-address"));
+await page.click("#b-engine");
+await page.click('#b-engine-pop button.item:has-text("Copy debug info")');
+await page.waitForSelector("#dcf-log", { timeout: 15000 });
+const report = await page.inputValue("#dcf-log");
+ok(/location navigation to "\/undefined"/.test(report), "the debug info names the navigation to /undefined", report.slice(0, 600));
+ok(/goNext \(http:\/\/127\.0\.0\.1:\d+\/t\/undef\.js:\d+:\d+\)/.test(report), "…points at the site's function, script and line that did it", report.slice(0, 900));
+ok(/code there: .*cfg\.next/.test(report), "…and shows that line of the site's code", report.slice(0, 1200));
+await page.click("#dc-modal-ok").catch(() => {});
+
 // ---- panic wipe clears the WillieJet cache
 await page.evaluate(async () => { await (await caches.open("wj-http-v1")).put("https://x.test/a", new Response("a")); wjWipe(); await new Promise((r) => setTimeout(r, 300)); });
 ok(!(await page.evaluate(() => caches.has("wj-http-v1"))), "the panic wipe deletes the WillieJet cache");

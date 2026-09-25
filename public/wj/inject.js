@@ -15,6 +15,7 @@
 (() => {
   const WASM_KEY = Symbol.for("wj.wasm");
   const ENGINE_KEY = Symbol.for("wj.engine");
+  const DEBUG_KEY = Symbol.for("wj.debug");
   const encode = (u) => (u ? encodeURIComponent(u) : u);
   const decode = (u) => (u ? decodeURIComponent(u) : u);
 
@@ -105,6 +106,21 @@
     }
   }
 
+  /* For "Copy debug info": where this page tries to go (and which of its scripts
+     asked), and the errors it throws, sent to the desktop's log. */
+  function watch(client, global) {
+    const sink = lookUp(DEBUG_KEY);
+    if (typeof sink !== "function") return;
+    const here = () => { try { return String(client.url.href); } catch (_) { return "?"; } };
+    try {
+      new self.$scramjet.Plugin("wj-debug").tap(client.hooks.lifecycle.navigate, (ctx, props) => {
+        sink({ kind: "navigate", how: ctx?.type, to: String(props?.url), from: here(), stack: new Error().stack });
+      });
+    } catch (_) {}
+    global.addEventListener("error", (e) => sink({ kind: "error", from: here(), message: String(e.message), at: `${e.filename}:${e.lineno}:${e.colno}`, stack: e.error?.stack }));
+    global.addEventListener("unhandledrejection", (e) => sink({ kind: "rejection", from: here(), message: String(e.reason?.message || e.reason), stack: e.reason?.stack }));
+  }
+
   /* One hooked window (the page itself, or an about:blank frame inside it). */
   function attach(global, init) {
     const S = self.$scramjet;
@@ -142,6 +158,7 @@
       history: init.history,
     });
     client.hook();
+    watch(client, global);
     return client;
   }
 

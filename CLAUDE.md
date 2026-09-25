@@ -174,6 +174,9 @@ Each WS module creates `WebSocketServer({ noServer: true })` and exports a `hand
 - **All engines, in `app.js`:**
   - **Following the page:** `realUrl()` reads the real address from the frame's Scramjet client (`Symbol.for('scramjet client global')`, which v2, WillieJet and v1 share) or decodes Ultraviolet's path. `syncTab()` updates the address bar, tab title, history and bookmarks on each load, and every 1.5 s for sites that change the address without reloading.
   - **Blank pages:** `checkHealth()` runs 6 s after a page loads, on the visible tab only. If the page is blank, or nearly empty and throwing errors, it retries once on the next engine in `FALLBACK_ORDER` and remembers that choice for the site.
+- **"Copy debug info" (engine badge, WillieJet tabs):** for sites that misbehave where you can't reproduce them.
+  - `inject.js` taps the core's `client.hooks.lifecycle.navigate` hook (with a stack trace) and the page's errors, and sends them to `window[Symbol.for('wj.debug')]` on the desktop.
+  - The report lists the site's own stack frames, decoded to real addresses, and the code at the top frame. The stack positions refer to the rewritten script, so the worker re-runs `rewriteJs` on the original file for that snippet (`source(url, {rewrite: true})`).
 - **Crash recovery (`engine.mjs`):** the worker is pinged every 4 s. After 20 s without an answer it's replaced, at most 3 times in 5 minutes, and WillieJet tabs reload.
 - **Settings > Browser > WillieJet:**
   - Fast mode, cache stats (the worker's `stats` message) and "Clear WillieJet cache".

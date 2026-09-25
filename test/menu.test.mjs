@@ -31,7 +31,8 @@ ok(await page.textContent("#b-engine") === "WJ", "toolbar shows WJ", await page.
 await page.click("#b-engine");
 ok(await page.isVisible("#b-engine-pop.show"), "engine menu opens");
 const items = await page.$$eval("#b-engine-pop button.item", (b) => b.map((x) => x.textContent));
-ok(items.length === 4 && items.some((t) => /WillieJet.*default.*✓/.test(t)), "menu lists 4 engines, WillieJet is default and current", items.join(" | "));
+ok(items.filter((t) => /Scramjet|WillieJet|Ultraviolet/.test(t)).length === 4 && items.some((t) => /WillieJet.*default.*✓/.test(t)), "menu lists 4 engines, WillieJet is default and current", items.join(" | "));
+ok(items.some((t) => t === "Copy debug info"), "…and Copy debug info");
 await page.click('#b-engine-pop button.item:has-text("Ultraviolet")');
 await page.waitForFunction(() => document.querySelector("#browser-frames iframe.active")?.getAttribute("src")?.includes("/~/uv/"), null, { timeout: 15000 }).catch(() => {});
 ok(await heading() === "Proxy test home" && (await frameSrc()).includes("/~/uv/"), "picking Ultraviolet reloads the site on it", await frameSrc());

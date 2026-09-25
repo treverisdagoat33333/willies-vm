@@ -18,6 +18,7 @@
  */
 const WASM_KEY = Symbol.for("wj.wasm");
 const ENGINE_KEY = Symbol.for("wj.engine");
+const DEBUG_KEY = Symbol.for("wj.debug");
 const PING_EVERY = 4000;
 const DEAD_AFTER = 20000;
 
@@ -81,6 +82,13 @@ export async function start({ wisp, cache = true, fast = false, fastSkip = [], o
 
   window[ENGINE_KEY] = { page, connect: (port) => worker.postMessage({ t: "transport" }, [port]) };
 
+  // what proxied pages did lately, for "Copy debug info" (wj/inject.js fills it)
+  const debug = [];
+  window[DEBUG_KEY] = (entry) => {
+    debug.push({ at: Date.now(), ...entry });
+    if (debug.length > 300) debug.shift();
+  };
+
   // the rewriter, for proxied pages to borrow (the worker loads its own)
   const wasm = fetch("/scramjet/scramjet.wasm").then((r) => r.arrayBuffer()).then((b) => { window[WASM_KEY] = new Uint8Array(b); });
   await Promise.all([spawn(), wasm]);
@@ -123,5 +131,8 @@ export async function start({ wisp, cache = true, fast = false, fastSkip = [], o
     warm(url) { worker.postMessage({ t: "warm", url }); },
     async stats() { return (await ask({ t: "stats" }))?.stats ?? null; },
     async clear() { await ask({ t: "clear" }); },
+    debugLog(sinceMs = 10 * 60 * 1000) { return debug.filter((e) => Date.now() - e.at < sinceMs); },
+    /* a site's file fetched the way the engine would (no cookies): as the site sent it, or rewritten as the page ran it */
+    async source(url, { rewrite = false, module = false } = {}) { return (await ask({ t: "raw", url, rewrite, module }))?.text ?? null; },
   };
 }

@@ -1472,6 +1472,7 @@ $('#b-engine').onclick=e=>{
       proxies.wj?.then(e=>e.setFast(S.wjFast,siteNoFast)).then(()=>{toast(`Fast mode ${off?'on':'off'} for ${host}`,'ok');if(t)navigate(url,t,true)})};
     pop.appendChild(b);
   }
+  if(cur==='wj'&&proxies.wj){const b=document.createElement('button');b.className='item';b.setAttribute('role','menuitem');b.textContent='Copy debug info';b.onclick=()=>{pop.classList.remove('show');wjDebugReport(t)};pop.appendChild(b)}
   if(pinned){const b=document.createElement('button');b.className='item';b.textContent='Use my default engine';b.onclick=()=>{pop.classList.remove('show');setSiteEngine(url,null);if(t)navigate(url,t,true)};pop.appendChild(b)}
   const r=e.currentTarget.getBoundingClientRect();pop.style.top=r.bottom+6+'px';pop.style.left=Math.max(8,Math.min(r.right-230,innerWidth-238))+'px';pop.classList.add('show');
 };
@@ -1535,6 +1536,31 @@ function checkHealth(t,url,engine,since){
   tried.add(next);setSiteEngine(url,next);
   toast(`${hostOf(url)} looked broken on ${PROXIES[engine]}, trying ${PROXIES[next]}`);
   navigate(url,t,true);
+}
+
+/* "Copy debug info" (engine badge, WillieJet): what pages did lately, where their
+   own code tried to navigate, and a look at that code, for sites that misbehave */
+async function wjDebugReport(t){
+  const eng=await proxies.wj,log=eng.debugLog(),at=/(https?:\/\/[^\s()]+?):(\d+):(\d+)/;
+  const realOf=u=>{try{const x=new URL(u);return x.origin===location.origin&&x.pathname.startsWith('/~/wj/')?decodeURIComponent(x.pathname.split('/').slice(4).join('/')):u}catch(_){return u}};
+  const lines=[`WillieJet debug info, ${new Date().toISOString()}`,`Tab: ${t?.url||'?'} (engine ${t?.engine||'?'}, fast mode ${S.wjFast?'on':'off'}${siteNoFast.includes(hostOf(t?.url||''))?', off for this site':''})`,`Browser: ${navigator.userAgent}`,''];
+  const sources={};
+  for(const e of log.slice(-60)){
+    const time=new Date(e.at).toTimeString().slice(0,8);
+    lines.push(e.kind==='navigate'?`[${time}] ${e.how} navigation to "${e.to}" (from ${e.from})`:`[${time}] ${e.kind}: ${e.message}${e.at?' at '+realOf(String(e.at)):''} (on ${e.from})`);
+    const frames=String(e.stack||'').split('\n').filter(l=>at.test(l)&&!/\/scramjet\/scramjet|\/wj\/inject\.js|\/controller\//.test(l)).slice(0,6); // skip our own files, not proxied ones (/~/wj/)
+    for(const f of frames)lines.push('    '+f.trim().replace(at,(m,u,l,c)=>`${realOf(u)}:${l}:${c}`));
+    if(e.kind==='navigate'&&frames[0]){
+      const[,u,l,c]=frames[0].match(at),real=realOf(u);
+      const src=sources[real]??=await eng.source(real,{rewrite:/\.m?js(\?|$)/i.test(real)||!/\.\w+(\?|$)/.test(new URL(real).pathname),module:/\.mjs(\?|$)/i.test(real)}).catch(()=>null); // stack positions are in the rewritten script
+      const code=src?.split('\n')[+l-1];
+      if(code)lines.push(`    code there: ...${code.slice(Math.max(0,+c-200),+c+200)}...`);
+    }
+  }
+  if(!log.length)lines.push('(Nothing recorded yet. Reload the page in this tab, then copy again.)');
+  const text=lines.join('\n');
+  try{await navigator.clipboard.writeText(text);toast('Debug info copied','ok')}catch(_){}
+  dcModal({title:'Debug info',sub:'Copied to your clipboard. It lists the addresses this tab visited, so only share it with someone you trust.',fields:[{key:'log',label:'Debug info',type:'textarea',rows:12,value:text,readonly:true}],okLabel:'Done',onOk:()=>{}});
 }
 
 /* ── WillieJet in Settings: cache stats, clearing, the panic wipe, the speed test ── */

@@ -336,6 +336,23 @@ self.onmessage = ({ data, ports }) => {
       stats: { cache: !!httpCache, http: httpCache?.stats || null, rewrites: rewrites?.stats || null, fast: fast ? { on: fast.on, ...fast.stats } : null },
     }));
   }
+  if (data?.t === "raw") {
+    // a site's script as the page ran it (rewritten), so a stack trace's line:column lands on the right code
+    return void Promise.resolve(ready).then(async () => {
+      let text = null;
+      try {
+        const r = await fast.request(new URL(data.url), "GET", null, [["User-Agent", navigator.userAgent]], undefined);
+        const bytes = new Uint8Array(await new Response(r.body).arrayBuffer());
+        if (data.rewrite) {
+          const base = new URL(data.url);
+          const out = SJ.rewriteJs(bytes, data.url, context, { origin: base, base }, !!data.module);
+          text = typeof out === "string" ? out : new TextDecoder().decode(out);
+        } else text = new TextDecoder().decode(bytes);
+        text = text.slice(0, 8 * 1024 * 1024);
+      } catch (_) {}
+      self.postMessage({ t: "raw", id: data.id, text });
+    });
+  }
   if (data?.t === "clear") {
     return void Promise.all([httpCache?.clear(), rewrites?.clear()]).then(() => self.postMessage({ t: "cleared", id: data.id }));
   }
