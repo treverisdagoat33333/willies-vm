@@ -121,6 +121,29 @@
     global.addEventListener("unhandledrejection", (e) => sink({ kind: "rejection", from: here(), message: String(e.reason?.message || e.reason), stack: e.reason?.stack }));
   }
 
+  /* history.replaceState(state, title) with no URL (or a null one) means "stay
+     on this URL", but Scramjet's core turns the missing URL into the text
+     "undefined" (or "null") and the page lands on /undefined. claude.ai's
+     router does exactly this on startup. Hand the core the current URL
+     instead. */
+  function keepUrlOnHistory(client, global) {
+    const proto = global.History?.prototype;
+    if (!proto) return;
+    for (const name of ["pushState", "replaceState"]) {
+      const desc = Object.getOwnPropertyDescriptor(proto, name);
+      if (!desc || typeof desc.value !== "function") continue;
+      Object.defineProperty(proto, name, {
+        ...desc,
+        value: new Proxy(desc.value, {
+          apply(target, that, args) {
+            if (args.length >= 2 && args[2] == null) args = [args[0], args[1], client.url.href];
+            return Reflect.apply(target, that, args);
+          },
+        }),
+      });
+    }
+  }
+
   /* One hooked window (the page itself, or an about:blank frame inside it). */
   function attach(global, init) {
     const S = self.$scramjet;
@@ -158,6 +181,7 @@
       history: init.history,
     });
     client.hook();
+    keepUrlOnHistory(client, global);
     watch(client, global);
     return client;
   }

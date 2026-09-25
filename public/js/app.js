@@ -1378,13 +1378,28 @@ function bareMux(){
     return conn;
   })().catch(e=>{bareConn=null;throw e});
 }
+/* history.replaceState(state,title) with no URL (or a null one) means "stay here", but the
+   Scramjet v2 core turns the missing URL into the text "undefined" and the page lands on
+   /undefined (claude.ai's router does this). Hand the core the current URL instead. Scramjet v2
+   gets this through its frame init hook; WillieJet does the same in wj/inject.js. */
+function keepUrlOnHistory(client,win){
+  const proto=win.History?.prototype;if(!proto)return;
+  for(const name of['pushState','replaceState']){
+    const desc=Object.getOwnPropertyDescriptor(proto,name);if(!desc||typeof desc.value!=='function')continue;
+    Object.defineProperty(proto,name,{...desc,value:new Proxy(desc.value,{apply(target,that,args){if(args.length>=2&&args[2]==null)args=[args[0],args[1],client.url.href];return Reflect.apply(target,that,args)}})});
+  }
+}
 const PROXY_START={
   async sj2(sw){
     if(typeof $scramjetController==='undefined')throw new Error('controller.api.js missing.');
     const{default:LibcurlClient}=await import('/libcurl/index.mjs');
     const c=new $scramjetController.Controller({serviceworker:sw,transport:new LibcurlClient({wisp:wispUrl()}),config:{prefix:'/~/sj/',scramjetPath:'/scramjet/scramjet.js',wasmPath:'/scramjet/scramjet.wasm',injectPath:'/controller/controller.inject.js'},scramjetConfig:{flags:{captureErrors:true,allowInvalidJs:true}}});
     await c.wait();
-    return{frame:f=>c.createFrame(f)};
+    return{frame:f=>{
+      const fr=c.createFrame(f);
+      new $scramjetController.ManagedPlugin('wvm-keep-url',[]).tap(fr.hooks.init.post,({client,window:w})=>{try{keepUrlOnHistory(client,w)}catch(e){console.warn('keepUrlOnHistory:',e)}});
+      return fr;
+    }};
   },
   async wj(){
     const{start}=await import('/wj/engine.mjs');

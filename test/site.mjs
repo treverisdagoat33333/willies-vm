@@ -40,6 +40,10 @@ try{const ws=new WebSocket("ws://"+location.host+"/ws");ws.onopen=()=>ws.send("p
       R.blank=b.contentDocument.getElementById("w")?.textContent;
       document.getElementById("f").onload=()=>{try{R.child=document.getElementById("f").contentDocument.getElementById("c").textContent;R.childHost=document.getElementById("f").contentWindow.location.host}catch(e){R.child="err "+e}done()};</script>`);
     case "/t/child": return page("child", `<p id="c">child ok</p>`);
+    case "/t/history": return page("history", `<script>const here=()=>location.pathname+location.search+location.hash;
+      history.replaceState({key:1},"");R.omitted=here();
+      history.pushState({key:2},"",null);R.nulled=here();
+      history.replaceState({key:3},"","?q=1#h");R.given=here();R.state=history.state.key;done()</script>`);
     case "/t/undef": return page("undef", `<p>about to go somewhere undefined</p><script src="/t/undef.js"></script>`);
     case "/undefined": return page("undefined", `<h1>nothing here</h1>`);
     case "/t/undef.js": return js(`const cfg = {};\nsetTimeout(function goNext() { location.href = "/" + cfg.next; }, 300);`);

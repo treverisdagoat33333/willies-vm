@@ -177,6 +177,7 @@ Each WS module creates `WebSocketServer({ noServer: true })` and exports a `hand
 - **"Copy debug info" (engine badge, WillieJet tabs):** for sites that misbehave where you can't reproduce them.
   - `inject.js` taps the core's `client.hooks.lifecycle.navigate` hook (with a stack trace) and the page's errors, and sends them to `window[Symbol.for('wj.debug')]` on the desktop.
   - The report lists the site's own stack frames, decoded to real addresses, and the code at the top frame. The stack positions refer to the rewritten script, so the worker re-runs `rewriteJs` on the original file for that snippet (`source(url, {rewrite: true})`).
+- **History without a URL (core bug we work around):** the core's `pushState`/`replaceState` hook does `String(args[2])`, so `replaceState(state, "")` (claude.ai's router does it on startup) sends the page to `/undefined`, and a `null` URL sends it to `/null`. `keepUrlOnHistory` passes the current URL instead. It runs after `client.hook()`: in `wj/inject.js` for WillieJet, and through each v2 frame's `hooks.init.post` (a `ManagedPlugin` tap in `PROXY_START.sj2`) for Scramjet v2. The compat test `/t/history` checks it on both.
 - **Crash recovery (`engine.mjs`):** the worker is pinged every 4 s. After 20 s without an answer it's replaced, at most 3 times in 5 minutes, and WillieJet tabs reload.
 - **Settings > Browser > WillieJet:**
   - Fast mode, cache stats (the worker's `stats` message) and "Clear WillieJet cache".

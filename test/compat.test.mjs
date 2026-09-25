@@ -19,6 +19,7 @@ const TESTS = {
   xhr: (r) => /^200 /.test(r.xhr || ""),
   sse: (r) => r.sse === "one,two",
   big: (r) => r.big === 20000,
+  history: (r) => r.omitted === "/t/history" && r.nulled === "/t/history" && r.given === "/t/history?q=1#h" && r.state === 3, // replaceState/pushState with no URL stay put (claude.ai)
 };
 const FINAL_TITLE = { form: "echo", redirect: "landed" }; // tests that end on another page
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined });
@@ -60,6 +61,8 @@ console.log("test".padEnd(10) + ENGINES.map((e) => e.padEnd(26)).join(""));
 for (const n of names) console.log(n.padEnd(10) + ENGINES.map((e) => String(table[e][n]).slice(0, 25).padEnd(26)).join(""));
 for (const e of ENGINES) for (const n of names) if (String(table[e][n]).startsWith("FAIL")) console.log(`${e} ${n}: ${table[e][n]}`);
 // WillieJet has to pass everything; the others are reported, not judged
+// …except that our history fix (no-URL replaceState) is checked on Scramjet v2 too
 const wjFails = Object.keys(TESTS).filter((n) => !String(table.wj?.[n]).startsWith("ok"));
-console.log(wjFails.length ? `\n0 passed, 1 failed (WillieJet failed: ${wjFails.join(", ")})` : "\n1 passed, 0 failed");
+if (table.sj2 && !String(table.sj2.history).startsWith("ok")) wjFails.push("history on Scramjet v2");
+console.log(wjFails.length ? `\n0 passed, 1 failed (failed: ${wjFails.join(", ")})` : "\n1 passed, 0 failed");
 process.exit(wjFails.length ? 1 : 0);
