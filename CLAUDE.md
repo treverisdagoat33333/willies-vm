@@ -268,6 +268,11 @@ Voice calls ride the same socket (`chat.js` relays; audio and screen go peer to 
 - server: `call.invite {callId,from}`, `call.accepted`, `call.signal`, `call.ended {reason}`
 - Accounts only. A call rings every tab of the callee and binds to the one that answers. The server tracks calls in memory for busy, 35-second ring timeout, and disconnect handling.
 - The client uses perfect negotiation (the callee is polite), so screen share can start or stop mid-call. `/api/calls/ice` hands out STUN, plus TURN when it's configured.
+- **The relay (`/call-relay/`, `chat.js`):** strict networks (schools, phone carriers) block the direct path, and without TURN the call never connects. So if WebRTC isn't connected after 9 s, or fails, the side that noticed signals `{relay:true, why}` and both sides move the call to a WebSocket through our server.
+  - Voice is 16 kHz G.711 μ-law in 20 ms frames (`js/call-worklet.js`, an AudioWorklet), played with 80 ms of slack; a shared screen is JPEG frames, 3 a second, up to 1280×720, skipped while the socket is backed up. Messages are `[kind, ...bytes]` (1 voice, 2 frame, 3 frame end). No screen sound on the relay.
+  - Only the call's two accounts can join a call's relay (checked at upgrade and on connection), each side has a byte budget (600 KB/s, 1.5 MB burst), and ending the call closes it.
+  - Both devices remember a failed direct path for a day (`wvm.callRelayUntil`) and go straight to the relay. `wvm.callRelay=always` does that permanently; `blocked` fakes a network that blocks direct calls (tests).
+  - `window.calls.stats()` reports the mode and what's been sent and received. `test/calls.test.mjs` covers direct calls, the relay, the fallback and an outsider trying to join.
 
 Close codes: `4003` banned, `4004` kicked, `4005` signed out.
 

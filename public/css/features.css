@@ -157,6 +157,9 @@ html[data-tbside="top"] #call[data-state="active"],html[data-tbhide="on"] #call[
 .cl-video{display:none;position:relative;border-radius:var(--r-lg);overflow:hidden;background:#000;aspect-ratio:16/9}
 #call.has-video .cl-video{display:block}
 .cl-video video{width:100%;height:100%;object-fit:contain;display:block}
+#cl-remote-canvas{display:none;width:100%;height:100%;object-fit:contain}
+#call.relay-video #cl-remote-video{display:none}
+#call.relay-video #cl-remote-canvas{display:block}
 .cl-fs{position:absolute;top:8px;right:8px;width:32px;height:32px;display:grid;place-items:center;border-radius:8px;background:rgba(0,0,0,.55);color:#fff;opacity:0;transition:opacity .15s}
 .cl-video:hover .cl-fs{opacity:1}
 .cl-fs .i{width:16px;height:16px}

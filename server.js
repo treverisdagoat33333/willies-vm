@@ -41,6 +41,7 @@ import {
 } from "./db.js";
 import {
   handleChatUpgrade,
+  handleCallRelayUpgrade,
   onlineCount,
   onlineList,
   kickUser,
@@ -107,6 +108,13 @@ server.on("upgrade", (req, socket, head) => {
     const session = getSessionFromCookieHeader(req.headers.cookie);
     if (!session) return refuseUpgrade(socket, 401, "Unauthorized");
     handleChatUpgrade(req, socket, head, session, clientIp(req));
+    return;
+  }
+
+  if (upgradePath === "/call-relay/") {
+    const session = getSessionFromCookieHeader(req.headers.cookie);
+    if (!session) return refuseUpgrade(socket, 401, "Unauthorized");
+    handleCallRelayUpgrade(req, socket, head, session);
     return;
   }
 

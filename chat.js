@@ -100,6 +100,7 @@ function endCall(id, reason, except) {
   if (!c) return;
   calls.delete(id);
   clearTimeout(c.timer);
+  for (const r of Object.values(c.relay || {})) try { r.close(1000, "call ended"); } catch (_) {}
   const targets = new Set([c.fromWs, ...(c.toWs ? [c.toWs] : socketsOf(c.to))]);
   for (const ws of targets) if (ws !== except) send(ws, { type: "call.ended", callId: id, reason });
 }
@@ -664,6 +665,58 @@ const heartbeat = setInterval(() => {
   }
 }, 30_000);
 heartbeat.unref?.();
+
+/*
+ * The call relay, for when two browsers can't reach each other directly (strict
+ * school or phone networks block WebRTC, and there's no TURN server): each side
+ * of an active call opens /call-relay/?id=<callId>, and whatever one sends
+ * (voice and screen frames, binary) goes to the other. Only the call's two
+ * people can join, and each socket gets a byte budget.
+ */
+const relayWss = new WebSocketServer({ noServer: true, maxPayload: 512 * 1024 });
+const RELAY_RATE = 600 * 1024; // bytes a second each side may send, on average
+const RELAY_BURST = 1.5 * 1024 * 1024;
+
+relayWss.on("connection", (ws, _req, name, callId) => {
+  const c = calls.get(callId);
+  if (!c || c.state !== "active" || (name !== c.from && name !== c.to)) return ws.close(4003, "not in this call");
+  c.relay ||= {};
+  try { c.relay[name]?.close(4000, "replaced"); } catch (_) {}
+  c.relay[name] = ws;
+  const peerName = name === c.from ? c.to : c.from;
+  const ready = () => {
+    const other = c.relay?.[peerName];
+    if (other?.readyState === 1 && ws.readyState === 1) for (const s of [ws, other]) s.send("ready");
+  };
+  ready();
+  let tokens = RELAY_BURST, at = Date.now();
+  ws.on("message", (data, isBinary) => {
+    if (!isBinary) return;
+    const now = Date.now();
+    tokens = Math.min(RELAY_BURST, tokens + ((now - at) / 1000) * RELAY_RATE);
+    at = now;
+    if (data.length > tokens) return; // over budget: drop it (voice just skips a beat)
+    tokens -= data.length;
+    const other = calls.get(callId)?.relay?.[peerName];
+    if (other?.readyState === 1 && other.bufferedAmount < 2 * 1024 * 1024) other.send(data, { binary: true });
+  });
+  ws.on("close", () => {
+    if (c.relay?.[name] === ws) delete c.relay[name];
+    const other = c.relay?.[peerName];
+    if (other?.readyState === 1) other.send("gone");
+  });
+});
+
+export function handleCallRelayUpgrade(req, socket, head, session) {
+  const callId = new URL(req.url ?? "/", "http://localhost").searchParams.get("id") || "";
+  const c = calls.get(callId);
+  const name = session.type === "account" ? session.username : null;
+  if (!c || !name || c.state !== "active" || (name !== c.from && name !== c.to)) {
+    socket.write("HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n");
+    return socket.destroy();
+  }
+  relayWss.handleUpgrade(req, socket, head, (ws) => relayWss.emit("connection", ws, req, name, callId));
+}
 
 export function handleChatUpgrade(req, socket, head, session, ip) {
   wss.handleUpgrade(req, socket, head, (ws) => {
