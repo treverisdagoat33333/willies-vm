@@ -136,8 +136,9 @@ Other server modules: `music.js` (the `/api/music` router), `security.js` (rate 
 
 Each WS module creates `WebSocketServer({ noServer: true })` and exports a `handle*Upgrade` function. Authentication happens in `server.js` before the upgrade.
 
-**Proxy browser engines:** Settings > Browser > Proxy engine (`S.proxy`, device-local, not synced) picks one of three.
+**Proxy browser engines:** Settings > Browser > Proxy engine (`S.proxy`, device-local, not synced) picks one of four.
 - `sj2`, Scramjet v2 alpha, the default: its own controller, with libcurl-transport 2.x (`/libcurl/`).
+- `wj`, **WillieJet**, our own engine (`public/wj/`), built on the unmodified Scramjet v2 core (`/scramjet/scramjet.mjs` and `scramjet.js`). It replaces Scramjet's controller with ours; see below.
 - `sj1`, Scramjet v1 (`/sj1/`), and `uv`, Ultraviolet (`/uv/`): both go through bare-mux (`/baremux/`). bare-mux runs the same libcurl 2.x through `public/js/libcurl-bare.mjs`, which converts headers between the two formats. The 1.x libcurl build has a startup race, and epoxy sends WebSocket handshakes in absolute form (`GET ws://host/path`), which the `ws` library rejects.
 - `public/sw.js` is the one service worker for all three, routed by prefix: `/~/sj/`, `/~/sj1/`, `/~/uv/`. A scope only gets one worker.
 - **v1 quirks the worker handles:**
@@ -146,6 +147,19 @@ Each WS module creates `WebSocketServer({ noServer: true })` and exports a `hand
   - It sends `/sj1/scramjet.wasm.wasm` to v1, which serves it as a script.
 - Our Ultraviolet config is `public/uv/uv.config.js`, served in place of the package's stock one.
 - A tab keeps its engine until its next navigation. Changing the setting reloads open tabs on the new engine.
+- **Per-site engines:** the badge inside the address bar (WJ, v2, v1 or UV) sets an engine for one site. The picks live in `localStorage` `wvm.siteEngines` (this device only), and `engineFor(url)` applies them before the default.
+
+**WillieJet (`public/wj/`):**
+- **License:** Scramjet's core and controller are AGPL-3.0. WillieJet only calls the core's public exports and never modifies it. Never copy code from `@mercuryworkshop/scramjet-controller` into `public/wj/`, or that code becomes AGPL too.
+- **The files:**
+  - `engine.mjs`: the page side. It starts the worker and exposes the rewriter bytes on `window[Symbol.for('wj.wasm')]` and itself on `window[Symbol.for('wj.engine')]`. Its prefix is `/~/wj/<page>/`, where `<page>` is fixed per desktop tab through sessionStorage.
+  - `worker.mjs`: a module worker that does all the heavy work. It runs libcurl over `/wisp/`, the smart cache and `ScramjetFetchHandler`, which fetches and rewrites. It also holds the cookie jar, saved to IndexedDB `williejet` and shared live on the BroadcastChannel `wj-cookies`, and serves WillieJet's own error page.
+  - `sw.js`: imported by `public/sw.js`. It hands `/~/wj/` requests to the page's worker over a MessagePort. After the browser stops and restarts the service worker, it asks the tabs to reconnect and waits for them, instead of 404ing like v2. Its own error responses carry COEP, or Chrome blocks them inside the frame.
+  - `inject.js`: runs in every proxied page. It hooks the page with the core's `ScramjetClient`, borrows the rewriter bytes from the desktop page (sync XHR of the static wasm as a fallback), and opens a line to the worker for WebSockets and cookie writes.
+  - `cache.mjs`: the HTTP cache around the transport. It follows Cache-Control, Expires, ETag, Last-Modified and Vary, and never stores no-store, Set-Cookie, Range, Authorization, over 25 MB, or non-200/203/301/308 responses. HTML is only cached when the site says so.
+- `/wj/wasm.js` (server.js) serves the rewriter as `self.WASM=...` for workers that proxied sites start.
+- **Failures:** WillieJet's error page offers the other engines through `{wj:'switch'}` messages. A failure that isn't a network error falls back to Ultraviolet on its own (`{wj:'failed', network:false}`). The desktop only accepts these messages from its own tab frames.
+- **Measured against v2 on the local bench** (60 ms per file): repeat visits are 2.5 to 6 times faster thanks to the cache, and the desktop's main thread is never blocked. document.cookie writes reach the next request, which v2 misses. It survives service-worker restarts.
 - **Deploys that change `sw.js`:** the engines are tied to the worker they started with. When the browser starts, it calls `reg.update()` and waits for any new worker to take over. If one takes over mid-session, the engines restart and open tabs are marked `stale`; Reload or the next navigation moves them to the new worker.
 - **Testing against a local site:** wisp refuses loopback addresses by default, so set `options.allow_loopback_ips` from a `--import` preload. libcurl sends `Upgrade: h2c` on plain `http://`, so a test server's `upgrade` handler must let non-WebSocket upgrades through as normal requests.
 

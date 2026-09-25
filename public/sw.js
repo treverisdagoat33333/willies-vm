@@ -1,11 +1,12 @@
 /*
- * One service worker for all three proxy engines (a scope only gets one),
- * told apart by prefix:
+ * One service worker for every proxy engine (a scope only gets one), told
+ * apart by prefix:
  *   /~/sj/   Scramjet v2, the default
+ *   /~/wj/   WillieJet (ours, on the Scramjet v2 core; see wj/sw.js)
  *   /~/sj1/  Scramjet v1
  *   /~/uv/   Ultraviolet
- * v1 and Ultraviolet load inside try/catch, so if either breaks, Scramjet v2
- * keeps working.
+ * The others load inside try/catch, so if one breaks, Scramjet v2 keeps
+ * working.
  */
 importScripts("/controller/controller.sw.js");
 
@@ -13,6 +14,14 @@ const SJ1_PREFIX = "/~/sj1/";
 const SJ1_WASM = "/sj1/scramjet.wasm.wasm"; // proxied pages load it as a script; v1 wraps it
 let sj1 = null;
 let uv = null;
+
+let wj = false;
+try {
+  importScripts("/wj/sw.js");
+  wj = true;
+} catch (e) {
+  console.error("WillieJet didn't load:", e);
+}
 
 try {
   importScripts("/sj1/scramjet.all.js");
@@ -68,7 +77,9 @@ async function sj1Fetch(event) {
 }
 
 self.addEventListener("fetch", (event) => {
-  if ($scramjetController.shouldRoute(event)) {
+  if (wj && wjRoutes(event)) {
+    event.respondWith(wjFetch(event));
+  } else if ($scramjetController.shouldRoute(event)) {
     event.respondWith($scramjetController.route(event));
   } else if (sj1 && (event.request.url.startsWith(location.origin + SJ1_PREFIX) || event.request.url.startsWith(location.origin + SJ1_WASM))) {
     event.respondWith(sj1Fetch(event));

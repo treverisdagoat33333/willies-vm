@@ -262,7 +262,7 @@ $('#export-btn').onclick=()=>{const data={settings:S,bookmarks,favGames,recentGa
 $('#import-btn').onclick=()=>$('#import-file').click();
 $('#import-file').onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const d=JSON.parse(r.result);if(d.settings)S={...DEFAULTS,...d.settings};if(Array.isArray(d.bookmarks)){bookmarks=d.bookmarks;put('bookmarks',bookmarks)}if(Array.isArray(d.favGames)){favGames=d.favGames;put('favGames',favGames)}if(Array.isArray(d.recentGames)){recentGames=d.recentGames;put('recentGames',recentGames)}save();applyAll();syncControls();renderBookmarks();toast('Settings imported','ok')}catch(_){toast('Invalid settings file','err')}};r.readAsText(f);e.target.value=''};
 $('#reset-btn').onclick=()=>{if(!confirm('Reset all settings to defaults?'))return;S={...DEFAULTS};save();applyAll();syncControls();toast('Settings reset','ok')};
-$('#nuke-btn').onclick=()=>{if(!confirm('Clear ALL data for this site and reload?'))return;localStorage.clear();sessionStorage.clear();if(window.caches)caches.keys().then(k=>k.forEach(x=>caches.delete(x)));setTimeout(()=>location.reload(),300)};
+$('#nuke-btn').onclick=()=>{if(!confirm('Clear ALL data for this site and reload?'))return;localStorage.clear();sessionStorage.clear();if(window.caches)caches.keys().then(k=>k.forEach(x=>caches.delete(x)));['williejet','__scramjet_controller','$scramjet'].forEach(n=>{try{indexedDB.deleteDatabase(n)}catch(_){}});setTimeout(()=>location.reload(),300)};
 $('#clear-bookmarks').onclick=()=>{if(!bookmarks.length)return;if(!confirm('Remove all bookmarks?'))return;bookmarks=[];put('bookmarks',bookmarks);renderBookmarks();syncControls();toast('Bookmarks cleared')};
 $('#clear-recent').onclick=$('#clear-recent-2').onclick=()=>{recentGames=[];put('recentGames',recentGames);renderRecent();toast('Recent games cleared')};
 
@@ -1311,8 +1311,10 @@ function pollQueue(token){clearInterval(pollI);if(!token){setLaunching(false);re
 
 /* ═══════════════════════════════════════════════════════════
    BROWSER (proxy engines)
-   Settings > Browser > Proxy engine picks one of three:
+   Settings > Browser > Proxy engine picks one of four:
      sj2  Scramjet v2 alpha, the default: its own controller + libcurl
+     wj   WillieJet, ours (public/wj/): the Scramjet v2 core with the work in
+          a background worker, a smart cache and a shared rewriter
      sj1  Scramjet v1
      uv   Ultraviolet
    sj1 and uv share one bare-mux connection running the same libcurl over /wisp/
@@ -1320,8 +1322,14 @@ function pollQueue(token){clearInterval(pollI);if(!token){setLaunching(false);re
    run in the same service worker (public/sw.js). A tab keeps the engine it
    loaded with until its next navigation, which moves it to the current one.
    ═══════════════════════════════════════════════════════════ */
-const PROXIES={sj2:'Scramjet v2',sj1:'Scramjet v1',uv:'Ultraviolet'};
+const PROXIES={sj2:'Scramjet v2',wj:'WillieJet',sj1:'Scramjet v1',uv:'Ultraviolet'};
+const PROXY_SHORT={sj2:'v2',wj:'WJ',sj1:'v1',uv:'UV'};
 const proxyId=()=>PROXIES[S.proxy]?S.proxy:'sj2';
+/* per-site engine picks (toolbar menu, or a fallback after a failure); this device only */
+let siteEngines=store('wvm.siteEngines',{});
+const hostOf=u=>{try{return new URL(u).hostname}catch(_){return''}};
+const engineFor=u=>{const e=siteEngines[hostOf(u)];return PROXIES[e]?e:proxyId()};
+function setSiteEngine(url,engine){const h=hostOf(url);if(!h)return;if(engine)siteEngines[h]=engine;else delete siteEngines[h];put('wvm.siteEngines',siteEngines)}
 const proxies={}; // engine id -> Promise<{frame(iframe)}>
 let swControl=null,swActive=null,bareConn=null;
 const scripts={};
@@ -1377,6 +1385,10 @@ const PROXY_START={
     await c.wait();
     return{frame:f=>c.createFrame(f)};
   },
+  async wj(){
+    const{start}=await import('/wj/engine.mjs');
+    return start({wisp:wispUrl(),cache:!S.incognito}); // incognito leaves no cached files behind
+  },
   async sj1(){
     await Promise.all([loadScript('/sj1/scramjet.all.js'),bareMux()]);
     const{ScramjetController}=$scramjetLoadController();
@@ -1406,7 +1418,7 @@ function proxyEngine(id=proxyId()){
 function makeFrame(id){const f=document.createElement('iframe');f.className='browser-frame';f.title='Tab '+id;f.allow='fullscreen; autoplay; clipboard-read; clipboard-write; encrypted-media; picture-in-picture';f.referrerPolicy='no-referrer';return f}
 /* the tab's frame, driven by the current engine; a tab changing engine (or worker) gets a fresh iframe */
 async function tabProxy(t){
-  const id=proxyId();
+  const id=engineFor(t.url);
   if(t.px&&!t.stale&&t.engine===id)return t.px;
   const e=await proxyEngine(id);
   if(t.px&&!t.stale&&t.engine===id)return t.px;
@@ -1417,7 +1429,7 @@ async function tabProxy(t){
 function proxyFailed(err,label='Error'){console.error(err);if(String(err?.message).includes('Refreshing once')){toast('Proxy installing — refreshing…');setTimeout(()=>location.reload(),700)}else bstatus(label+': '+(err?.message||err))}
 /* Settings changed the engine: open tabs reload in the new one */
 function proxyChanged(){
-  const id=proxyId(),open=tabs.filter(t=>t.engine&&t.engine!==id&&t.url&&t.url!=='about:blank');
+  const id=proxyId(),open=tabs.filter(t=>t.engine&&t.engine!==engineFor(t.url)&&t.url&&t.url!=='about:blank');
   open.forEach(t=>navigate(t.url,t,true));
   toast(`Browser now uses ${PROXIES[id]}`+(open.length?` · reloaded ${open.length} tab${open.length>1?'s':''}`:''),'ok');
 }
@@ -1431,7 +1443,34 @@ function renderTabs(){
 }
 $('#tab-list').addEventListener('click',e=>{const el=e.target.closest('.tab');if(!el)return;const id=+el.dataset.id;if(e.target.closest('.tx'))closeTab(id);else switchTab(id)});
 $('#tab-list').addEventListener('auxclick',e=>{const el=e.target.closest('.tab');if(el&&e.button===1){e.preventDefault();closeTab(+el.dataset.id)}});
-function switchTab(id){tabs.forEach(t=>t.frame.classList.toggle('active',t.id===id));activeTab=id;const t=getTab();if(t){$('#browser-address').value=t.url&&t.url!=='about:blank'?t.url:'';setOmniIcon(t.url)}renderTabs()}
+function switchTab(id){tabs.forEach(t=>t.frame.classList.toggle('active',t.id===id));activeTab=id;const t=getTab();if(t){$('#browser-address').value=t.url&&t.url!=='about:blank'?t.url:'';setOmniIcon(t.url)}renderTabs();engineLabel()}
+/* toolbar engine button: which engine this tab's site uses, and a menu to change it */
+function engineLabel(){const t=getTab(),id=t?.engine||engineFor(t?.url||'');const b=$('#b-engine');b.textContent=PROXY_SHORT[id]||'WJ';b.title=`Proxy engine: ${PROXIES[id]} (click to change for this site)`}
+$('#b-engine').onclick=e=>{
+  click();const pop=$('#b-engine-pop'),t=getTab();
+  if(pop.classList.contains('show')){pop.classList.remove('show');return}
+  const url=t?.url||'',host=hostOf(url),cur=t?.engine||engineFor(url),pinned=!!siteEngines[host];
+  pop.replaceChildren();
+  const h=document.createElement('h4');h.textContent=host?`Engine for ${host}`:'Proxy engine';pop.appendChild(h);
+  for(const[id,name]of Object.entries(PROXIES)){
+    const b=document.createElement('button');b.className='item';b.setAttribute('role','menuitem');
+    b.innerHTML=`<span></span>${id===proxyId()?' <small>default</small>':''}${id===cur?'<span class="ck">✓</span>':''}`;b.firstChild.textContent=name;
+    b.disabled=!host;
+    b.onclick=()=>{pop.classList.remove('show');setSiteEngine(url,id===proxyId()?null:id);toast(`${host} now opens with ${name}`,'ok');if(t)navigate(url,t,true)};
+    pop.appendChild(b);
+  }
+  if(pinned){const b=document.createElement('button');b.className='item';b.textContent='Use my default engine';b.onclick=()=>{pop.classList.remove('show');setSiteEngine(url,null);if(t)navigate(url,t,true)};pop.appendChild(b)}
+  const r=e.currentTarget.getBoundingClientRect();pop.style.top=r.bottom+6+'px';pop.style.left=Math.max(8,Math.min(r.right-230,innerWidth-238))+'px';pop.classList.add('show');
+};
+document.addEventListener('pointerdown',e=>{const pop=$('#b-engine-pop');if(pop.classList.contains('show')&&!pop.contains(e.target)&&e.target!==$('#b-engine'))pop.classList.remove('show')},true);
+/* WillieJet's error page: "open with another engine", or an automatic retry when the
+   engine itself (not the network) failed. Only from our own tabs' frames. */
+window.addEventListener('message',e=>{
+  const d=e.data;if(e.origin!==location.origin||!d||typeof d!=='object'||typeof d.wj!=='string')return;
+  const t=tabs.find(x=>x.frame.contentWindow===e.source);if(!t||hostOf(d.url)!==hostOf(t.url))return;
+  if(d.wj==='switch'&&PROXIES[d.engine]){setSiteEngine(d.url,d.engine);toast(`${hostOf(d.url)} now opens with ${PROXIES[d.engine]}`,'ok');navigate(d.url,t,true)}
+  else if(d.wj==='failed'&&!d.network&&t.engine==='wj'&&t.retried!==d.url){t.retried=d.url;setSiteEngine(d.url,'uv');toast(`WillieJet couldn't load ${hostOf(d.url)}, trying Ultraviolet`);navigate(d.url,t,true)}
+});
 function setOmniIcon(url){const el=$('#browser-favicon'),src=url&&url!=='about:blank'?favicon(url):'';if(src){el.src=src;el.style.display='block';el.onerror=()=>el.style.display='none'}else el.style.display='none'}
 function closeTab(id){const i=tabs.findIndex(t=>t.id===id);if(i<0)return;const t=tabs[i];try{t.frame.src='about:blank'}catch(_){}t.frame.remove();tabs.splice(i,1);if(!tabs.length){closeBrowser();return}if(id===activeTab)switchTab(tabs[Math.min(i,tabs.length-1)].id);else renderTabs()}
 async function newTab(url){
@@ -1452,6 +1491,7 @@ async function navigate(value,tab,quiet){
     if(t.id===activeTab){$('#browser-address').value=url;setOmniIcon(url)}
     if(!S.incognito&&!quiet)addHistory(url);
     const px=await tabProxy(t);
+    if(t.id===activeTab)engineLabel();
     bstatus('Loading…');px.go(url);setTimeout(()=>bstatus('',false),1200)
   }
   catch(err){proxyFailed(err,'Navigation error')}

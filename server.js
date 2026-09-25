@@ -5,6 +5,7 @@
  * Unauthorized copying, modification, distribution or hosting of this file,
  * in whole or in part, is strictly prohibited. See LICENSE.
  */
+import fs from "node:fs";
 import http from "node:http";
 import { createRequire } from "node:module";
 import path from "node:path";
@@ -191,6 +192,17 @@ app.use("/libcurl/", express.static(dirOf("@mercuryworkshop/libcurl-transport"))
 app.use("/sj1/", express.static(scramjetV1Path));
 app.use("/uv/", express.static(path.join(path.dirname(new URL(import.meta.url).pathname), "public", "uv")), express.static(uvPath));
 app.use("/baremux/", express.static(baremuxPath));
+
+/*
+| WillieJet (public/wj/): our own engine on the Scramjet v2 core above.
+| Workers that proxied sites start need the rewriter as a script; this serves
+| it once, cacheable, instead of through the proxy on every start.
+*/
+let wjWasmJs = null;
+app.get("/wj/wasm.js", (_req, res) => {
+  wjWasmJs ||= `self.WASM=${JSON.stringify(fs.readFileSync(path.join(scramjetPath, "scramjet.wasm")).toString("base64"))};`;
+  res.type("application/javascript").set("Cache-Control", "public, max-age=3600").send(wjWasmJs);
+});
 
 /*
 |--------------------------------------------------------------------------
@@ -1227,7 +1239,7 @@ server.listen(PORT, () => {
   console.log(`Willie Games VM running on port ${PORT}`);
   console.log(`E2B configured: ${Boolean(E2B_API_KEY)}`);
   console.log(`XENV configured: ${Boolean(XENV_API_KEY)}`);
-  console.log(`Proxy engines: Scramjet v2 (/~/sj/), Scramjet v1 (/~/sj1/), Ultraviolet (/~/uv/)`);
+  console.log(`Proxy engines: Scramjet v2 (/~/sj/), WillieJet (/~/wj/), Scramjet v1 (/~/sj1/), Ultraviolet (/~/uv/)`);
   console.log(`Wisp endpoint: ws://localhost:${PORT}/wisp/`);
   console.log(`Chat endpoint: ws://localhost:${PORT}/chat/`);
   console.log(`Accounts stored: ${userCount()}`);

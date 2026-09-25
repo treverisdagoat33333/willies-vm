@@ -529,10 +529,15 @@ html[data-tbhide="on"] #browser-wrap{bottom:0}
 #btoolbar>button{width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;color:var(--text-2);transition:background .15s,color .15s}
 #btoolbar>button:hover{background:var(--glass-3);color:var(--text)}
 #btoolbar>button.close:hover{background:#e0332b;color:#fff}
-.omni{flex:1;display:flex;align-items:center;gap:8px;height:36px;padding:0 12px;border-radius:18px;background:var(--glass-2);border:1px solid var(--border);transition:border-color .15s,box-shadow .15s}
+@media (max-width:480px){#btoolbar>#b-home,#btoolbar>#b-fwd{display:none}#btoolbar{gap:4px;padding:8px 6px}.omni{padding:0 4px 0 10px}}
+.omni{flex:1;min-width:0;display:flex;align-items:center;gap:8px;height:36px;padding:0 12px;border-radius:18px;background:var(--glass-2);border:1px solid var(--border);transition:border-color .15s,box-shadow .15s}
+.b-engine{flex:0 0 auto;height:24px;padding:0 8px;border-radius:12px;font-size:.7em;font-weight:800;letter-spacing:.04em;color:var(--accent);background:var(--glass-3);transition:background .15s}
+.b-engine:hover{background:rgba(var(--accent-rgb),.18)}
+#b-engine-pop button.item .ck{margin-left:auto;color:var(--accent);font-weight:800}
+#b-engine-pop button.item small{color:var(--text-3);font-size:.85em}
 .omni:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px rgba(var(--accent-rgb),.2)}
 .omni img{width:16px;height:16px;border-radius:3px}
-.omni input{flex:1;background:none;border:0;color:var(--text);font-size:.92em;user-select:text}
+.omni input{flex:1;min-width:0;background:none;border:0;color:var(--text);font-size:.92em;user-select:text}
 #bookmarks-bar{display:flex;gap:4px;padding:5px 10px;background:var(--glass);border-bottom:1px solid var(--border);overflow-x:auto;scrollbar-width:none}
 #bookmarks-bar:empty,html[data-bmbar="off"] #bookmarks-bar{display:none}
 .bm{display:flex;align-items:center;gap:6px;padding:4px 9px;border-radius:6px;font-size:.8em;color:var(--text-2);white-space:nowrap;cursor:pointer;transition:background .15s}
