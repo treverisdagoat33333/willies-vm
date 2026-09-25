@@ -15,8 +15,15 @@
  * - Never stored: no-store, Vary: *, Set-Cookie, Range/Authorization
  *   requests, bodies over 25 MB, and anything but 200/203/301/308.
  * - HTML is only cached when the site says so explicitly.
+ *
+ * RewriteCache sits one level up: it keeps the core's rewritten output for
+ * scripts and stylesheets, tagged with the version of the download it came
+ * from. While that download is still fresh, the next visit skips both the
+ * network and the rewriting.
  */
 const NAME = "wj-http-v1";
+const REWRITES = "wj-rewrite-v1";
+const newVersion = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 const MAX_ENTRIES = 4000;
 const MAX_BODY = 25 * 1024 * 1024;
 const HEURISTIC_CAP = 7 * 24 * 3600 * 1000;
@@ -74,6 +81,41 @@ export class CachingTransport {
     this.cache = typeof caches !== "undefined" ? caches.open(NAME).catch(() => null) : Promise.resolve(null);
     this.puts = 0;
     this.stats = { hits: 0, revalidated: 0, misses: 0, stored: 0 };
+    this.versions = new Map(); // url -> version of the body we hold for it
+  }
+
+  /* The version of a fresh stored copy of `url`, or null. Only for entries that
+     don't vary on anything but Accept-Encoding, so the answer is the same for
+     whoever asks. */
+  async freshVersion(url, requestHeaders = []) {
+    const cache = await this.cache;
+    if (!cache) return null;
+    const cc = directives(get(toPairs(requestHeaders), "cache-control"));
+    if (cc["no-cache"] || cc["max-age"] === "0") return null;
+    try {
+      const response = await cache.match(url.split("#")[0]);
+      if (!response) return null;
+      response.body?.cancel().catch(() => {});
+      const meta = JSON.parse(decodeURIComponent(response.headers.get("x-wj-meta") || ""));
+      if (Object.keys(meta.vary || {}).some((n) => n !== "accept-encoding")) return null;
+      if (Date.now() - meta.storedAt >= meta.fresh || !meta.version) return null;
+      return meta.version;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /* The version from the last time we served or stored `url`, if still fresh. */
+  versionOf(url) {
+    const v = this.versions.get(url.split("#")[0]);
+    return v && Date.now() < v.freshUntil ? v.version : null;
+  }
+
+  async clear() {
+    await caches.delete(NAME).catch(() => {});
+    this.cache = caches.open(NAME).catch(() => null);
+    this.versions.clear();
+    for (const k in this.stats) this.stats[k] = 0;
   }
 
   get ready() { return this.inner.ready; }
@@ -98,6 +140,7 @@ export class CachingTransport {
 
     if (stored && !forceCheck && Date.now() - stored.meta.storedAt < stored.meta.fresh) {
       this.stats.hits++;
+      this.versions.set(key, { version: stored.meta.version, freshUntil: stored.meta.storedAt + stored.meta.fresh });
       return this.fromStored(stored);
     }
 
@@ -122,6 +165,7 @@ export class CachingTransport {
       for (const [k, v] of resHeaders) if (!/^(content-|transfer-encoding)/i.test(k)) merged.push([k, v]);
       const meta = { ...stored.meta, headers: merged, storedAt: Date.now() };
       meta.fresh = lifetime(merged, meta.storedAt);
+      this.versions.set(key, { version: meta.version, freshUntil: meta.storedAt + meta.fresh });
       const [a, b] = stored.response.body ? stored.response.body.tee() : [null, null];
       this.write(cache, key, meta, b);
       return { body: a ?? new ArrayBuffer(0), headers: merged, status: meta.status, statusText: meta.statusText };
@@ -139,7 +183,9 @@ export class CachingTransport {
       status: res.status, statusText: res.statusText, headers: resHeaders, storedAt,
       fresh: lifetime(resHeaders, storedAt),
       vary: Object.fromEntries(vary.map((n) => [n, get(headers, n)])),
+      version: newVersion(),
     };
+    this.versions.set(key, { version: meta.version, freshUntil: storedAt + meta.fresh });
     this.write(cache, key, meta, b);
     return { ...res, headers: resHeaders, body: a };
   }
@@ -189,5 +235,79 @@ export class CachingTransport {
       const extra = keys.length - MAX_ENTRIES;
       if (extra > 0) for (const k of keys.slice(0, extra + Math.round(MAX_ENTRIES * 0.1))) await cache.delete(k);
     } catch (_) {}
+  }
+}
+
+/* Rewritten scripts and stylesheets, keyed by the proxied URL they were asked
+   for (with the desktop tab's id taken out, so they're still found in the next
+   session), tied to the version of the download they were made from and to
+   the rewriter's version. If a stored copy mentions an older tab's prefix,
+   it's swapped for the current one on the way out. */
+export class RewriteCache {
+  constructor(tag) {
+    this.tag = tag;
+    this.cache = caches.open(REWRITES).catch(() => null);
+    this.stats = { hits: 0, stored: 0 };
+  }
+
+  async get(key, version, page) {
+    const cache = await this.cache;
+    if (!cache || !version) return null;
+    try {
+      const r = await cache.match(key);
+      if (!r) return null;
+      const m = JSON.parse(decodeURIComponent(r.headers.get("x-wj-rw") || ""));
+      if (m.version !== version || m.tag !== this.tag) {
+        r.body?.cancel().catch(() => {});
+        return null;
+      }
+      let body = r.body ?? new ArrayBuffer(0);
+      if (m.page && m.page !== page) {
+        const text = await r.text();
+        const old = `/~/wj/${m.page}/`;
+        body = text.includes(old) ? text.split(old).join(`/~/wj/${page}/`) : text;
+      }
+      this.stats.hits++;
+      return { status: m.status, statusText: m.statusText, headers: m.headers, body };
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /* Stores a copy in the background; returns the body to send on. */
+  keep(key, version, res, page) {
+    const stream = res.body instanceof ReadableStream ? res.body : new Response(res.body ?? null).body;
+    if (!stream) return res.body;
+    const [a, b] = stream.tee();
+    const header = encodeURIComponent(JSON.stringify({ version, page, tag: this.tag, status: res.status, statusText: res.statusText, headers: res.headers }));
+    if (header.length > 64 * 1024) { b.cancel().catch(() => {}); return a; }
+    let size = 0;
+    const limited = b.pipeThrough(new TransformStream({
+      transform(chunk, ctl) {
+        size += chunk.byteLength ?? chunk.length;
+        if (size > MAX_BODY) ctl.error(new Error("too big to keep"));
+        else ctl.enqueue(chunk);
+      },
+    }));
+    this.cache.then((cache) => cache?.put(key, new Response(limited, { headers: { "x-wj-rw": header } })))
+      .then(() => {
+        if (++this.stats.stored % 100 === 0) this.trim();
+      }, () => {});
+    return a;
+  }
+
+  async trim() {
+    try {
+      const cache = await this.cache;
+      const keys = await cache.keys();
+      const extra = keys.length - MAX_ENTRIES;
+      if (extra > 0) for (const k of keys.slice(0, extra + Math.round(MAX_ENTRIES * 0.1))) await cache.delete(k);
+    } catch (_) {}
+  }
+
+  async clear() {
+    await caches.delete(REWRITES).catch(() => {});
+    this.cache = caches.open(REWRITES).catch(() => null);
+    for (const k in this.stats) this.stats[k] = 0;
   }
 }

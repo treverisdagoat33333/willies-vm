@@ -256,6 +256,17 @@
           <div class="row"><div class="lab"><b>Search engine</b><small>Used when you type something that isn't a URL.</small></div><div class="ctl"><select class="field" data-setting="engine"><option value="google">Google</option><option value="ddg">DuckDuckGo</option><option value="bing">Bing</option><option value="brave">Brave</option><option value="startpage">Startpage</option></select></div></div>
           <div class="row"><div class="lab"><b>Start on blank page</b><small>New tabs open about:blank instead of the homepage.</small></div><div class="ctl"><button class="switch" role="switch" data-setting="autoblank"></button></div></div>
         </div>
+        <div class="card" id="wj-card">
+          <h3>WillieJet</h3>
+          <div class="row"><div class="lab"><b>Fast mode</b><small>Our server fetches pages for WillieJet, for quicker first visits. While it's on, the server can see the pages you visit and what you send them.</small></div><div class="ctl"><button class="switch" role="switch" data-setting="wjFast"></button></div></div>
+          <div class="row"><div class="lab"><b>Cache</b><small id="wj-stats">Open the browser with WillieJet to see how the cache is doing.</small></div><div class="ctl"><button class="btn sm danger" id="wj-clear">Clear WillieJet cache</button></div></div>
+          <div class="row st-row"><div class="lab"><b>Speed test</b><small>Times real sites on every engine, from your own browser. One site per line. Run it twice: the second run shows cached visits.</small></div><textarea class="field" id="st-sites" rows="4" spellcheck="false">https://www.google.com/
+https://en.wikipedia.org/wiki/Main_Page
+https://www.youtube.com/
+https://www.reddit.com/
+https://github.com/
+https://discord.com/</textarea><div class="ctl"><button class="btn sm" id="st-run">Run speed test</button></div><div id="st-results"></div></div>
+        </div>
         <div class="card">
           <h3>Interface</h3>
           <div class="row"><div class="lab"><b>Bookmarks bar</b></div><div class="ctl"><button class="switch" role="switch" data-setting="bmbar"></button></div></div>

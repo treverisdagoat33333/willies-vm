@@ -531,6 +531,10 @@ html[data-tbhide="on"] #browser-wrap{bottom:0}
 #btoolbar>button.close:hover{background:#e0332b;color:#fff}
 @media (max-width:480px){#btoolbar>#b-home,#btoolbar>#b-fwd{display:none}#btoolbar{gap:4px;padding:8px 6px}.omni{padding:0 4px 0 10px}}
 .omni{flex:1;min-width:0;display:flex;align-items:center;gap:8px;height:36px;padding:0 12px;border-radius:18px;background:var(--glass-2);border:1px solid var(--border);transition:border-color .15s,box-shadow .15s}
+.st-row{flex-wrap:wrap}.st-row .lab{flex:1 1 100%}.st-row textarea{flex:1 1 100%;min-height:92px;font:12px/1.5 ui-monospace,monospace}
+#st-results{flex:1 1 100%;overflow-x:auto}
+.st-table{width:100%;border-collapse:collapse;font-size:.8em}.st-table th,.st-table td{padding:6px 8px;border-top:1px solid var(--border);text-align:left;white-space:nowrap}
+.st-table th{color:var(--text-3);font-weight:700}.st-table td.best{color:var(--good,#10b981);font-weight:800}.st-table td.bad{color:var(--text-3)}.st-table button{font-size:.9em}
 .b-engine{flex:0 0 auto;height:24px;padding:0 8px;border-radius:12px;font-size:.7em;font-weight:800;letter-spacing:.04em;color:var(--accent);background:var(--glass-3);transition:background .15s}
 .b-engine:hover{background:rgba(var(--accent-rgb),.18)}
 #b-engine-pop button.item .ck{margin-left:auto;color:var(--accent);font-weight:800}

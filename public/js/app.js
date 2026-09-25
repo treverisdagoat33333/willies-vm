@@ -20,7 +20,7 @@ const DEFAULTS={
   panic:false,panicKey:'`',panicUrl:'https://classroom.google.com',panicAction:'redirect',panicWipe:false,
   blurunfocus:false,blurAmt:24,lock:false,lockMins:'5',
   perf:false,motion:false,bouncy:true,wallimg:true,preload:false,sound:false,soundpack:'soft',volume:0.5,chatsound:true,fps:false,notify:false,sync:true,
-  proxy:'sj2'
+  proxy:'sj2',wjFast:false
 };
 const KEY='wvm.settings.v1';
 let S=(()=>{
@@ -38,7 +38,7 @@ let S=(()=>{
   return m;
 })();
 /* settings sync state; the logic lives in SETTINGS SYNC further down */
-const SYNC_LOCAL_ONLY=['perf','wallimg','preload','fps','sync','proxy']; // speed and engine settings belong to the device
+const SYNC_LOCAL_ONLY=['perf','wallimg','preload','fps','sync','proxy','wjFast']; // speed and engine settings belong to the device
 const SYNC_KEYS=['bookmarks','favGames','music']; // localStorage keys that travel with the account
 let syncOn=false,syncApplying=false,syncT=null,syncPulledAt=0;
 let syncMeta=(()=>{try{return JSON.parse(localStorage.getItem('wvm.sync')||'null')}catch(_){return null}})()||{user:'',server:0,dirty:false};
@@ -111,7 +111,7 @@ function applyAll(){
 const FILTERS={none:'',warm:'sepia(.45) saturate(1.25) hue-rotate(-12deg)',cool:'saturate(1.1) hue-rotate(18deg) brightness(1.02)',gray:'grayscale(1)',sepia:'sepia(.85)',contrast:'contrast(1.35) saturate(1.1)',invert:'invert(1) hue-rotate(180deg)'};
 function panicNow(){
   const url=S.panicUrl||'https://classroom.google.com';
-  if(S.panicWipe){try{localStorage.clear();sessionStorage.clear()}catch(_){}}
+  if(S.panicWipe){try{localStorage.clear();sessionStorage.clear()}catch(_){}wjWipe()}
   if(S.panicAction==='close'){
     window.open('','_self');window.close();
     setTimeout(()=>location.replace(url),150);
@@ -174,7 +174,7 @@ function applyCloak(){
   }
 }
 document.addEventListener('visibilitychange',applyCloak);
-function set(k,v){S[k]=v;save();applyAll();syncControls()}
+function set(k,v){S[k]=v;save();applyAll();syncControls();if(k==='wjFast')proxies.wj?.then(e=>e.setFast(v)).catch(()=>{})}
 const pct=v=>Math.round(v*100)+'%';
 const RANGE_OUT={opacity:{el:'#opacity-val',fmt:pct},pcount:{el:'#pcount-val',fmt:v=>String(Math.round(v))},dim:{el:'#dim-val',fmt:pct},volume:{el:'#volume-val',fmt:pct},blurAmt:{el:'#bluramt-val',fmt:v=>Math.round(v)+'px'}};
 
@@ -1387,7 +1387,11 @@ const PROXY_START={
   },
   async wj(){
     const{start}=await import('/wj/engine.mjs');
-    return start({wisp:wispUrl(),cache:!S.incognito}); // incognito leaves no cached files behind
+    return start({
+      wisp:wispUrl(),cache:!S.incognito, // incognito leaves no cached files behind
+      fast:S.wjFast,
+      onrestart:()=>{const open=tabs.filter(t=>t.engine==='wj'&&t.url&&t.url!=='about:blank');toast('WillieJet restarted itself'+(open.length?', reloading your tabs':''));open.forEach(t=>navigate(t.url,t,true))},
+    });
   },
   async sj1(){
     await Promise.all([loadScript('/sj1/scramjet.all.js'),bareMux()]);
@@ -1415,7 +1419,7 @@ function proxyEngine(id=proxyId()){
     return e;
   })().catch(e=>{delete proxies[id];throw e});
 }
-function makeFrame(id){const f=document.createElement('iframe');f.className='browser-frame';f.title='Tab '+id;f.allow='fullscreen; autoplay; clipboard-read; clipboard-write; encrypted-media; picture-in-picture';f.referrerPolicy='no-referrer';return f}
+function makeFrame(id){const f=document.createElement('iframe');f.addEventListener('load',()=>frameLoaded(f));f.className='browser-frame';f.title='Tab '+id;f.allow='fullscreen; autoplay; clipboard-read; clipboard-write; encrypted-media; picture-in-picture';f.referrerPolicy='no-referrer';return f}
 /* the tab's frame, driven by the current engine; a tab changing engine (or worker) gets a fresh iframe */
 async function tabProxy(t){
   const id=engineFor(t.url);
@@ -1471,6 +1475,109 @@ window.addEventListener('message',e=>{
   if(d.wj==='switch'&&PROXIES[d.engine]){setSiteEngine(d.url,d.engine);toast(`${hostOf(d.url)} now opens with ${PROXIES[d.engine]}`,'ok');navigate(d.url,t,true)}
   else if(d.wj==='failed'&&!d.network&&t.engine==='wj'&&t.retried!==d.url){t.retried=d.url;setSiteEngine(d.url,'uv');toast(`WillieJet couldn't load ${hostOf(d.url)}, trying Ultraviolet`);navigate(d.url,t,true)}
 });
+/* ── the page inside a tab: its real address and title, and whether it looks broken ── */
+const CLIENT_KEY=Symbol.for('scramjet client global');
+function realUrl(t){
+  let w;try{w=t.frame.contentWindow;if(!w||w.location.href==='about:blank')return null}catch(_){return null}
+  try{const u=w[CLIENT_KEY]?.url;if(u)return String(u.href||u)}catch(_){} // Scramjet v2, WillieJet, Scramjet v1
+  try{const c=self.__uv$config,p=w.location.pathname;if(t.engine==='uv'&&c&&p.startsWith(c.prefix))return c.decodeUrl(p.slice(c.prefix.length))}catch(_){}
+  return null;
+}
+function renameHistory(url,title){const h=historyData.find(x=>x.url===url);if(h&&h.title!==title){h.title=title;put('history',historyData)}}
+/* clicking around inside a site: the address bar, tab, history and bookmarks follow along */
+function syncTab(t){
+  const u=realUrl(t);let title='',changed=false;
+  try{title=(t.frame.contentDocument?.title||'').trim().slice(0,80)}catch(_){}
+  if(u&&/^https?:/i.test(u)&&u!==t.url){
+    t.url=u;changed=true;if(!S.incognito)addHistory(u,title);
+    if(t.id===activeTab){if(document.activeElement!==$('#browser-address'))$('#browser-address').value=u;setOmniIcon(u)}
+  }
+  if(title&&title!==t.title){t.title=title;changed=true;if(!S.incognito)renameHistory(t.url,title)}
+  if(changed)renderTabs();
+}
+setInterval(()=>{if($('#browser-wrap').style.display==='flex')tabs.forEach(syncTab)},1500); // for sites that change the address without reloading
+const FALLBACK_ORDER=['wj','sj2','uv','sj1'];
+function frameLoaded(f){
+  const t=tabs.find(x=>x.frame===f);if(!t)return;
+  let proxied=false;try{proxied=f.contentWindow.location.pathname.startsWith('/~/')}catch(_){}
+  if(!proxied)return;
+  syncTab(t);
+  t.errors=0;try{const w=f.contentWindow;w.addEventListener('error',()=>t.errors++);w.addEventListener('unhandledrejection',()=>t.errors++)}catch(_){}
+  clearTimeout(t.healthT);const url=t.url,engine=t.engine,since=Date.now();
+  t.healthT=setTimeout(()=>checkHealth(t,url,engine,since),6000);
+}
+/* blank, or nearly empty and throwing errors: judged only on the tab you're looking at */
+function looksBroken(t){
+  let d;try{d=t.frame.contentDocument}catch(_){return false}
+  if(!d||!d.body)return !!d;
+  const text=(d.body.innerText||'').trim().length;
+  const visible=[...d.querySelectorAll('img,canvas,video,iframe,svg,embed,object,input,button,textarea,select')].some(e=>{const r=e.getBoundingClientRect();return r.width>8&&r.height>8});
+  return (!text&&!visible)||((t.errors||0)>=10&&text<200&&!visible);
+}
+function checkHealth(t,url,engine,since){
+  if(!tabs.includes(t)||t.url!==url||t.engine!==engine)return;
+  let loading=false;try{loading=t.frame.contentDocument?.readyState!=='complete'}catch(_){}
+  if(t.id!==activeTab||(loading&&Date.now()-since<25000)){t.healthT=setTimeout(()=>checkHealth(t,url,engine,since),3000);return}
+  if(!looksBroken(t))return;
+  const tried=((t.tried||={})[url]||=new Set());tried.add(engine);
+  if(tried.size>1)return; // one automatic retry per page
+  const next=[...FALLBACK_ORDER.slice(FALLBACK_ORDER.indexOf(engine)+1),...FALLBACK_ORDER].find(e=>!tried.has(e));
+  if(!next)return;
+  tried.add(next);setSiteEngine(url,next);
+  toast(`${hostOf(url)} looked broken on ${PROXIES[engine]}, trying ${PROXIES[next]}`);
+  navigate(url,t,true);
+}
+
+/* ── WillieJet in Settings: cache stats, clearing, the panic wipe, the speed test ── */
+function wjWipe(){try{caches.delete('wj-http-v1');caches.delete('wj-rewrite-v1');indexedDB.deleteDatabase('williejet')}catch(_){}}
+async function wjStats(){
+  const el=$('#wj-stats');if(!proxies.wj)return;
+  const st=await proxies.wj.then(e=>e.stats()).catch(()=>null);if(!st)return;
+  if(!st.cache){el.textContent='Caching is off (incognito mode).';return}
+  const h=st.http,r=st.rewrites,f=st.fast;
+  const total=h.hits+h.revalidated+h.misses;
+  el.textContent=`This session: ${h.hits} files from cache, ${h.revalidated} rechecked, ${h.misses} downloaded${total?` (${Math.round((h.hits+h.revalidated)*100/total)}% reused)`:''}. ${r.hits} scripts skipped rewriting. `+(f.on?`Fast mode fetched ${f.fast}.`:'');
+}
+$('#snav').addEventListener('click',e=>{if(e.target.closest('[data-page="browser"]'))wjStats()});
+$('#wj-clear').onclick=async()=>{
+  click();wjWipe();
+  if(proxies.wj)await proxies.wj.then(e=>e.clear()).catch(()=>{});
+  toast('WillieJet cache cleared','ok');wjStats();
+};
+/* times real sites on each engine in an off-screen frame, from this browser */
+async function speedTest(){
+  const sites=$('#st-sites').value.split('\n').map(s=>s.trim()).filter(Boolean).map(normalizeUrl).filter(u=>/^https?:/i.test(u)).slice(0,12);
+  if(!sites.length)return toast('Add at least one site','err');
+  const ids=Object.keys(PROXIES),out=$('#st-results'),btn=$('#st-run');
+  btn.disabled=true;btn.textContent='Testing…';
+  const results=sites.map(()=>({}));
+  const draw=()=>{
+    const head='<tr><th>Site</th>'+ids.map(id=>`<th>${PROXIES[id]}</th>`).join('')+'<th></th></tr>';
+    out.innerHTML=`<table class="st-table">${head}${sites.map((u,i)=>{
+      const ok=ids.filter(id=>typeof results[i][id]==='number');const best=ok.sort((a,b)=>results[i][a]-results[i][b])[0];
+      return `<tr><td>${esc(hostOf(u))}</td>${ids.map(id=>{const v=results[i][id];return `<td class="${id===best?'best':typeof v==='number'?'':'bad'}">${v===undefined?'…':typeof v==='number'?v+' ms':esc(v)}</td>`}).join('')}<td>${best?`<button class="btn sm" data-site="${esc(u)}" data-e="${best}">Use ${PROXY_SHORT[best]}</button>`:''}</td></tr>`}).join('')}</table>`;
+  };
+  draw();
+  const box=document.createElement('div');box.style.cssText='position:fixed;left:-12000px;top:0;width:1024px;height:700px;pointer-events:none;opacity:0';document.body.appendChild(box);
+  try{
+    for(const id of ids){
+      let eng;try{eng=await proxyEngine(id)}catch(e){sites.forEach((_,i)=>results[i][id]='unavailable');draw();continue}
+      for(let i=0;i<sites.length;i++){
+        const f=makeFrame('speed');box.replaceChildren(f);
+        const px=eng.frame(f),t0=performance.now();
+        results[i][id]=await new Promise(resolve=>{
+          const done=v=>{clearTimeout(to);resolve(v)};
+          const to=setTimeout(()=>done('timed out'),20000);
+          f.addEventListener('load',function onl(){let path='';try{path=f.contentWindow.location.pathname}catch(_){}if(!path.startsWith('/~/'))return;f.removeEventListener('load',onl);const ms=Math.round(performance.now()-t0);setTimeout(()=>done(looksBroken({frame:f})?'blank':ms),800)});
+          px.go(sites[i]);
+        });
+        draw();
+      }
+    }
+  }finally{box.remove();btn.disabled=false;btn.textContent='Run speed test'}
+}
+$('#st-run').onclick=()=>{click();speedTest()};
+$('#st-results').addEventListener('click',e=>{const b=e.target.closest('button[data-site]');if(!b)return;setSiteEngine(b.dataset.site,b.dataset.e===proxyId()?null:b.dataset.e);toast(`${hostOf(b.dataset.site)} now opens with ${PROXIES[b.dataset.e]}`,'ok')});
 function setOmniIcon(url){const el=$('#browser-favicon'),src=url&&url!=='about:blank'?favicon(url):'';if(src){el.src=src;el.style.display='block';el.onerror=()=>el.style.display='none'}else el.style.display='none'}
 function closeTab(id){const i=tabs.findIndex(t=>t.id===id);if(i<0)return;const t=tabs[i];try{t.frame.src='about:blank'}catch(_){}t.frame.remove();tabs.splice(i,1);if(!tabs.length){closeBrowser();return}if(id===activeTab)switchTab(tabs[Math.min(i,tabs.length-1)].id);else renderTabs()}
 async function newTab(url){
@@ -1497,6 +1604,8 @@ async function navigate(value,tab,quiet){
   catch(err){proxyFailed(err,'Navigation error')}
 }
 $('#browser-address').addEventListener('keydown',e=>{if(e.key==='Enter')navigate()});
+/* warm up the connection to where you're typing, so the page starts sooner (WillieJet) */
+let warmT;$('#browser-address').addEventListener('input',e=>{clearTimeout(warmT);warmT=setTimeout(()=>{const v=e.target.value.trim();if(v.length<4)return;const url=normalizeUrl(v);if(!/^https?:/i.test(url)||engineFor(url)!=='wj'||!proxies.wj)return;proxies.wj.then(en=>en.warm(url)).catch(()=>{})},300)});
 $('#browser-address').addEventListener('focus',e=>e.target.select());
 $('#b-back').onclick=()=>getTab()?.px?.back();$('#b-fwd').onclick=()=>getTab()?.px?.forward();
 $('#b-reload').onclick=e=>{const t=getTab();if(t?.stale)navigate(t.url,t,true);else t?.px?.reload();const ic=e.currentTarget.querySelector('.i');ic.classList.remove('spinning');void ic.offsetWidth;ic.classList.add('spinning')};
@@ -1510,7 +1619,7 @@ function closeBrowser(){const b=$('#browser-wrap');b.classList.add('closing');on
 function addBookmark(){const t=getTab();if(!t||!t.url||t.url==='about:blank')return toast('Nothing to bookmark','err');if(bookmarks.some(b=>b.url===t.url))return toast('Already bookmarked');bookmarks.push({title:t.title,url:t.url});put('bookmarks',bookmarks);renderBookmarks();syncControls();toast('Bookmarked!','ok')}
 function renderBookmarks(){const bar=$('#bookmarks-bar'),frag=document.createDocumentFragment();bookmarks.forEach((b,i)=>{const el=document.createElement('div');el.className='bm';el.title=b.url;const f=favicon(b.url);el.innerHTML=`${f?`<img src="${f}" alt="" loading="lazy">`:''}<span></span>`;el.lastChild.textContent=b.title;el.onclick=()=>navigate(b.url);el.oncontextmenu=e=>{e.preventDefault();bookmarks.splice(i,1);put('bookmarks',bookmarks);renderBookmarks();syncControls();toast('Bookmark removed')};frag.appendChild(el)});bar.replaceChildren(frag)}
 /* history */
-function addHistory(url){historyData=historyData.filter(h=>h.url!==url);historyData.unshift({url,title:(()=>{try{return new URL(url).hostname}catch(_){return url}})(),time:Date.now()});if(historyData.length>200)historyData.length=200;put('history',historyData)}
+function addHistory(url,title){historyData=historyData.filter(h=>h.url!==url);historyData.unshift({url,title:title||(()=>{try{return new URL(url).hostname}catch(_){return url}})(),time:Date.now()});if(historyData.length>200)historyData.length=200;put('history',historyData)}
 function openHistory(){openPanel('history-panel');renderHistory()}
 function renderHistory(){const l=$('#history-list');if(!historyData.length){l.innerHTML='<div class="empty">No history yet</div>';return}const frag=document.createDocumentFragment();historyData.forEach((h,i)=>{const el=document.createElement('div');el.className='hitem';const f=favicon(h.url);const when=typeof h.time==='number'?new Date(h.time).toLocaleString(undefined,{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}):h.time;el.innerHTML=`${f?`<img src="${f}" alt="" loading="lazy">`:''}<div class="ht"><span></span><small></small></div><span class="hd"></span><span class="hx" title="Remove"><svg class="i i-sm" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg></span>`;el.querySelector('.ht span').textContent=h.title;el.querySelector('.ht small').textContent=h.url;el.querySelector('.hd').textContent=when;el.querySelector('.hx').onclick=e=>{e.stopPropagation();historyData.splice(i,1);put('history',historyData);renderHistory()};el.onclick=()=>{closePanel('history-panel');openBrowser(h.url)};frag.appendChild(el)});l.replaceChildren(frag)}
 $('#clear-history').onclick=()=>{if(!historyData.length)return;if(!confirm('Clear all history?'))return;historyData=[];put('history',historyData);renderHistory();toast('History cleared')};
@@ -2602,5 +2711,5 @@ applyAll();syncControls();setUser();
 if(!S.showlauncher){mainWin.style.display='none';$('#tb-home').classList.remove('active')}else $('#tb-home').classList.add('active');
 checkAuth();
 if(S.startapp&&S.startapp!=='none')setTimeout(()=>{const fn=APPS[S.startapp];if(fn)fn()},600);
-requestIdleCallback?.(()=>{fetchPlayerCount();setInterval(fetchPlayerCount,30000);renderBookmarks();if(S.preload)proxyEngine().catch(()=>{})},{timeout:2000})??setTimeout(()=>{fetchPlayerCount();renderBookmarks()},500);
+requestIdleCallback?.(()=>{fetchPlayerCount();setInterval(fetchPlayerCount,30000);renderBookmarks();if(S.preload||proxyId()==='wj')proxyEngine().catch(()=>{})},{timeout:2000})??setTimeout(()=>{fetchPlayerCount();renderBookmarks()},500);
 window.addEventListener('beforeunload',e=>{if(containerId){e.preventDefault();e.returnValue=''}});

@@ -111,7 +111,8 @@ node --check server.js             # quick syntax check for any file
 ```
 
 - Node >= 22.5 is required (`node:sqlite`); `.node-version` pins 24. On Node 22 you'll see an "SQLite is experimental" warning, which is harmless.
-- There is no build step, bundler, linter or test suite. The front end is served as-is from `public/`.
+- There is no build step, bundler or linter. The front end is served as-is from `public/`.
+- **Tests:** `npm test` runs the proxy and WillieJet suites in `test/` with Playwright. It starts `test/site.mjs` (a local test site), a server that may reach it, and a strict one that may not (for the fast-mode guard). In this sandbox, set `CHROMIUM_PATH=/opt/pw-browsers/chromium`. `npm test -- williejet` runs one suite, and `npm run bench` prints timings instead. `.github/workflows/test.yml` runs `npm test` on every push. Playwright is a devDependency, which Render skips because `NODE_ENV=production`.
 - To verify a change, run the server against a throwaway database (`DATA_DIR=/tmp/wvm-test`) and drive the HTTP and WebSocket endpoints from a script (`ws` is in `node_modules`), or load the page in Chromium.
 - Useful env vars: `DATA_DIR` (SQLite location, default `./data`, gitignored), `OWNER_USERNAME` (default `william`), `OWNER_PASSWORD` (see below), `REMOTE_KEY` (enables Remote PC; unset means it's off), `MAX_LIVE_VMS` (site-wide VM cap, default 20), `E2B_API_KEY`, `XENV_API_KEY`, `SOUNDCLOUD_CLIENT_ID` (optional; music finds the public one itself), `TURN_URL`/`TURN_USERNAME`/`TURN_CREDENTIAL` (optional relay for voice calls). `render.yaml` is the deploy config. On Render's free plan `DATA_DIR` is ephemeral, so the database is wiped on every redeploy.
 - No lockfile is committed; Render runs `npm install`. The Scramjet v2 packages are pinned to GitHub release tarballs in `package.json`; Scramjet v1 is installed under the alias `scramjet-v1`.
@@ -157,9 +158,31 @@ Each WS module creates `WebSocketServer({ noServer: true })` and exports a `hand
   - `sw.js`: imported by `public/sw.js`. It hands `/~/wj/` requests to the page's worker over a MessagePort. After the browser stops and restarts the service worker, it asks the tabs to reconnect and waits for them, instead of 404ing like v2. Its own error responses carry COEP, or Chrome blocks them inside the frame.
   - `inject.js`: runs in every proxied page. It hooks the page with the core's `ScramjetClient`, borrows the rewriter bytes from the desktop page (sync XHR of the static wasm as a fallback), and opens a line to the worker for WebSockets and cookie writes.
   - `cache.mjs`: the HTTP cache around the transport. It follows Cache-Control, Expires, ETag, Last-Modified and Vary, and never stores no-store, Set-Cookie, Range, Authorization, over 25 MB, or non-200/203/301/308 responses. HTML is only cached when the site says so.
+    - It also holds `RewriteCache`: the core's rewritten scripts and styles (`wj-rewrite-v1`), tied to the download version they came from (`meta.version`).
+    - The rewrite cache is keyed with the tab id replaced by `/~/wj/_/`, so it still matches in the next session. Within one session, Chrome's own memory cache usually answers first. The rewrite cache pays off after a browser restart.
+    - Incognito turns both caches off.
+  - `fast.mjs`: fast mode, off by default (`S.wjFast`, this device only). HTTP requests go to `/wj-net` (`fastnet.js`) instead of libcurl; WebSockets always stay on `/wisp/`. It falls back to libcurl on 401, 404 or 429.
 - `/wj/wasm.js` (server.js) serves the rewriter as `self.WASM=...` for workers that proxied sites start.
 - **Failures:** WillieJet's error page offers the other engines through `{wj:'switch'}` messages. A failure that isn't a network error falls back to Ultraviolet on its own (`{wj:'failed', network:false}`). The desktop only accepts these messages from its own tab frames.
-- **Measured against v2 on the local bench** (60 ms per file): repeat visits are 2.5 to 6 times faster thanks to the cache, and the desktop's main thread is never blocked. document.cookie writes reach the next request, which v2 misses. It survives service-worker restarts.
+- **Fast mode's server side (`fastnet.js`):**
+  - Framing: the request body is a uint32 length, JSON `{url, method, headers}`, then the body. The reply carries `x-wj-status`, `x-wj-status-text` and `x-wj-headers`, and keeps the upstream compression.
+  - Replies with over 24 KB of headers, or an unusual encoding, come back framed and decompressed (`x-wj-framed`). Upstream headers can be up to 256 KB.
+  - Private, loopback and link-local addresses are refused, both as literal IPs and after DNS. `fastnetOptions.allowPrivate` exists only for the tests.
+  - It needs a session and is limited to 6000 requests a minute per IP.
+- **All engines, in `app.js`:**
+  - **Following the page:** `realUrl()` reads the real address from the frame's Scramjet client (`Symbol.for('scramjet client global')`, which v2, WillieJet and v1 share) or decodes Ultraviolet's path. `syncTab()` updates the address bar, tab title, history and bookmarks on each load, and every 1.5 s for sites that change the address without reloading.
+  - **Blank pages:** `checkHealth()` runs 6 s after a page loads, on the visible tab only. If the page is blank, or nearly empty and throwing errors, it retries once on the next engine in `FALLBACK_ORDER` and remembers that choice for the site.
+- **Crash recovery (`engine.mjs`):** the worker is pinged every 4 s. After 20 s without an answer it's replaced, at most 3 times in 5 minutes, and WillieJet tabs reload.
+- **Settings > Browser > WillieJet:**
+  - Fast mode, cache stats (the worker's `stats` message) and "Clear WillieJet cache".
+  - The speed test: real sites on every engine, in off-screen frames, from the user's own browser.
+  - The panic wipe (`wjWipe`) and "Clear everything" delete WillieJet's caches and its cookie database.
+- **Instant start:** when WillieJet is the default engine, it starts while the desktop loads. Typing an address sends a cookie-less HEAD to that site, at most once a minute, so the connection is ready (`warm`).
+- **Measured against v2 on the local bench** (`npm run bench`, 60 ms per file):
+  - Repeat visits are 2.5 to 6 times faster.
+  - After a full browser restart, the page loads in about 360 ms vs about 1000 ms. The rewrite cache alone saves about 27% of that.
+  - The desktop's main thread is never blocked.
+  - document.cookie writes reach the next request, which v2 misses, and it survives service-worker restarts.
 - **Deploys that change `sw.js`:** the engines are tied to the worker they started with. When the browser starts, it calls `reg.update()` and waits for any new worker to take over. If one takes over mid-session, the engines restart and open tabs are marked `stale`; Reload or the next navigation moves them to the new worker.
 - **Testing against a local site:** wisp refuses loopback addresses by default, so set `options.allow_loopback_ips` from a `--import` preload. libcurl sends `Upgrade: h2c` on plain `http://`, so a test server's `upgrade` handler must let non-WebSocket upgrades through as normal requests.
 

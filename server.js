@@ -59,6 +59,7 @@ import {
 import { clientIp, createLimiter, limitByIp, formatWait } from "./security.js";
 import { musicRouter } from "./music.js";
 import { hasBadWords } from "./profanity.js";
+import { fastnetHandler } from "./fastnet.js";
 
 const require = createRequire(import.meta.url);
 const dirOf = (specifier) => path.dirname(require.resolve(specifier));
@@ -203,6 +204,15 @@ app.get("/wj/wasm.js", (_req, res) => {
   wjWasmJs ||= `self.WASM=${JSON.stringify(fs.readFileSync(path.join(scramjetPath, "scramjet.wasm")).toString("base64"))};`;
   res.type("application/javascript").set("Cache-Control", "public, max-age=3600").send(wjWasmJs);
 });
+
+/*
+| WillieJet fast mode (fastnet.js, off unless the user turns it on): the
+| engine asks this server to fetch pages for it. Signed-in or guest visitors
+| only. The limit is generous because one page is often 100+ requests and a
+| whole school can share one IP; over it, WillieJet falls back to /wisp/.
+*/
+const fastnetLimiter = createLimiter({ windowMs: 60_000, max: 6000 });
+app.post("/wj-net", requireSession, limitByIp(fastnetLimiter, "Too many fast-mode requests from your network."), fastnetHandler);
 
 /*
 |--------------------------------------------------------------------------

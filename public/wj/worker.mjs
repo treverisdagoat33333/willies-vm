@@ -18,7 +18,8 @@
  */
 import * as SJ from "/scramjet/scramjet.mjs";
 import LibcurlClient from "/libcurl/index.mjs";
-import { CachingTransport } from "/wj/cache.mjs";
+import { CachingTransport, RewriteCache } from "/wj/cache.mjs";
+import { FastTransport } from "/wj/fast.mjs";
 
 const CORE = "/scramjet/scramjet.js";
 const INJECT = "/wj/inject.js";
@@ -32,7 +33,13 @@ let handler = null;
 let transport = null;
 let jar = null;
 let sjconfig = null;
+let context = null;
+let fast = null; // FastTransport: /wj-net when fast mode is on, libcurl otherwise
+let httpCache = null; // CachingTransport, unless caching is off (incognito)
+let rewrites = null; // RewriteCache
 let ready = null;
+const REWRITABLE = new Set(["script", "style", "worker", "sharedworker"]);
+const rewriteKey = (url) => url.replace(`/~/wj/${page}/`, "/~/wj/_/"); // the same in every desktop tab and session
 
 const codecEncode = (u) => (u ? encodeURIComponent(u) : u);
 const codecDecode = (u) => (u ? decodeURIComponent(u) : u);
@@ -121,7 +128,7 @@ const client=new S.ScramjetClient(globalThis,{context:{config:${JSON.stringify(s
 
 /* ---------- start up ---------- */
 
-async function init({ page: p, wisp, cache }) {
+async function init({ page: p, wisp, cache, fast: fastOn }) {
   page = p;
   prefix = `/~/wj/${page}/`;
   SJ.setWasm(await (await fetch(WASM)).arrayBuffer());
@@ -130,8 +137,9 @@ async function init({ page: p, wisp, cache }) {
   const saved = await kvGet("cookies").catch(() => null);
   if (typeof saved === "string") jar.load(saved);
 
-  const net = new LibcurlClient({ wisp });
-  transport = cache ? new CachingTransport(net) : net;
+  fast = new FastTransport(new LibcurlClient({ wisp }), !!fastOn);
+  httpCache = cache ? new CachingTransport(fast) : null;
+  transport = httpCache || fast;
   if (!transport.ready) await transport.init();
 
   sjconfig = {
@@ -139,7 +147,8 @@ async function init({ page: p, wisp, cache }) {
     flags: { ...SJ.defaultConfig.flags, allowFailedIntercepts: true, captureErrors: true, allowInvalidJs: true },
     maskedfiles: ["inject.js", "scramjet.js", "wasm.js"],
   };
-  const context = {
+  if (httpCache) rewrites = new RewriteCache(`${SJ.versionInfo?.version || "?"}:${SJ.versionInfo?.build || ""}:wj1`);
+  context = {
     config: sjconfig,
     prefix: new URL(prefix, location.origin),
     cookieJar: jar,
@@ -187,6 +196,15 @@ tell({wj:"failed",error:${JSON.stringify(msg)},network:${network}});</script>`;
 async function handleRequest(req) {
   await ready;
   const rawUrl = new URL(req.url);
+  // a script or stylesheet whose download is still fresh: reuse the rewritten copy
+  let real = null;
+  if (rewrites && req.method === "GET" && REWRITABLE.has(req.destination)) {
+    try { real = SJ.unrewriteUrl(req.url, context); } catch (_) {}
+    if (real) {
+      const hit = await rewrites.get(rewriteKey(req.url), await httpCache.freshVersion(real, req.headers), page);
+      if (hit) return hit;
+    }
+  }
   try {
     const res = await handler.handleFetch({
       initialHeaders: SJ.ScramjetHeaders.fromRawHeaders(req.headers),
@@ -201,12 +219,15 @@ async function handleRequest(req) {
       cache: req.cache,
       clientId: req.clientId,
     });
-    return {
+    const out = {
       body: NULL_BODY.has(res.status) ? null : res.body,
       status: res.status,
       statusText: res.statusText,
       headers: res.headers.toRawHeaders(),
     };
+    const version = real && res.status === 200 ? httpCache.versionOf(real) : null;
+    if (version) out.body = rewrites.keep(rewriteKey(req.url), version, out, page);
+    return out;
   } catch (e) {
     console.error("WillieJet request failed:", e);
     if (req.destination === "document" || req.destination === "iframe") {
@@ -285,7 +306,33 @@ function attachWindow(port) {
 
 /* ---------- the page ---------- */
 
+/* Opens a connection to a site before it's visited (a HEAD with no cookies),
+   so the real request skips the TCP and TLS handshakes. Once a minute per site. */
+const warmed = new Map();
+async function warm(url) {
+  let origin;
+  try { origin = new URL(url).origin; } catch (_) { return; }
+  if (!/^https?:/.test(origin) || Date.now() - (warmed.get(origin) || 0) < 60000) return;
+  warmed.set(origin, Date.now());
+  try {
+    const r = await fast.request(new URL(origin + "/"), "HEAD", null, [["User-Agent", navigator.userAgent]], undefined);
+    if (r.body instanceof ReadableStream) r.body.cancel().catch(() => {});
+  } catch (_) {}
+}
+
 self.onmessage = ({ data, ports }) => {
+  if (data?.t === "ping") return self.postMessage({ t: "pong", n: data.n });
+  if (data?.t === "fast") { if (fast) fast.on = !!data.on; return; }
+  if (data?.t === "warm") return void ready?.then(() => warm(data.url)).catch(() => {});
+  if (data?.t === "stats") {
+    return void Promise.resolve(ready).then(() => self.postMessage({
+      t: "stats", id: data.id,
+      stats: { cache: !!httpCache, http: httpCache?.stats || null, rewrites: rewrites?.stats || null, fast: fast ? { on: fast.on, ...fast.stats } : null },
+    }));
+  }
+  if (data?.t === "clear") {
+    return void Promise.all([httpCache?.clear(), rewrites?.clear()]).then(() => self.postMessage({ t: "cleared", id: data.id }));
+  }
   if (data?.t === "init") {
     ready = init(data).then(
       () => self.postMessage({ t: "ready" }),
