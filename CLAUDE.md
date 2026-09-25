@@ -137,11 +137,18 @@ Other server modules: `music.js` (the `/api/music` router), `security.js` (rate 
 Each WS module creates `WebSocketServer({ noServer: true })` and exports a `handle*Upgrade` function. Authentication happens in `server.js` before the upgrade.
 
 **Cloud gaming (CloudMoon):**
-- `/cloud/app/main.html` serves CloudMoon's newest all-in-one client (`main-<YYMMDD>.html`), found from jsDelivr's listing of `gh/CloudMoonApp/web`. Set `CLOUDMOON_MAIN` to pin one.
-- It's same-origin, so it shares our localStorage. The desktop signs in with our own form, sending `POST /login/pwd` straight from the browser to CloudMoon's API, so passwords never reach our server. It then saves the token under their key `cm_auth_token`.
-- Opening `main.html?game=<pkg>` makes their Vue app (`window.App`) select the game; `cmStart()` then calls `App.startGameInAio()`.
-- Leaving or closing a game calls `App.cleanConnection()`, so hidden streams don't burn CloudMoon time.
-- Their client is obfuscated. To read it, clone the repo and replace the string-table lookups with their decoded strings.
+- CloudMoon publishes each version on jsDelivr (`gh/CloudMoonApp/web`) as `.html` pages plus tiny `.svg` launchers. A launcher's script fetches the real page from the CDN and writes it into a frame.
+- The version is pinned by `CLOUDMOON_VERSION` (default `260521`).
+- **Our side:**
+  - The desktop signs in with its own form: `POST /login/pwd`, sent straight from the browser to CloudMoon's API, so passwords never reach our server.
+  - It saves the token under their key `cm_auth_token`.
+  - Clicking a game claims a phone (`/phone/list`, then `/phone/connect`, polling while queued).
+- **The hand-off:**
+  - The session goes into `localStorage.cm_launch_data` (`{sid, quality, timestamp}`). Their page ignores it after 20 seconds, so the desktop keeps refreshing it until the page has read it.
+  - Then the frame loads `/cloud/app/play-<version>.svg`: their play launcher, re-served from our origin so the page it writes shares our localStorage.
+- **Ending:** their play page goes to `./main.svg` when a game ends. `/cloud/app/main.svg` posts `{cm:'ended'}` to the desktop. Going back to the list or closing Cloud calls `/phone/disconnect`.
+- **Fallback:** if their API won't answer our origin, or the CloudMoon site button is clicked, the frame loads their CDN portal (`<version>.svg`) as-is. It uses a `credentialless` frame because of COEP, so sign-ins there don't outlive the tab.
+- **Reading their code:** it's obfuscated. Clone the repo and replace the string-table lookups with their decoded strings.
 
 Every response carries COOP `same-origin` and COEP `require-corp`, because the Wisp transport needs `SharedArrayBuffer`. Anything third-party embedded in the page must send CORP or be re-served from our origin. That is why `/api/cloud/icon` proxies box art (host-locked to `myqcloud.com`), and why `/cloud/app/` re-serves the CloudMoon client from jsDelivr with COEP overridden to `credentialless`.
 

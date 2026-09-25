@@ -525,6 +525,7 @@
     <label class="cm-server" title="Which CloudMoon servers to play on. Pick the closest.">Server
       <select class="field" id="cm-server"><option value="23">US East</option><option value="22">US West</option><option value="21">South America</option><option value="4">Europe</option><option value="3">Asia</option></select></label>
     <button class="btn sm cm-acct" id="cm-acct">Sign in to CloudMoon</button>
+    <button class="btn sm" id="cm-site" title="Open CloudMoon's own page from the CDN">CloudMoon site</button>
     <button class="btn sm" id="cloud-back">&larr; All games</button>
     <button class="btn sm" id="cloud-reload">Reload</button>
     <button class="btn sm" id="cloud-fs">Fullscreen</button>
@@ -539,7 +540,7 @@
     <div class="cg-grid" id="cloud-grid"></div>
   </div>
   <iframe id="cloud-frame" title="Cloud gaming" allow="fullscreen; autoplay; gamepad; clipboard-read; clipboard-write; encrypted-media" referrerpolicy="no-referrer"></iframe>
-  <div id="cloud-load"><span class="ring"></span><span>Loading the CloudMoon client…</span></div>
+  <div id="cloud-load"><span class="ring"></span><span id="cloud-load-text">Loading…</span><button class="btn sm" id="cloud-load-cancel" hidden>Cancel</button></div>
 </div>
 
 <div id="remote-wrap" data-state="off">

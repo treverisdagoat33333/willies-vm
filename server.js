@@ -204,40 +204,16 @@ const CM_TTL = 10 * 60 * 1000;
 const cmCache = new Map();
 
 /*
- * The all-in-one client (game list, sign-in, queue and stream in one page)
- * is main-<date>.html, and CloudMoon publishes a new date every few weeks.
- * /cloud/app/main.html always serves the newest one, found from jsDelivr's
- * file listing. The date is YYMMDD, sometimes with HHMM after it, so it's
- * compared on the first six digits first.
+ * CloudMoon publishes each version as .html pages plus tiny .svg launchers
+ * (260521.svg, play-260521.svg). A launcher is what CloudMoon itself links
+ * to: an SVG whose script fetches the real page from jsDelivr and writes it
+ * into a frame. Games start through the play launcher, re-served from our
+ * origin so the page it writes shares our localStorage (the sign-in token
+ * and the session handed over in cm_launch_data). CLOUDMOON_VERSION picks
+ * the version; the default is the one known to work.
  */
-const CM_MAIN_FALLBACK = process.env.CLOUDMOON_MAIN || "main-260909.html";
-let cmMain = { at: 0, name: "" };
-
-async function latestCloudMoonMain() {
-  if (process.env.CLOUDMOON_MAIN) return process.env.CLOUDMOON_MAIN;
-  if (cmMain.name && Date.now() - cmMain.at < 60 * 60 * 1000) return cmMain.name;
-  try {
-    const r = await fetch("https://data.jsdelivr.com/v1/packages/gh/CloudMoonApp/web@main?structure=flat", {
-      signal: AbortSignal.timeout(8000),
-    });
-    if (!r.ok) throw new Error(`listing returned ${r.status}`);
-    const names = [...new Set((await r.text()).match(/main-\d{6,10}\.html/g) || [])];
-    const key = (n) => {
-      const d = n.match(/\d+/)[0];
-      return [Number(d.slice(0, 6)), Number(d.slice(6) || 0)];
-    };
-    names.sort((a, b) => {
-      const [a1, a2] = key(a);
-      const [b1, b2] = key(b);
-      return b1 - a1 || b2 - a2;
-    });
-    cmMain = { at: Date.now(), name: names[0] || CM_MAIN_FALLBACK };
-  } catch (err) {
-    console.error("CloudMoon listing failed:", err.message);
-    cmMain = { at: Date.now() - 50 * 60 * 1000, name: cmMain.name || CM_MAIN_FALLBACK }; // retry in 10 min
-  }
-  return cmMain.name;
-}
+const CM_VERSION = process.env.CLOUDMOON_VERSION || "260521";
+const CM_SVG = /^[A-Za-z0-9._-]+\.svg$/;
 
 async function cloudMoonPage(file) {
   const hit = cmCache.get(file);
@@ -345,7 +321,10 @@ app.get("/api/cloud/icon", async (req, res) => {
 app.get("/api/cloud/games", async (_req, res) => {
   try {
     const data = await cloudMoonCatalog();
-    res.set("Cache-Control", "public, max-age=600").json(data);
+    res.set("Cache-Control", "public, max-age=600").json({
+      ...data,
+      client: { version: CM_VERSION, play: `/cloud/app/play-${CM_VERSION}.svg`, portal: `${CM_CDN}${CM_VERSION}.svg` },
+    });
   } catch (err) {
     console.error("CloudMoon catalog failed:", err.message);
     res.status(502).json({ error: "Could not load the cloud games list." });
@@ -363,9 +342,50 @@ app.get("/cloud/:file([A-Za-z0-9._-]+\.html)", (req, res) =>
   res.redirect(302, "/cloud/app/" + req.params.file)
 );
 
+/* the play page's own images sit next to it on the CDN */
+app.get("/cloud/app/run-site/:dir/:file", (req, res) => {
+  const { dir, file } = req.params;
+  if (!/^[A-Za-z0-9._-]+$/.test(dir + file)) return res.status(400).end();
+  res.redirect(302, `${CM_CDN}run-site/${dir}/${file}`);
+});
+
+/*
+ * When a game ends, CloudMoon's play page goes to "./main.svg", which
+ * doesn't exist. Answer with a page that tells the desktop, which then
+ * returns to the game list.
+ */
+app.get("/cloud/app/main.svg", (_req, res) => {
+  res.setHeader("Cross-Origin-Embedder-Policy", "credentialless");
+  res
+    .type("html")
+    .send(
+      `<body style="margin:0;height:100vh;display:grid;place-items:center;background:#0b0d12;color:#f3f5f9;font:15px system-ui">Game ended.` +
+        `<script>try{top.postMessage({cm:"ended"},location.origin)}catch(e){}</script></body>`
+    );
+});
+
+app.get("/cloud/app/:file([A-Za-z0-9._-]+\\.svg)", async (req, res) => {
+  const file = req.params.file;
+  if (!CM_SVG.test(file)) return res.status(400).end();
+  try {
+    const hit = cmCache.get(file);
+    let svg = hit && Date.now() - hit.at < CM_TTL ? hit.html : null;
+    if (!svg) {
+      const r = await fetch(CM_CDN + file, { signal: AbortSignal.timeout(10000) });
+      if (!r.ok) return res.status(r.status === 404 ? 404 : 502).end();
+      svg = await r.text();
+      cmCache.set(file, { html: svg, at: Date.now() });
+    }
+    res.setHeader("Cross-Origin-Embedder-Policy", "credentialless");
+    res.type("image/svg+xml").send(svg);
+  } catch (err) {
+    console.error("CloudMoon launcher fetch failed:", err.message);
+    res.status(502).end();
+  }
+});
+
 app.get("/cloud/app/:file?", async (req, res) => {
-  let file = req.params.file || CM_ENTRY;
-  if (file === "main.html") file = await latestCloudMoonMain();
+  const file = req.params.file || CM_ENTRY;
   if (!CM_NAME.test(file)) return res.status(400).send("Bad file name.");
   try {
     /*

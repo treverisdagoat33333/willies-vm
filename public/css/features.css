@@ -221,3 +221,4 @@ html[data-tbside="top"] #call[data-state="active"],html[data-tbhide="on"] #call[
 #cm-acct:not(.on){background:linear-gradient(135deg,var(--accent),var(--accent2));border-color:transparent;color:#fff}
 #cm-acct.on::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--ok);flex:0 0 auto}
 @media(max-width:700px){#cloud-toolbar .cm-server{display:none}}
+#cloud-load-cancel{pointer-events:auto;margin-top:4px}
