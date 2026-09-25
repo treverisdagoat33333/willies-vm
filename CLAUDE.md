@@ -162,6 +162,8 @@ Each WS module creates `WebSocketServer({ noServer: true })` and exports a `hand
     - The rewrite cache is keyed with the tab id replaced by `/~/wj/_/`, so it still matches in the next session. Within one session, Chrome's own memory cache usually answers first. The rewrite cache pays off after a browser restart.
     - Incognito turns both caches off.
   - `fast.mjs`: fast mode, off by default (`S.wjFast`, this device only). HTTP requests go to `/wj-net` (`fastnet.js`) instead of libcurl; WebSockets always stay on `/wisp/`. It falls back to libcurl on 401, 404 or 429.
+    - Some sites (Cloudflare bot protection especially) answer our server's own connections with a challenge (403, 429 or 503 plus `cf-mitigated`). That reply is retried on libcurl, and the origin skips fast mode for the rest of the session (`fastBlocked`, which triggers a toast).
+    - The engine badge menu can switch fast mode off for one site. Those sites are stored in `wvm.siteNoFast` and passed to the worker as `fastSkip`.
 - `/wj/wasm.js` (server.js) serves the rewriter as `self.WASM=...` for workers that proxied sites start.
 - **Failures:** WillieJet's error page offers the other engines through `{wj:'switch'}` messages. A failure that isn't a network error falls back to Ultraviolet on its own (`{wj:'failed', network:false}`). The desktop only accepts these messages from its own tab frames.
 - **Fast mode's server side (`fastnet.js`):**

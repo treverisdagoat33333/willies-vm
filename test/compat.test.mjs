@@ -20,6 +20,7 @@ const TESTS = {
   sse: (r) => r.sse === "one,two",
   big: (r) => r.big === 20000,
 };
+const FINAL_TITLE = { form: "echo", redirect: "landed" }; // tests that end on another page
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined });
 const table = {};
 for (const engine of ENGINES) {
@@ -42,6 +43,7 @@ for (const engine of ENGINES) {
       await page.waitForTimeout(150);
       try {
         const f = await (await page.$("#browser-frames iframe.active")).contentFrame();
+        if ((await f.title()) !== (FINAL_TITLE[name] || name)) continue; // still the previous page
         raw = await f.$eval("#r", (e) => e.textContent);
         if (raw && raw !== "waiting") { result = JSON.parse(raw); break; }
       } catch (_) {}

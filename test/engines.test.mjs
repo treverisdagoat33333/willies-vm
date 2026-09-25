@@ -46,10 +46,12 @@ async function waitText(sel, pred, ms = 20000) {
 }
 async function checkSite(engine, label) {
   phase = label;
+  // after a switch, the old engine's page stays up until the new frame replaces it
+  await page.waitForFunction((p) => document.querySelector("#browser-frames iframe.active")?.getAttribute("src")?.includes(p), PREFIX[engine], { timeout: 20000 }).catch(() => {});
   const h = await waitText("#h", (t) => t === "Proxy test home");
   ok(h === "Proxy test home", `${label}: page loads through ${engine}`, h);
   const f = await activeFrame();
-  const src = f.url();
+  const src = f ? f.url() : "(no frame)";
   ok(src.startsWith(BASE + PREFIX[engine]), `${label}: frame is on the ${PREFIX[engine]} prefix`, src);
   ok(await f.$eval("body", (b) => b.dataset.inline) === "1", `${label}: inline script runs`);
   ok(await f.$eval("body", (b) => getComputedStyle(b).backgroundColor) === "rgb(1, 2, 3)", `${label}: stylesheet applies`);

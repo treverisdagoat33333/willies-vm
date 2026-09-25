@@ -8,7 +8,15 @@
  * one fast connection to our site. Off, or for WebSockets, or when our
  * server says no (signed out, rate limited), requests take the normal path:
  * libcurl over /wisp/.
+ *
+ * Some sites (Cloudflare's bot protection especially) turn away our server's
+ * own connections with a challenge instead of the page. Such a reply is
+ * retried on the normal path, and that site skips fast mode for the rest of
+ * the session. Sites the user switched it off for skip it always.
  */
+const header = (pairs, name) => pairs.find(([k]) => k.toLowerCase() === name)?.[1] ?? null;
+/* Cloudflare marks its challenge pages this way; the site never saw the request */
+const isChallenge = (status, pairs) => (status === 403 || status === 429 || status === 503) && header(pairs, "cf-mitigated") !== null;
 const toPairs = (h) => (Array.isArray(h) ? h : Object.entries(h || {}).flatMap(([k, v]) => (Array.isArray(v) ? v.map((x) => [k, x]) : [[k, v]])));
 
 /* Splits a framed reply (uint32 length + JSON + body) into its parts. */
@@ -46,10 +54,13 @@ async function unframe(stream) {
 }
 
 export class FastTransport {
-  constructor(fallback, on = false) {
+  constructor(fallback, on = false, skip = [], onBlocked = () => {}) {
     this.fallback = fallback;
     this.on = on;
-    this.stats = { fast: 0, fellBack: 0 };
+    this.skip = new Set(skip); // hosts the user switched fast mode off for
+    this.blocked = new Set(); // origins that challenged our server this session
+    this.onBlocked = onBlocked;
+    this.stats = { fast: 0, fellBack: 0, challenged: 0 };
   }
 
   get ready() { return this.fallback.ready; }
@@ -59,7 +70,7 @@ export class FastTransport {
   connect(...args) { return this.fallback.connect(...args); } // WebSockets always go over /wisp/
 
   async request(remote, method, body, headers, signal) {
-    if (!this.on || (remote.protocol !== "https:" && remote.protocol !== "http:")) {
+    if (!this.on || (remote.protocol !== "https:" && remote.protocol !== "http:") || this.skip.has(remote.hostname) || this.blocked.has(remote.origin)) {
       return this.fallback.request(remote, method, body, headers, signal);
     }
     const bytes = body == null ? null : new Uint8Array(await new Response(body).arrayBuffer());
@@ -82,13 +93,23 @@ export class FastTransport {
       }
       throw new Error(why || `fast mode failed (HTTP ${r.status})`);
     }
-    this.stats.fast++;
-    if (r.headers.get("x-wj-framed")) return unframe(r.body);
-    return {
+    const res = r.headers.get("x-wj-framed") ? await unframe(r.body) : {
       status: Number(r.headers.get("x-wj-status")) || 502,
       statusText: decodeURIComponent(r.headers.get("x-wj-status-text") || ""),
       headers: JSON.parse(decodeURIComponent(r.headers.get("x-wj-headers") || "%5B%5D")),
       body: r.body,
     };
+    if (isChallenge(res.status, res.headers)) {
+      // the site turned our server away (not your browser): go the normal way from now on
+      this.stats.challenged++;
+      res.body?.cancel?.().catch(() => {});
+      if (!this.blocked.has(remote.origin)) {
+        this.blocked.add(remote.origin);
+        this.onBlocked(remote.origin);
+      }
+      return this.fallback.request(remote, method, bytes, headers, signal);
+    }
+    this.stats.fast++;
+    return res;
   }
 }

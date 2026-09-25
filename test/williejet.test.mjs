@@ -88,6 +88,29 @@ ok(fs.fast.on && fs.fast.fast >= 4, "…and requests went through our server", J
 await page.evaluate((u) => navigate(u, getTab()), SITE + "/t/bigheaders");
 ok(await text("#r", (t) => t !== "waiting") === '{"n":40}', "fast mode: a reply with 36 KB of headers still arrives whole", await text("#r"));
 await page.waitForTimeout(3500); // the test cookies expire; 36 KB of cookies would make any server refuse the next request
+// a site that turns away our server's own fetches (Cloudflare-style challenge): retried the normal way
+const CF = SITE.replace("127.0.0.1", "localhost"); // its own origin, so the main test site keeps fast mode
+const blocked0 = (await page.evaluate(() => proxies.wj.then((e) => e.stats()))).fast.challenged;
+await page.evaluate((u) => navigate(u, getTab()), CF + "/t/cf");
+ok(await text("#r", (t) => t.includes('"ok"')) === '{"ok":true}', "a site that challenges fast mode still loads (retried the normal way)", await text("#r"));
+ok((await page.evaluate(() => proxies.wj.then((e) => e.stats()))).fast.challenged === blocked0 + 1, "…and fast mode stops asking it after the first challenge");
+ok(await page.evaluate(() => [...document.querySelectorAll("#toasts *, .toast")].some((e) => /turns away fast mode/.test(e.textContent))), "…and says so");
+// switching fast mode off for one site from the engine badge
+await page.evaluate((u) => navigate(u, getTab()), SITE + "/");
+await text("h1", (t) => t === "Proxy test home");
+await page.click("#b-engine");
+ok(await page.$$eval("#b-engine-pop button.item", (b) => b.some((x) => /Fast mode for this site.*✓/.test(x.textContent))), "the badge menu shows fast mode on for this site");
+await page.click('#b-engine-pop button.item:has-text("Fast mode for this site")');
+await page.waitForTimeout(1500);
+await text("h1", (t) => t === "Proxy test home");
+const viaFastBefore = netReqs.length;
+await page.evaluate((u) => navigate(u, getTab()), SITE + "/page2");
+await text("h1", (t) => t === "Page two");
+ok(netReqs.length === viaFastBefore, "with it off for the site, its pages skip our server", netReqs.length - viaFastBefore);
+ok(await page.evaluate(() => JSON.parse(localStorage.getItem("wvm.siteNoFast")).includes("127.0.0.1")), "…and that's remembered");
+await page.click("#b-engine");
+await page.click('#b-engine-pop button.item:has-text("Fast mode for this site")');
+await page.waitForTimeout(1500);
 await page.evaluate(() => set("wjFast", false));
 
 // ---- warm-up while typing

@@ -31,11 +31,12 @@ function pageId() {
   }
 }
 
-export async function start({ wisp, cache = true, fast = false, onrestart = () => {} }) {
+export async function start({ wisp, cache = true, fast = false, fastSkip = [], onrestart = () => {}, onfastblocked = () => {} }) {
   const page = pageId();
   const prefix = `/~/wj/${page}/`;
   let worker = null;
   let fastOn = !!fast;
+  let skip = [...fastSkip];
   let n = 0;
   const waiting = new Map(); // request id -> resolve, for stats/clear
   let lastPong = Date.now();
@@ -48,11 +49,12 @@ export async function start({ wisp, cache = true, fast = false, onrestart = () =
         if (data?.t === "ready") resolve();
         else if (data?.t === "error") reject(new Error(data.error));
         else if (data?.t === "pong") lastPong = Date.now();
+        else if (data?.t === "fastBlocked") onfastblocked(data.origin);
         else if (waiting.has(data?.id)) { waiting.get(data.id)(data); waiting.delete(data.id); }
       });
       w.addEventListener("error", (e) => reject(new Error(e.message || "WillieJet worker failed to start")), { once: true });
     });
-    w.postMessage({ t: "init", page, wisp, cache, fast: fastOn });
+    w.postMessage({ t: "init", page, wisp, cache, fast: fastOn, fastSkip: skip });
     worker = w;
     lastPong = Date.now();
     register();
@@ -116,7 +118,8 @@ export async function start({ wisp, cache = true, fast = false, onrestart = () =
         reload() { win()?.location.reload(); },
       };
     },
-    setFast(on) { fastOn = !!on; worker.postMessage({ t: "fast", on: fastOn }); },
+    /* fast mode on or off; `hosts` are sites it stays off for */
+    setFast(on, hosts = skip) { fastOn = !!on; skip = [...hosts]; worker.postMessage({ t: "fast", on: fastOn, skip }); },
     warm(url) { worker.postMessage({ t: "warm", url }); },
     async stats() { return (await ask({ t: "stats" }))?.stats ?? null; },
     async clear() { await ask({ t: "clear" }); },

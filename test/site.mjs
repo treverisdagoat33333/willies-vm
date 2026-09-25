@@ -40,6 +40,9 @@ try{const ws=new WebSocket("ws://"+location.host+"/ws");ws.onopen=()=>ws.send("p
       R.blank=b.contentDocument.getElementById("w")?.textContent;
       document.getElementById("f").onload=()=>{try{R.child=document.getElementById("f").contentDocument.getElementById("c").textContent;R.childHost=document.getElementById("f").contentWindow.location.host}catch(e){R.child="err "+e}done()};</script>`);
     case "/t/child": return page("child", `<p id="c">child ok</p>`);
+    case "/t/cf": // acts like Cloudflare turning away our server's own (fast mode) fetches, told apart by their Accept-Encoding
+      if (req.headers["accept-encoding"] === "gzip, deflate, br") { res.writeHead(403, { "content-type": "text/html", "cf-mitigated": "challenge" }); return res.end("<title>Just a moment...</title>"); }
+      return page("cf", `<script>R.ok=true;done()</script>`);
     case "/t/bigheaders": {
       const cookies = Array.from({ length: 40 }, (_, i) => `big${i}=${"x".repeat(900)}; Path=/; Max-Age=3`);
       res.writeHead(200, { "content-type": "text/html", "set-cookie": cookies });

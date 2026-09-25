@@ -128,7 +128,7 @@ const client=new S.ScramjetClient(globalThis,{context:{config:${JSON.stringify(s
 
 /* ---------- start up ---------- */
 
-async function init({ page: p, wisp, cache, fast: fastOn }) {
+async function init({ page: p, wisp, cache, fast: fastOn, fastSkip }) {
   page = p;
   prefix = `/~/wj/${page}/`;
   SJ.setWasm(await (await fetch(WASM)).arrayBuffer());
@@ -137,7 +137,7 @@ async function init({ page: p, wisp, cache, fast: fastOn }) {
   const saved = await kvGet("cookies").catch(() => null);
   if (typeof saved === "string") jar.load(saved);
 
-  fast = new FastTransport(new LibcurlClient({ wisp }), !!fastOn);
+  fast = new FastTransport(new LibcurlClient({ wisp }), !!fastOn, fastSkip || [], (origin) => self.postMessage({ t: "fastBlocked", origin }));
   httpCache = cache ? new CachingTransport(fast) : null;
   transport = httpCache || fast;
   if (!transport.ready) await transport.init();
@@ -322,7 +322,13 @@ async function warm(url) {
 
 self.onmessage = ({ data, ports }) => {
   if (data?.t === "ping") return self.postMessage({ t: "pong", n: data.n });
-  if (data?.t === "fast") { if (fast) fast.on = !!data.on; return; }
+  if (data?.t === "fast") {
+    if (fast) {
+      fast.on = !!data.on;
+      if (Array.isArray(data.skip)) fast.skip = new Set(data.skip);
+    }
+    return;
+  }
   if (data?.t === "warm") return void ready?.then(() => warm(data.url)).catch(() => {});
   if (data?.t === "stats") {
     return void Promise.resolve(ready).then(() => self.postMessage({

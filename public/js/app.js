@@ -1327,6 +1327,7 @@ const PROXY_SHORT={sj2:'v2',wj:'WJ',sj1:'v1',uv:'UV'};
 const proxyId=()=>PROXIES[S.proxy]?S.proxy:'sj2';
 /* per-site engine picks (toolbar menu, or a fallback after a failure); this device only */
 let siteEngines=store('wvm.siteEngines',{});
+let siteNoFast=store('wvm.siteNoFast',[]); // hosts WillieJet's fast mode stays off for
 const hostOf=u=>{try{return new URL(u).hostname}catch(_){return''}};
 const engineFor=u=>{const e=siteEngines[hostOf(u)];return PROXIES[e]?e:proxyId()};
 function setSiteEngine(url,engine){const h=hostOf(url);if(!h)return;if(engine)siteEngines[h]=engine;else delete siteEngines[h];put('wvm.siteEngines',siteEngines)}
@@ -1389,7 +1390,8 @@ const PROXY_START={
     const{start}=await import('/wj/engine.mjs');
     return start({
       wisp:wispUrl(),cache:!S.incognito, // incognito leaves no cached files behind
-      fast:S.wjFast,
+      fast:S.wjFast,fastSkip:siteNoFast,
+      onfastblocked:origin=>toast(`${hostOf(origin)} turns away fast mode, so it loads the normal way`),
       onrestart:()=>{const open=tabs.filter(t=>t.engine==='wj'&&t.url&&t.url!=='about:blank');toast('WillieJet restarted itself'+(open.length?', reloading your tabs':''));open.forEach(t=>navigate(t.url,t,true))},
     });
   },
@@ -1461,6 +1463,13 @@ $('#b-engine').onclick=e=>{
     b.innerHTML=`<span></span>${id===proxyId()?' <small>default</small>':''}${id===cur?'<span class="ck">✓</span>':''}`;b.firstChild.textContent=name;
     b.disabled=!host;
     b.onclick=()=>{pop.classList.remove('show');setSiteEngine(url,id===proxyId()?null:id);toast(`${host} now opens with ${name}`,'ok');if(t)navigate(url,t,true)};
+    pop.appendChild(b);
+  }
+  if(host&&cur==='wj'&&S.wjFast){
+    const off=siteNoFast.includes(host),b=document.createElement('button');b.className='item';b.setAttribute('role','menuitem');
+    b.innerHTML=`<span>Fast mode for this site</span>${off?'':'<span class="ck">✓</span>'}`;
+    b.onclick=()=>{pop.classList.remove('show');siteNoFast=off?siteNoFast.filter(h=>h!==host):[...siteNoFast,host];put('wvm.siteNoFast',siteNoFast);
+      proxies.wj?.then(e=>e.setFast(S.wjFast,siteNoFast)).then(()=>{toast(`Fast mode ${off?'on':'off'} for ${host}`,'ok');if(t)navigate(url,t,true)})};
     pop.appendChild(b);
   }
   if(pinned){const b=document.createElement('button');b.className='item';b.textContent='Use my default engine';b.onclick=()=>{pop.classList.remove('show');setSiteEngine(url,null);if(t)navigate(url,t,true)};pop.appendChild(b)}
