@@ -294,7 +294,12 @@ function warmNext(){
   fetch(streamUrl(t)+'?warm=1').catch(()=>{});
 }
 /* both engines report through these */
-function onPlaying(){playing=true;failures=0;setStatus('');updateBar();refreshRows();setTimeout(warmNext,4000)}
+let counted='';
+function onPlaying(){
+  playing=true;failures=0;setStatus('');updateBar();refreshRows();setTimeout(warmNext,4000);
+  // once per song, not per pause and resume
+  if(cur&&keyOf(cur)!==counted){counted=keyOf(cur);track('song',`${cur.title} · ${cur.artist||cur.uploader||''}`.slice(0,100))}
+}
 function onPaused(){playing=false;updateBar();refreshRows()}
 function onFailed(msg){
   const seq=loadSeq;playing=false;updateBar();refreshRows();

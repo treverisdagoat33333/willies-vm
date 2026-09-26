@@ -5,6 +5,7 @@
  * Unauthorized copying, modification, distribution or hosting of this file,
  * in whole or in part, is strictly prohibited. See LICENSE.
  */
+import { record } from "./analytics.js";
 import { WebSocketServer } from "ws";
 import {
   RANK,
@@ -322,6 +323,7 @@ wss.on("connection", (ws, _req, session, ip) => {
           st.typing = null;
         }
         const saved = saveMessage({ username: st.name, account: st.account, text, channel: ch, replyTo, fileId });
+        record("chat", ch.startsWith("dm:") ? "dm" : ch);
         broadcast({ type: "msg", ...saved }, ch);
         return;
       }
@@ -538,6 +540,7 @@ wss.on("connection", (ws, _req, session, ip) => {
         c.toWs = ws;
         clearTimeout(c.timer);
         send(c.fromWs, { type: "call.accepted", callId });
+        record("call");
         for (const t of socketsOf(c.to)) if (t !== ws) send(t, { type: "call.ended", callId, reason: "answered elsewhere" });
         return;
       }
@@ -816,6 +819,7 @@ export function handleVoiceUpgrade(req, socket, head, session, ip) {
     return socket.destroy();
   }
   voiceWss.handleUpgrade(req, socket, head, (ws) => voiceWss.emit("connection", ws, req, name, slug, ip));
+  record("voice", slug);
 }
 
 export function handleCallRelayUpgrade(req, socket, head, session) {

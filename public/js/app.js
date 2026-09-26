@@ -519,7 +519,9 @@ const APPS={
   vm1:()=>launchE2BVM(),vm2:()=>launchGPUVM(),vm:()=>(S.defaultVM==='gpu'?launchGPUVM():launchE2BVM()),
   admin:()=>openAdmin(),music:()=>window.music?.toggle(),ai:()=>window.ai?.toggle(),movies:()=>window.movies?.toggle()
 };
-document.addEventListener('click',e=>{const b=e.target.closest('[data-app]');if(!b)return;click();const fn=APPS[b.dataset.app];if(fn)fn()});
+document.addEventListener('click',e=>{const b=e.target.closest('[data-app]');if(!b)return;click();const fn=APPS[b.dataset.app];if(fn){fn();track('app',b.dataset.app)}});
+/* counts for the owner's analytics (analytics.js on the server): which app, song or movie, never who */
+function track(kind,name=''){try{fetch('/api/stats/event',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({kind,name}),keepalive:true}).catch(()=>{})}catch(_){}}
 $$('.tile').forEach(t=>t.addEventListener('pointermove',e=>{const r=t.getBoundingClientRect();t.style.setProperty('--mx',(e.clientX-r.left)+'px');t.style.setProperty('--my',(e.clientY-r.top)+'px')}));
 
 /* taskbar auto-hide */
@@ -1189,6 +1191,7 @@ function acceptAuth(d,fresh){
   root.dataset.owner=currentRole==='owner'?'on':'off';
   $('#auth-wrap').classList.add('hidden');setUser();connectChat();
   if(d.account)syncStart(currentUsername);
+  if(!acceptAuth.counted){acceptAuth.counted=true;track('visit')}
   toast(`Welcome, ${currentUsername}! ${d.vmMinutes||30} min of VM time.`,'ok');
   if(fresh)window.motion?.celebrate();
 }
@@ -2871,7 +2874,7 @@ $('#dc-toggle-members').onclick=()=>$('#chat-window').classList.toggle('hide-mem
 let adData=null,adTimer=null,adFilter='';
 function openAdmin(){
   if(currentRole!=='owner')return toast('The admin dashboard is for the owner.','err');
-  openPanel('admin-panel');adRefresh();
+  openPanel('admin-panel');adRefresh();window.adStats?.load();
   clearInterval(adTimer);
   adTimer=setInterval(()=>{if($('#admin-panel').classList.contains('show')&&!document.hidden)adRefresh();else if(!$('#admin-panel').classList.contains('show'))clearInterval(adTimer)},5000);
 }
@@ -2971,7 +2974,7 @@ function adBan(name){
     fields:[{key:'hours',label:'Hours (empty = permanent)',type:'number',placeholder:'permanent'},{key:'reason',label:'Reason (optional)',maxlength:200}],
     onOk:v=>postJSON(`/api/admin/users/${encodeURIComponent(name)}/ban`,{hours:v.hours.trim()?+v.hours:null,reason:v.reason}).then(()=>{toast(`${name} banned`,'ok');adRefresh()})});
 }
-$('#admin-refresh').onclick=()=>{adRefresh();window.motion?.spin($('#admin-refresh'))};
+$('#admin-refresh').onclick=()=>{adRefresh();window.adStats?.load();window.motion?.spin($('#admin-refresh'))};
 $('#ad-user-filter').addEventListener('input',e=>{adFilter=e.target.value.trim().toLowerCase();adRender()});
 $('#ad-announce').addEventListener('submit',async e=>{
   e.preventDefault();const i=$('#ad-announce-text'),t=i.value.trim();if(!t)return;

@@ -1,0 +1,99 @@
+/*!
+ * william's vm
+ * Copyright (c) 2026 William (github.com/treverisdagoat33333)
+ * All rights reserved. Proprietary and confidential. See LICENSE.
+ */
+/* ═══════════════════════════════════════════════════════════
+   OWNER ANALYTICS (js/stats.js, analytics.js on the server)
+   Colours by role, one set per theme: dark is the site default, and light
+   has its own steps rather than a flip. The series colours were checked
+   for colour-blind separation and contrast against each card surface.
+   ═══════════════════════════════════════════════════════════ */
+.an{
+  --an-s1:#3987e5;--an-s2:#d95926;--an-s3:#199e70;
+  --an-ink:#f2f4f8;--an-ink2:#b9bfcc;--an-muted:#8a90a0;
+  --an-grid:rgba(255,255,255,.07);--an-axis:rgba(255,255,255,.18);--an-surface:#1b1f2a;
+  /* busiest times: one hue, near the surface for "little" up to bright for "busy" */
+  --an-h0:rgba(255,255,255,.05);--an-h1:#153457;--an-h2:#184f95;--an-h3:#256abf;--an-h4:#3987e5;--an-h5:#6da7ec;--an-h6:#b7d3f6;
+  margin:0 0 18px;padding:14px 16px 16px;border:1px solid var(--border);border-radius:var(--r-lg);background:var(--glass-2)
+}
+html[data-theme="light"] .an{
+  --an-s1:#2a78d6;--an-s2:#eb6834;--an-s3:#1baf7a;
+  --an-ink:#0b0b0b;--an-ink2:#52514e;--an-muted:#6f6d68;
+  --an-grid:#e1e0d9;--an-axis:#c3c2b7;--an-surface:#f4f6fa;
+  --an-h0:#eef0f3;--an-h1:#cde2fb;--an-h2:#9ec5f4;--an-h3:#6da7ec;--an-h4:#3987e5;--an-h5:#256abf;--an-h6:#104281;
+}
+.an-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.an-head h3{margin:0;font-size:1.05em;font-weight:800;color:var(--an-ink)}
+.an-head small{color:var(--an-muted);font-size:.78em}
+.an-head .sp{flex:1}
+.an-range button.on{background:var(--accent);color:#fff}
+
+/* the headline numbers */
+.an-kpis{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:8px;margin-bottom:14px}
+.an-kpi{padding:10px 12px;border-radius:12px;background:var(--glass-3);border:1px solid var(--border)}
+.an-kpi b{display:block;font-size:1.55em;font-weight:800;letter-spacing:-.02em;color:var(--an-ink);font-variant-numeric:tabular-nums;line-height:1.1}
+.an-kpi span{display:block;margin-top:2px;font-size:.76em;color:var(--an-ink2)}
+.an-kpi small{display:block;margin-top:3px;font-size:.7em;color:var(--an-muted);font-variant-numeric:tabular-nums}
+
+.an-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,380px),1fr));gap:12px}
+.an-card{margin:0;padding:12px 14px;border-radius:12px;background:var(--glass-3);border:1px solid var(--border);min-width:0}
+.an-card.an-wide{grid-column:1/-1}
+.an-card figcaption{margin-bottom:8px}
+.an-card figcaption b{display:block;font-size:.88em;color:var(--an-ink)}
+.an-card figcaption small{font-size:.74em;color:var(--an-muted)}
+.an-chart{position:relative;min-height:60px}
+.an-chart svg{display:block;width:100%;height:auto;overflow:visible}
+.an-empty{padding:22px 4px;font-size:.82em;color:var(--an-muted);text-align:center}
+
+/* chart chrome stays recessive: hairline grid, muted labels */
+.an svg .grid{stroke:var(--an-grid);stroke-width:1}
+.an svg .base{stroke:var(--an-axis);stroke-width:1}
+.an svg text{fill:var(--an-muted);font-size:11px;font-family:inherit;font-variant-numeric:tabular-nums}
+.an svg text.lab{fill:var(--an-ink2);font-weight:600}
+.an svg .line{fill:none;stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
+.an svg .area{opacity:.16}
+.an svg .cross{stroke:var(--an-axis);stroke-width:1;stroke-dasharray:3 3}
+.an svg .dot{stroke:var(--an-surface);stroke-width:2}
+.an svg .bar{transition:opacity .12s}
+.an svg .hit{fill:transparent;cursor:crosshair}
+.an svg .bar.dim{opacity:.45}
+
+/* ranked lists: a label, a thin bar, the number */
+.an-bars{display:flex;flex-direction:column;gap:7px}
+.an-bar{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 10px;align-items:center;font-size:.8em;cursor:default}
+.an-bar .nm{color:var(--an-ink2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.an-bar .v{color:var(--an-ink);font-weight:700;font-variant-numeric:tabular-nums}
+.an-bar .tr{grid-column:1/-1;height:8px;border-radius:0 4px 4px 0;background:var(--an-grid)}
+.an-bar .fl{display:block;height:100%;border-radius:0 4px 4px 0;background:var(--an-s1);min-width:3px}
+.an-bar:hover .nm{color:var(--an-ink)}
+
+/* busiest times */
+.an-heat{display:grid;grid-template-columns:30px repeat(24,minmax(0,1fr));gap:2px;font-size:10px;color:var(--an-muted)}
+.an-heat .c{aspect-ratio:1;border-radius:2px;background:var(--an-h0)}
+.an-heat .c:hover{outline:2px solid var(--an-ink);outline-offset:0}
+.an-heat .an-wd{align-self:center;font-size:10px}
+.an-heat .an-hr{text-align:left;font-size:9px;overflow:visible;white-space:nowrap}
+.an-scale{display:flex;align-items:center;gap:6px;margin-top:8px;font-size:.72em;color:var(--an-muted)}
+.an-scale i{width:14px;height:10px;border-radius:2px;display:inline-block}
+
+/* legend (for the one chart with several series) */
+.an-legend{display:flex;flex-wrap:wrap;gap:4px 14px;margin:-2px 0 6px;font-size:.76em;color:var(--an-ink2)}
+.an-legend span{display:inline-flex;align-items:center;gap:6px}
+.an-legend i{width:14px;height:3px;border-radius:2px;display:inline-block}
+
+.an-data{margin-top:8px;font-size:.78em}
+.an-data summary{cursor:pointer;color:var(--an-muted)}
+.an-data summary:hover{color:var(--an-ink)}
+.an-data table{width:100%;margin-top:6px;border-collapse:collapse;font-variant-numeric:tabular-nums}
+.an-data th,.an-data td{padding:3px 6px;text-align:right;border-bottom:1px solid var(--an-grid);color:var(--an-ink2)}
+.an-data th:first-child,.an-data td:first-child{text-align:left}
+.an-data th{color:var(--an-muted);font-weight:600}
+.an-data>div{max-height:220px;overflow:auto}
+
+.an-tip{position:fixed;z-index:9700;pointer-events:none;padding:7px 10px;border-radius:8px;background:#0e1016;color:#f2f4f8;font-size:.78em;line-height:1.4;
+  box-shadow:0 8px 24px rgba(0,0,0,.45);border:1px solid rgba(255,255,255,.08);max-width:260px}
+.an-tip b{font-weight:700}
+.an-tip .row{display:flex;align-items:center;gap:6px}
+.an-tip i{width:8px;height:8px;border-radius:50%;display:inline-block}
+.an-tip[hidden]{display:none}

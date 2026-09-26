@@ -64,6 +64,7 @@ import { clientIp, createLimiter, limitByIp, formatWait } from "./security.js";
 import { musicRouter } from "./music.js";
 import { aiRouter } from "./ai.js";
 import { moviesRouter } from "./movies.js";
+import { analyticsRouter, record } from "./analytics.js";
 import { filesRouter } from "./files.js";
 import { hasBadWords } from "./profanity.js";
 import { fastnetHandler } from "./fastnet.js";
@@ -647,6 +648,7 @@ app.post("/api/auth/register", limitByIp(registerLimiter, "Too many new accounts
   }
   const created = createUser(username, passwordHash);
   logEvent("account", `${username} signed up`);
+  record("signup");
 
   res.cookie("vm_session", accountToken(username), cookieOptions());
   return res.json({ ok: true, account: true, username, role: created.role, vmMinutes: 60 });
@@ -836,6 +838,22 @@ app.use(
   moviesRouter({
     requireSession,
     limiter: limitByIp(moviesLimiter, "Too many movie requests from your network."),
+  })
+);
+
+/*
+|--------------------------------------------------------------------------
+| Analytics for the owner dashboard (see analytics.js): counts only
+|--------------------------------------------------------------------------
+*/
+const statsLimiter = createLimiter({ windowMs: 10 * 60_000, max: 300 }); // a busy page reports an app or song now and then
+app.use(
+  "/api/stats",
+  analyticsRouter({
+    requireSession,
+    requireOwner,
+    sessionLabel,
+    limiter: limitByIp(statsLimiter, "Too many reports.", (req) => sessionLabel(req.vmSession)),
   })
 );
 
@@ -1161,6 +1179,7 @@ function trackXenv(id, session, seconds) {
   xenvVMs.set(id, { owner, who: vmWho(session), startedAt: Date.now(), expiresAt: Date.now() + seconds * 1000 });
   setTimeout(() => xenvVMs.delete(id), seconds * 1000).unref?.();
   logEvent("vm", `${owner} started a GPU VM`);
+  record("vm", "gpu");
 }
 
 async function killXenv(id) {
@@ -1240,6 +1259,7 @@ app.post("/api/e2b/start", requireSession, vmStartGate, async (req, res) => {
     // E2B kills it on its own at the timeout; forget it then too
     setTimeout(() => e2bSandboxes.delete(sandboxId), timeoutMs).unref?.();
     logEvent("vm", `${owner} started a desktop VM`);
+    record("vm", "desktop");
     return res.json({
       status: "success",
       sandboxId,

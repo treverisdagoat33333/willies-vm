@@ -207,6 +207,7 @@ async function play(m){
   const img=$('#mv-poster');img.hidden=!m.poster;if(m.poster)img.src=art(m.poster);
   $('#mv-season-wrap').hidden=true;$('#mv-eps').innerHTML=m.type==='series'?'<div class="cg-skel mv-eps-skel"></div>':'';
   if(m.type!=='series')remember({...m,at:Date.now()});
+  track('movie',m.name||m.id);
   try{
     const d=await api(`/meta?type=${m.type}&id=${m.id}`);
     if(current!==m)return;

@@ -26,6 +26,7 @@
 <link rel="stylesheet" href="/css/features.css">
 <link rel="stylesheet" href="/css/calls.css">
 <link rel="stylesheet" href="/css/desk.css">
+<link rel="stylesheet" href="/css/stats.css">
 <link rel="stylesheet" href="/css/music.css">
 <link rel="stylesheet" href="/css/movies.css">
 <link rel="stylesheet" href="/css/ai.css">
@@ -450,6 +451,24 @@ https://discord.com/</textarea><div class="ctl"><button class="btn sm" id="st-ru
   </div>
   <div class="pbody">
     <div class="ad-stats" id="ad-stats"></div>
+    <section class="an" id="an" aria-labelledby="an-title">
+      <div class="an-head">
+        <h3 id="an-title">Analytics</h3><small id="an-since"></small>
+        <span class="sp"></span>
+        <div class="seg an-range" id="an-range" role="group" aria-label="Date range"><button data-d="7">7 days</button><button data-d="30" class="on">30 days</button><button data-d="90">90 days</button></div>
+      </div>
+      <div class="an-kpis" id="an-kpis"></div>
+      <div class="an-grid">
+        <figure class="an-card an-wide"><figcaption><b>Visitors per day</b><small>Different people each day, accounts and guests</small></figcaption><div class="an-chart" id="an-visitors"></div><details class="an-data"><summary>Show as a table</summary><div></div></details></figure>
+        <figure class="an-card"><figcaption><b>Busiest times</b><small>Everything people did, by weekday and hour (your time)</small></figcaption><div class="an-chart" id="an-heat"></div><details class="an-data"><summary>Show as a table</summary><div></div></details></figure>
+        <figure class="an-card"><figcaption><b>Apps opened</b><small>From the desktop, launcher, start menu and taskbar</small></figcaption><div class="an-chart" id="an-apps"></div></figure>
+        <figure class="an-card"><figcaption><b>VMs started per day</b><small>Desktop and GPU together</small></figcaption><div class="an-chart" id="an-vms"></div><details class="an-data"><summary>Show as a table</summary><div></div></details></figure>
+        <figure class="an-card"><figcaption><b>Chat, AI and calls per day</b><small>Messages sent, AI messages, calls answered</small></figcaption><div class="an-chart" id="an-social"></div><details class="an-data"><summary>Show as a table</summary><div></div></details></figure>
+        <figure class="an-card"><figcaption><b>Top songs</b><small>Times played</small></figcaption><div class="an-chart" id="an-songs"></div></figure>
+        <figure class="an-card"><figcaption><b>Top movies &amp; shows</b><small>Times started</small></figcaption><div class="an-chart" id="an-movies"></div></figure>
+      </div>
+      <div class="an-tip" id="an-tip" role="tooltip" hidden></div>
+    </section>
     <div class="ad-grid">
       <section class="ad-card ad-wide">
         <h3>Announcement</h3>
@@ -885,6 +904,7 @@ https://discord.com/</textarea><div class="ctl"><button class="btn sm" id="st-ru
 <script src="/js/music.js"></script>
 <script src="/js/movies.js"></script>
 <script src="/js/desk.js"></script>
+<script src="/js/stats.js"></script>
 <script src="/js/ai.js"></script>
 <script src="/js/calls.js"></script>
 <script src="/js/voice.js"></script>

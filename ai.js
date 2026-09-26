@@ -6,6 +6,7 @@
  * in whole or in part, is strictly prohibited. See LICENSE.
  */
 import express from "express";
+import { record } from "./analytics.js";
 
 /*
 |--------------------------------------------------------------------------
@@ -190,6 +191,7 @@ export function aiRouter({ requireSession, limiter, userLimiter }) {
     res.flushHeaders?.();
     const send = (o) => { if (!res.writableEnded) res.write(JSON.stringify(o) + "\n"); };
     send({ t: "model", v: model });
+    record("ai");
     try {
       await readStream(upstream.body, (v) => send({ t: "text", v }), abort.signal);
       send({ t: "done" });

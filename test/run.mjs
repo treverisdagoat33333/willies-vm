@@ -20,7 +20,7 @@ import path from "node:path";
 const root = path.resolve(import.meta.dirname, "..");
 const bench = process.argv.includes("--bench");
 const only = process.argv.slice(2).filter((a) => !a.startsWith("--"));
-const SUITES = ["cache", "engines", "menu", "compat", "williejet", "fastnet", "sw-restart", "nextday", "ai", "calls", "voice", "files", "leave", "music", "desk"];
+const SUITES = ["cache", "engines", "menu", "compat", "williejet", "fastnet", "sw-restart", "nextday", "ai", "calls", "voice", "files", "leave", "music", "desk", "analytics"];
 const children = [];
 const temps = [];
 
@@ -73,6 +73,8 @@ try {
     SOUNDCLOUD_CLIENT_ID: "test-client-id",
     DEEZER_API: `http://127.0.0.1:${sitePort}/dz`,
     AUDIUS_API: `http://127.0.0.1:${sitePort}/au`,
+    OWNER_USERNAME: "testowner",
+    OWNER_PASSWORD: "test-owner-pass",
   });
   await server(strictPort, { WJ_STRICT: "1" });
   const env = { BASE: `http://localhost:${port}`, STRICT_BASE: `http://localhost:${strictPort}`, SITE: `http://127.0.0.1:${sitePort}` };
