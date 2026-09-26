@@ -20,7 +20,8 @@ const DEFAULTS={
   panic:false,panicKey:'`',panicUrl:'https://classroom.google.com',panicAction:'redirect',panicWipe:false,
   blurunfocus:false,blurAmt:24,lock:false,lockMins:'5',
   perf:false,motion:false,bouncy:true,wallimg:true,preload:false,sound:false,soundpack:'soft',volume:0.5,chatsound:true,fps:false,notify:false,sync:true,
-  proxy:'wj',wjFast:true,wjAds:true,saveLogins:true,confirmLeave:true
+  proxy:'wj',wjFast:true,wjAds:true,saveLogins:true,confirmLeave:true,
+  wClock:true,wWeather:false,wMusic:true,wTodo:false // desktop widgets (js/desk.js)
 };
 const KEY='wvm.settings.v1';
 let S=(()=>{
@@ -43,7 +44,7 @@ try{if(!localStorage.getItem('wvm.defaults.v2')){if(S.proxy==='sj2')S.proxy='wj'
 let quietLeave=false; // our own reload or the panic key is leaving: don't ask "Leave site?" (see askBeforeLeaving)
 /* settings sync state; the logic lives in SETTINGS SYNC further down */
 const SYNC_LOCAL_ONLY=['perf','wallimg','preload','fps','sync','proxy','wjFast','wjAds']; // speed and engine settings belong to the device
-const SYNC_KEYS=['bookmarks','favGames','music']; // localStorage keys that travel with the account
+const SYNC_KEYS=['bookmarks','favGames','music','desk']; // localStorage keys that travel with the account
 let syncOn=false,syncApplying=false,syncT=null,syncPulledAt=0;
 let syncMeta=(()=>{try{return JSON.parse(localStorage.getItem('wvm.sync')||'null')}catch(_){return null}})()||{user:'',server:0,dirty:false};
 const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){toast('Could not save settings (storage full?)','err')}syncTouch()};
@@ -61,6 +62,13 @@ const WALLS=[
   {id:'photo',name:'Mountains',img:'https://images.alphacoders.com/133/thumb-1920-1330185.jpeg'},
   {id:'photo2',name:'Nebula',img:'https://images.unsplash.com/photo-1462331940025-496dfbfc7564?w=1920&q=80'},
   {id:'photo3',name:'Dunes',img:'https://images.unsplash.com/photo-1509316785289-025f5b846b35?w=1920&q=80'},
+  // live ones animate (css/desk.css, #bg-live); they stand still when motion is off or in performance mode
+  {id:'live-aurora',name:'Aurora',live:'aurora',css:'linear-gradient(160deg,#05070f,#0b1224)'},
+  {id:'live-flow',name:'Color flow',live:'flow',css:'linear-gradient(120deg,rgba(var(--accent-rgb),.9),#a855f7,#06b6d4,#f43f5e)'},
+  {id:'live-synth',name:'Synthwave',live:'synth',css:'linear-gradient(#12021f 0%,#2a0845 48%,#6a0f5c 70%,#ff2e97 100%)'},
+  {id:'live-lava',name:'Lava lamp',live:'lava',css:'linear-gradient(160deg,#1a0703,#2d0a0a 60%,#140404)'},
+  {id:'live-stars',name:'Starfield',live:'stars',css:'radial-gradient(ellipse at 50% 60%,#0f1d42 0%,#050814 60%,#010207 100%)'},
+  {id:'live-sea',name:'Deep sea',live:'sea',css:'linear-gradient(180deg,#02131f 0%,#053047 55%,#0a5a73 100%)'},
   {id:'custom',name:'Custom',css:'repeating-linear-gradient(45deg,#333 0 10px,#444 10px 20px)'}
 ];
 const ico=d=>`https://www.google.com/s2/favicons?domain=${d}&sz=32`;
@@ -110,6 +118,7 @@ function applyAll(){
   applyWallpaper();applyCloak();applyScreenFx();applyParticles();applyFps();resetIdle();
   $('#sc-panic').textContent=S.panic?`${S.panicKey} → ${S.panicUrl}`:'off';
   const m=document.querySelector('meta[name=theme-color]');if(m)m.content=th==='light'?'#f6f8fb':'#0b0d12';
+  window.desk?.apply();
 }
 /* screen filter + dimmer overlay */
 const FILTERS={none:'',warm:'sepia(.45) saturate(1.25) hue-rotate(-12deg)',cool:'saturate(1.1) hue-rotate(18deg) brightness(1.02)',gray:'grayscale(1)',sepia:'sepia(.85)',contrast:'contrast(1.35) saturate(1.1)',invert:'invert(1) hue-rotate(180deg)'};
@@ -143,6 +152,7 @@ function updateHero(){
 function applyWallpaper(){
   const w=WALLS.find(x=>x.id===S.wallpaper)||WALLS[0],bg=$('#bg'),im=$('#bg-img');
   bg.style.background=w.css||WALLS[0].css;
+  $('#bg-live').dataset.live=w.live||'';
   const url=w.id==='custom'?S.wallpaperUrl:w.img;
   im.classList.remove('on');
   if(url&&S.wallimg){const pre=new Image();pre.onload=()=>{im.style.backgroundImage=`url("${url}")`;im.classList.add('on')};pre.src=url}
@@ -223,7 +233,7 @@ $('#accent-picker').addEventListener('change',e=>set('accent',e.target.value));
 $('#accent2-picker').addEventListener('input',e=>{S.accent2=e.target.value;S.gradient=true;applyAll();saveSoon()});
 $('#accent2-picker').addEventListener('change',e=>set('accent2',e.target.value));
 /* Wallpapers */
-$('#walls').innerHTML=WALLS.map(w=>`<button class="wall" data-id="${w.id}" style="background:${w.img?`url('${w.img}') center/cover`:w.css.replace(/var\(--accent-rgb\)/g,hexToRgb(S.accent)).replace(/var\(--bg1\)/g,'#12161f').replace(/var\(--bg0\)/g,'#0b0d12')}"><span>${w.name}</span></button>`).join('');
+$('#walls').innerHTML=WALLS.map(w=>`<button class="wall${w.live?' live':''}" data-id="${w.id}" style="background:${w.img?`url('${w.img}') center/cover`:w.css.replace(/var\(--accent-rgb\)/g,hexToRgb(S.accent)).replace(/var\(--bg1\)/g,'#12161f').replace(/var\(--bg0\)/g,'#0b0d12')}"><span>${w.name}</span></button>`).join('');
 $('#walls').addEventListener('click',e=>{const b=e.target.closest('.wall');if(!b)return;click();if(b.dataset.id==='custom'&&!S.wallpaperUrl){toast('Paste an image URL or upload a file first');$('#wallpaper-input').focus();return}set('wallpaper',b.dataset.id)});
 $('#wall-apply').onclick=()=>{const u=$('#wallpaper-input').value.trim();if(!u||u.startsWith('('))return toast('Enter an image URL','err');S.wallpaperUrl=u;set('wallpaper','custom');toast('Wallpaper applied','ok')};
 $('#wallpaper-input').addEventListener('keydown',e=>{if(e.key==='Enter')$('#wall-apply').click()});
@@ -1226,6 +1236,7 @@ function syncApply(data){
     if(Array.isArray(data.bookmarks)){bookmarks=data.bookmarks;put('bookmarks',bookmarks);renderBookmarks()}
     if(Array.isArray(data.favGames)){favGames=data.favGames;put('favGames',favGames)}
     if(data.music&&typeof data.music==='object'){put('music',data.music);window.music?.reload()}
+    if(data.desk&&typeof data.desk==='object'){put('desk',data.desk);window.desk?.reload()}
   }finally{syncApplying=false}
 }
 function syncStatus(text){const el=$('#sync-status');if(el)el.textContent=text}

@@ -8,13 +8,17 @@
    A chat window over /api/ai (ai.js on the server, which holds the API key).
    Replies stream in as JSON lines and are drawn as simple, escaped Markdown.
    Chats are kept in this browser only (localStorage "ai.chats", not synced;
-   nothing kept in incognito). Uses app.js helpers ($, $$, esc, toast, store,
+   nothing kept in incognito).
+   The AI can also operate the site: it writes [[action {...}]] lines (the list
+   is in ai.js on the server), which are hidden from the reply and carried out
+   here, with a chip under the reply for each. chat.read sends the open chat's
+   messages back for a second answer, which may not act again. Uses app.js helpers ($, $$, esc, toast, store,
    put, click, typing, onCloseDone, openBrowser, closeAllPanels, closeChat).
    ═══════════════════════════════════════════════════════════ */
 (()=>{
 const W=$('#ai-window'),LOG=$('#ai-log'),SCROLL=$('#ai-scroll'),INPUT=$('#ai-input'),MODEL=$('#ai-model');
 const MAX_CHATS=50,MAX_INPUT=8000;
-const SUGGEST=['Explain photosynthesis like I\'m 12','Help me write a short story about a dragon','Fix this code: for i in range(10) print(i)','Give me 5 fun facts about space'];
+const SUGGEST=['Play some chill lofi','Make my desktop synthwave','Find me a good horror movie','Catch me up on the chat','Explain photosynthesis like I\'m 12','Fix this code: for i in range(10) print(i)'];
 
 let chats=loadChats(),cur=null,status=null,busy=null,opened=false,paintQueued=false;
 function loadChats(){const c=store('ai.chats',[]);return Array.isArray(c)?c.filter(x=>x&&typeof x.id==='string'&&Array.isArray(x.messages)):[]}
@@ -63,11 +67,19 @@ function renderChats(){
   box.innerHTML=chats.map(c=>`<div class="ai-chat${c===cur?' active':''}" data-id="${esc(c.id)}"><button type="button" class="ai-open"><span></span></button><button type="button" class="ai-del" title="Delete chat" aria-label="Delete chat">${ICON_DEL}</button></div>`).join('');
   $$('.ai-chat',box).forEach((el,i)=>{el.querySelector('span').textContent=chats[i].title||'New chat'});
 }
+const ACTION_RE=/\[\[action\s+(\{[\s\S]*?\})\s*\]\]/g;
+const visibleText=t=>String(t||'').replace(ACTION_RE,'').replace(/\[\[a(c(t(i(o(n[^\]]*)?)?)?)?)?$/,'').replace(/\n{3,}/g,'\n\n').trim();
 function bubble(m){
   const d=document.createElement('div');d.className='ai-msg '+(m.role==='user'?'me':'bot');
   if(m.role==='user')d.textContent=m.content;
   else{
-    d.innerHTML=m.content?md(m.content):'<span class="ai-dots"><i></i><i></i><i></i></span>';
+    const text=visibleText(m.content);
+    d.innerHTML=text?md(text):m.acts?.length||m.done?'':'<span class="ai-dots"><i></i><i></i><i></i></span>';
+    if(m.acts?.length){
+      const box=document.createElement('div');box.className='ai-acts';
+      for(const a of m.acts){const c=document.createElement('span');c.className='ai-act '+(a.ok?'ok':'bad');c.textContent=a.label;box.appendChild(c)}
+      d.appendChild(box);
+    }
     if(m.error){const e=document.createElement('div');e.className='ai-err';e.innerHTML='<span></span><button type="button" class="btn sm ai-retry">Try again</button>';e.firstChild.textContent=m.error;d.appendChild(e)}
   }
   return d;
@@ -79,7 +91,7 @@ function renderLog(){
     LOG.innerHTML=`<div class="ai-empty"><div class="ic c9">${$('#ai-window .ai-brand .ic').innerHTML}</div><h2>What can I help with?</h2><div class="ai-sugs">${SUGGEST.map(s=>`<button type="button" class="ai-sug">${esc(s)}</button>`).join('')}</div></div>`;
     return;
   }
-  for(const m of cur.messages)LOG.appendChild(bubble(m));
+  for(const m of cur.messages)if(!m.hidden)LOG.appendChild(bubble(m));
   SCROLL.scrollTop=SCROLL.scrollHeight;
 }
 function render(){renderChats();renderLog()}
@@ -121,14 +133,21 @@ async function send(text){
   if(!status)await loadStatus();
   if(!status.ready){toast(status.why||'The AI isn\'t set up yet','err');return}
   if(!cur){cur={id:rid(),title:text.replace(/\s+/g,' ').slice(0,48),at:Date.now(),messages:[]};chats.unshift(cur)}
-  cur.messages=cur.messages.filter(m=>m.content); // failed, empty replies aren't sent again
+  cur.messages=cur.messages.filter(m=>m.content||m.acts?.length); // failed, empty replies aren't sent again
   cur.messages.push({role:'user',content:text});
+  await ask(true);
+}
+/* one reply from the AI; its actions run once it's done. A chat.read hands the
+   messages back for one more reply, which can only talk. */
+async function ask(canAct){
   const reply={role:'assistant',content:''};cur.messages.push(reply);
   cur.at=Date.now();chats=[cur,...chats.filter(c=>c!==cur)];
   saveChats();render();
   const ctl=new AbortController();busy=ctl;setBusy(true);
+  let more=null;
   try{
-    const r=await fetch('/api/ai/chat',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({model:MODEL.value,messages:cur.messages.slice(0,-1).map(({role,content})=>({role,content}))}),signal:ctl.signal});
+    const r=await fetch('/api/ai/chat',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({model:MODEL.value,actions:canAct,context:siteContext(),
+      messages:cur.messages.slice(0,-1).filter(m=>m.content).map(({role,content})=>({role,content}))}),signal:ctl.signal});
     if(!r.ok){const d=await r.json().catch(()=>({}));throw new Error(d.error||`HTTP ${r.status}`)}
     const reader=r.body.getReader(),dec=new TextDecoder();let buf='';
     for(;;){
@@ -143,14 +162,85 @@ async function send(text){
       }
     }
     if(!reply.content)reply.error='The AI sent back an empty answer.';
+    else if(canAct)more=await runActions(reply);
   }catch(e){
     if(!ctl.signal.aborted)reply.error=String(e?.message||e);
     else if(!reply.content)reply.error='Stopped.';
   }finally{
-    busy=null;setBusy(false);cur.at=Date.now();saveChats();render();
+    reply.done=true;busy=null;setBusy(false);cur.at=Date.now();saveChats();render();
   }
+  if(more&&cur){cur.messages.push({role:'user',content:more,hidden:true});await ask(false)}
+}function stop(){busy?.abort()}
+
+/* ═══ doing things on the site ═══ */
+const APP_NAMES={browser:'Browser',games:'Games',music:'Music',movies:'Movies',chat:'Chat',settings:'Settings',cloud:'Cloud',links:'Links'};
+const ACTIONS={
+  async 'music.play'({query,source}){
+    const t=await window.music?.playQuery(String(query||'').slice(0,120),['sc','yt','au','dz'].includes(source)?source:undefined);
+    if(!t)throw new Error(`Couldn't find “${query}”`);
+    return `▶ Playing “${t.title}”`;
+  },
+  'music.pause'(){const n=window.music?.now();if(n?.playing)window.music.playPause();return '⏸ Paused'},
+  'music.resume'(){const n=window.music?.now();if(!n)throw new Error('Nothing to resume');if(!n.playing)window.music.playPause();return '▶ Playing'},
+  'music.next'(){window.music?.next();return '⏭ Next song'},
+  'music.prev'(){window.music?.prev();return '⏮ Back'},
+  'movies.open'({query,row,genre}){
+    window.movies?.browse({query,row,genre});
+    return `🎬 Movies${query?`: “${String(query).slice(0,40)}”`:genre?`: ${genre}`:row&&row!=='movies'?`: ${row==='shows'?'TV shows':'anime'}`:''}`;
+  },
+  'app.open'({app}){if(!APP_NAMES[app])throw new Error(`No app called ${app}`);APPS[app]();return `Opened ${APP_NAMES[app]}`},
+  'browser.open'({url}){
+    let u;try{u=new URL(String(url))}catch(_){throw new Error('Not a web address')}
+    if(!/^https?:$/.test(u.protocol))throw new Error('Not a web address');
+    openBrowser(u.href);return `🌐 Opened ${u.hostname}`;
+  },
+  'theme.preset'({id}){if(!window.desk?.applyPreset(id))throw new Error(`No theme called ${id}`);return `🎨 Theme: ${window.desk.presets().find(p=>p.id===id).name}`},
+  'theme.set'({accent,mode,wallpaper}){
+    const done=[];
+    if(accent!=null){if(!/^#[0-9a-f]{6}$/i.test(accent))throw new Error('Not a color');set('accent',accent.toLowerCase());done.push('accent')}
+    if(mode!=null){if(!['dark','oled','light'].includes(mode))throw new Error('No such mode');S.autotheme=false;set('theme',mode);done.push(mode+' mode')}
+    if(wallpaper!=null){const w=WALLS.find(x=>x.id===wallpaper&&x.id!=='custom');if(!w)throw new Error('No such wallpaper');set('wallpaper',w.id);done.push(`${w.name} wallpaper`)}
+    if(!done.length)throw new Error('Nothing to change');
+    return `🎨 Changed ${done.join(', ')}`;
+  },
+  'widget.set'({widget,on}){if(!window.desk?.widget(widget,!!on))throw new Error(`No ${widget} widget`);return `${on?'Showing':'Hid'} the ${widget} widget`},
+  'todo.add'({text}){window.desk?.widget('todo',true);if(!window.desk?.addTodo(text))throw new Error("Couldn't add that");return `✓ Added “${String(text).slice(0,40)}”`},
+  'chat.read'(){
+    // the chat's messages go back to the AI (see ask); the chip just says which
+    const where=dcActiveIsDM?`your DM with ${nameOf((dcDMs.find(d=>d.channel===dcActive)||{}).with||'')}`:`#${dcActive}`;
+    const lines=dcMessages.slice(-80).map(m=>`[${new Date(m.createdAt||Date.now()).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})}] ${nameOf(m.username)}: ${String(m.text||(m.file?'(a file)':'')).replace(/\s+/g,' ').slice(0,300)}`);
+    let log=lines.join('\n');if(log.length>12000)log=log.slice(-12000);
+    return{label:`💬 Read ${where}`,more:`(From the site, not the user: the ${lines.length} most recent messages in ${where}, oldest first. Answer my last request from them.)\n${log||'(no messages yet)'}`};
+  },
+};
+async function runActions(reply){
+  const list=[...reply.content.matchAll(ACTION_RE)].slice(0,5);
+  if(!list.length)return null;
+  reply.acts=[];let more=null;
+  for(const [,json] of list){
+    let a;try{a=JSON.parse(json)}catch(_){reply.acts.push({ok:false,label:"Couldn't read an action"});continue}
+    const fn=ACTIONS[a?.do];
+    if(!fn){reply.acts.push({ok:false,label:`Can't do “${String(a?.do||'?').slice(0,30)}”`});continue}
+    try{
+      const out=await fn(a);
+      if(out&&typeof out==='object'){reply.acts.push({ok:true,label:out.label});more=out.more}
+      else reply.acts.push({ok:true,label:out});
+    }catch(e){reply.acts.push({ok:false,label:e.message||'That failed'})}
+  }
+  return more;
 }
-function stop(){busy?.abort()}
+/* a short note about the screen, so "this song" or "the chat" make sense */
+function siteContext(){
+  const out=[`The user is ${currentUsername||'a guest'}.`];
+  const n=window.music?.now?.();
+  if(n)out.push(`Music: “${n.title}” by ${n.artist||'unknown'} (${n.playing?'playing':'paused'}).`);
+  const open=[['#music-window','Music','show'],['#chat-window','Chat','show']].filter(([sel,,c])=>$(sel)?.classList.contains(c)).map(x=>x[1]);
+  for(const [sel,name] of [['#movies-wrap','Movies'],['#browser-wrap','Browser'],['#cloud-wrap','Cloud']])if($(sel)?.style.display==='flex')open.push(name);
+  if(open.length)out.push(`Open apps: ${open.join(', ')}.`);
+  if(typeof dcActive!=='undefined')out.push(`Their chat is on ${dcActiveIsDM?'a DM':'#'+dcActive}, with ${dcMessages.length} messages loaded.`);
+  out.push(`Look: ${S.theme} mode, ${S.wallpaper} wallpaper, accent ${S.accent}. Widgets on: ${['Clock','Weather','Music','Todo'].filter(w=>S['w'+w]).join(', ').toLowerCase()||'none'}.`);
+  return out.join(' ').slice(0,1500);
+}
 
 /* ═══ controls ═══ */
 function autosize(){INPUT.style.height='auto';INPUT.style.height=Math.min(INPUT.scrollHeight,200)+'px'}
@@ -208,7 +298,7 @@ function hide(){
 }
 function toggle(){W.classList.contains('show')&&!W.classList.contains('closing')?hide():open()}
 /* another full-screen app opening covers this one: step aside */
-const OTHERS=['#chat-window','#browser-wrap','#vm-wrap','#cloud-wrap','#remote-wrap','#music-window'].map(s=>$(s)).filter(Boolean);
+const OTHERS=['#chat-window','#browser-wrap','#vm-wrap','#cloud-wrap','#remote-wrap','#music-window','#movies-wrap'].map(s=>$(s)).filter(Boolean);
 const shown=el=>getComputedStyle(el).display!=='none'&&!el.classList.contains('closing');
 const wasShown=new Map(OTHERS.map(el=>[el,shown(el)]));
 const watch=new MutationObserver(()=>{

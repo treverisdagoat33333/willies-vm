@@ -288,5 +288,16 @@ $('#mv-fs').onclick=()=>{
   else wrap.requestFullscreen().catch(()=>{});
 };
 
-window.movies={toggle:()=>wrap.style.display==='flex'?close():open(),open,close,hide};
+/* open on a row, a genre or a search (the AI's "find me a horror movie") */
+function browse({row:r,genre:g,query:q}={}){
+  if(current)stopPlaying();
+  row=['movies','shows','anime'].includes(r)?r:row;
+  genre=row!=='anime'&&GENRES.includes(g)?g:'';
+  query=String(q||'').trim().slice(0,120);
+  $$('#mv-tabs .mv-tab').forEach(c=>c.classList.toggle('active',c.dataset.mvrow===row));
+  $('#mv-search').value=query;
+  open();renderGenres();
+  if(query)runSearch();else loadRow();
+}
+window.movies={toggle:()=>wrap.style.display==='flex'?close():open(),open,close,hide,browse};
 })();

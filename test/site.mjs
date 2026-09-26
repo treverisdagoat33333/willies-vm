@@ -195,7 +195,17 @@ function aiMock(req, res, u) {
     const said = b.messages?.[b.messages.length - 1]?.content || "";
     if (/fail/.test(said)) return json(500, { error: { message: "mock failure" } });
     res.writeHead(200, { "content-type": "text/event-stream" });
-    const parts = /slow/.test(said) ? Array.from({ length: 20 }, (_, i) => `word${i} `) : ["Hello ", "**there**", "\n\n```js\nconsole.log(1)\n```\n", `You said: ${said}`];
+    // replies that act on the site (public/js/ai.js carries the actions out); the
+    // chat log comes back as "(From the site…", and what it answers mustn't act
+    const act = (o) => `\n[[action ${JSON.stringify(o)}]]`;
+    const ACTS = [
+      [/play the test song/, ["On it.", act({ do: "music.play", query: "test song" })]],
+      [/go synth/, ["Done!", act({ do: "theme.preset", id: "synth" }), act({ do: "todo.add", text: "water plants" }), act({ do: "nope.x" })]],
+      [/catch me up/, ["Reading the chat.", act({ do: "chat.read" })]],
+      [/^\(From the site/, [`Summary of ${said.split("\n").length - 1} messages.`, act({ do: "theme.preset", id: "ember" })]],
+    ];
+    const hit = ACTS.find(([re]) => re.test(said));
+    const parts = hit ? hit[1] : /slow/.test(said) ? Array.from({ length: 20 }, (_, i) => `word${i} `) : ["Hello ", "**there**", "\n\n```js\nconsole.log(1)\n```\n", `You said: ${said}`];
     let i = 0;
     const tick = () => {
       if (res.destroyed) return;

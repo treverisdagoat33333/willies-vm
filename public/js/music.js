@@ -617,6 +617,18 @@ window.music={
     ?{title:cur.title,id:cur.id,source:'yt',playing,pos,dur,src:ytF?.src||'',paused:paused(),volume:lib.vol/100}
     :{title:cur?.title||'',id:cur?.id||null,source:cur?srcOf(cur):null,playing,pos:AUDIO.currentTime,dur:AUDIO.duration,src:AUDIO.currentSrc,paused:AUDIO.paused,volume:AUDIO.volume},
   setSource,
+  /* for the desktop widget and the AI: what's playing, and the buttons */
+  now:()=>cur?{title:cur.title,artist:cur.artist||cur.uploader||'',artwork:cur.artwork?art(cur.artwork):'',playing,pos,dur:dur||cur.duration||0}:null,
+  playPause:()=>togglePlay(),next:()=>next(),prev:()=>prev(),
+  /* search the current source and play the best result (the AI's "play …") */
+  async playQuery(q,source){
+    if(source&&SOURCES[source]&&source!==lib.source){lib.source=source;saveLib();paintSource()}
+    // straight to the API: search() would open the music window over whatever asked
+    const d=await getJSON(`/api/music/search?q=${encodeURIComponent(String(q||'').slice(0,120))}&source=${lib.source}`);
+    const tracks=d.tracks||[];
+    if(tracks.length){playFrom(tracks,0);return tracks[0]}
+    return null;
+  },
   reload(){lib=loadLib();vol.value=lib.vol;vol.style.setProperty('--p',lib.vol+'%');paintSource();renderPls();if(opened)render();updateBar()}
 };
 paintSource();renderPls();updateBar();

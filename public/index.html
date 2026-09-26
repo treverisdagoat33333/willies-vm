@@ -25,6 +25,7 @@
 <link rel="stylesheet" href="/css/app.css">
 <link rel="stylesheet" href="/css/features.css">
 <link rel="stylesheet" href="/css/calls.css">
+<link rel="stylesheet" href="/css/desk.css">
 <link rel="stylesheet" href="/css/music.css">
 <link rel="stylesheet" href="/css/movies.css">
 <link rel="stylesheet" href="/css/ai.css">
@@ -32,7 +33,7 @@
 </head>
 <body>
 
-<div id="bg"><div id="bg-img"></div><div id="bg-text">Willie Games V3</div></div>
+<div id="bg"><div id="bg-live" data-live=""></div><div id="bg-img"></div><div id="bg-text">Willie Games V3</div></div>
 <canvas id="fx-canvas"></canvas>
 <div id="screen-fx"></div>
 <div id="fps"></div>
@@ -60,6 +61,7 @@
 
 <!-- DESKTOP -->
 <div id="desktop">
+  <div id="widgets" aria-label="Widgets"></div>
   <div id="icons">
     <button class="dicon" data-app="browser"><div class="ic c1"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></div><span>Browser</span></button>
     <button class="dicon" data-app="games"><div class="ic c2"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h4M8 10v4M15 13h.01M18 11h.01"/><path d="M17.32 5H6.68a4 4 0 0 0-3.98 3.6L2 16a2.5 2.5 0 0 0 4.5 1.5L8 15h8l1.5 2.5A2.5 2.5 0 0 0 22 16l-.7-7.4A4 4 0 0 0 17.32 5z"/></svg></div><span>Games</span></button>
@@ -179,6 +181,11 @@
       <section class="spage active" data-page="appearance">
         <h2>Appearance</h2><p class="sub">Make it yours. Every change saves instantly.</p>
         <div class="card">
+          <h3>Theme presets</h3>
+          <p class="card-sub">One click sets the colors, mode and a matching wallpaper. Tweak anything below after.</p>
+          <div class="presets" id="presets"></div>
+        </div>
+        <div class="card">
           <h3>Theme</h3>
           <div class="preview-strip" id="accent-preview">Accent preview</div>
           <div class="row"><div class="lab"><b>Color mode</b><small>Dark is the default. OLED is pure black.</small></div><div class="ctl"><div class="seg" data-setting="theme"><button data-v="dark">Dark</button><button data-v="oled">OLED</button><button data-v="light">Light</button></div></div></div>
@@ -246,6 +253,15 @@
           <div class="row"><div class="lab"><b>Reopen launcher on start</b><small>Show the main window when the page loads.</small></div><div class="ctl"><button class="switch" role="switch" data-setting="showlauncher"></button></div></div>
           <div class="row"><div class="lab"><b>Greeting</b><small>Shows “Good morning, name” on the launcher instead of the usual line.</small></div><div class="ctl"><button class="switch" role="switch" data-setting="greeting"></button></div></div>
           <div class="row"><div class="lab"><b>Auto-open on load</b><small>Jump straight into an app when the page opens.</small></div><div class="ctl"><select class="field" data-setting="startapp"><option value="none">Nothing</option><option value="browser">Browser</option><option value="games">Games</option><option value="links">Links</option><option value="chat">Server</option><option value="cloud">Cloud gaming</option><option value="vm">Default VM</option></select></div></div>
+        </div>
+        <div class="card">
+          <h3>Widgets</h3>
+          <p class="card-sub">Little windows on the desktop. Drag them anywhere; drag the desktop icons around too.</p>
+          <div class="row"><div class="lab"><b>Clock</b><small>A big clock and today's date.</small></div><div class="ctl"><button class="switch" role="switch" data-setting="wClock"></button></div></div>
+          <div class="row"><div class="lab"><b>Weather</b><small>Where you are, from Open-Meteo. Pick your city on the widget.</small></div><div class="ctl"><button class="switch" role="switch" data-setting="wWeather"></button></div></div>
+          <div class="row"><div class="lab"><b>Now playing</b><small>What Music is playing, with play, next and back. Hides when nothing is.</small></div><div class="ctl"><button class="switch" role="switch" data-setting="wMusic"></button></div></div>
+          <div class="row"><div class="lab"><b>To-do list</b><small>Quick tasks. Synced with your account.</small></div><div class="ctl"><button class="switch" role="switch" data-setting="wTodo"></button></div></div>
+          <div class="row"><div class="lab"><b>Layout</b><small>Put the widgets and icons back where they started.</small></div><div class="ctl"><button class="btn sm" id="desk-reset">Reset layout</button></div></div>
         </div>
         <div class="card">
           <h3>Notifications &amp; app</h3>
@@ -868,6 +884,7 @@ https://discord.com/</textarea><div class="ctl"><button class="btn sm" id="st-ru
 <script src="/js/app.js"></script>
 <script src="/js/music.js"></script>
 <script src="/js/movies.js"></script>
+<script src="/js/desk.js"></script>
 <script src="/js/ai.js"></script>
 <script src="/js/calls.js"></script>
 <script src="/js/voice.js"></script>

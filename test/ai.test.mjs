@@ -90,6 +90,31 @@ await page.press("#ai-input", "Enter");
 await page.waitForFunction(() => /You said: model check/.test(document.querySelector("#ai-log .ai-msg.bot:last-child")?.textContent || ""), null, { timeout: 10000 }).catch(() => {});
 ok((await last()).model === "gpt-4o" && await page.evaluate(() => JSON.parse(localStorage.getItem("ai.model"))) === "gpt-4o", "the model you pick is used and remembered");
 
+// the AI does things on the site: its action lines are hidden, carried out, and shown as chips
+const lastBot = () => page.evaluate(() => { const b = [...document.querySelectorAll("#ai-log .ai-msg.bot")].at(-1); return { text: b?.textContent || "", chips: [...(b?.querySelectorAll(".ai-act") || [])].map((c) => ({ ok: c.classList.contains("ok"), t: c.textContent })) }; });
+const ask = async (q, done) => { await page.fill("#ai-input", q); await page.press("#ai-input", "Enter"); await page.waitForFunction(done, null, { timeout: 10000 }).catch(() => {}); };
+await ask("please play the test song", () => document.querySelectorAll("#ai-log .ai-act").length > 0);
+let lb = await lastBot(), got2 = await last();
+ok(got2.messages[0].role === "system" && /\[\[action/.test(got2.messages[0].content) && /What's on the user's screen/.test(got2.messages[0].content), "the AI is told what it can do and what's on screen", got2.messages[0].content.slice(0, 120));
+ok(!/\[\[action/.test(lb.text) && /On it/.test(lb.text), "action lines don't show in the reply", lb.text);
+ok(lb.chips.length === 1 && lb.chips[0].ok && /Playing “Test Song”/.test(lb.chips[0].t), "…the song plays, and a chip says so", JSON.stringify(lb.chips));
+ok(await page.waitForFunction(() => window.music.stats().id === 101 && window.music.stats().playing, null, { timeout: 10000 }).then(() => true, () => false), "…really playing, in Music");
+ok(await page.evaluate(() => !document.querySelector("#music-window").classList.contains("show") && document.querySelector("#ai-window").classList.contains("show")), "…without the music window taking over");
+await page.evaluate(() => window.music.playPause());
+await ask("go synth", () => document.querySelectorAll("#ai-log .ai-msg.bot:last-child .ai-act").length >= 3);
+lb = await lastBot();
+ok(await page.evaluate(() => S.wallpaper === "live-synth" && S.accent === "#ff2e97"), "the AI can change the theme", JSON.stringify(lb.chips));
+ok(await page.evaluate(() => window.desk.todos().some((t) => t.text === "water plants") && S.wTodo), "…and add a to-do (showing the widget)");
+ok(lb.chips.length === 3 && lb.chips[2].ok === false && /Can't do/.test(lb.chips[2].t), "…and something it can't do shows as failed", JSON.stringify(lb.chips));
+// catching up on chat: the messages go back to it, and its answer can't act
+await page.evaluate(() => { dcMessages = [{ id: "m1", username: "alice", text: "movie night friday?", createdAt: Date.now() }, { id: "m2", username: "bob", text: "yes! 8pm", createdAt: Date.now() }]; });
+await ask("catch me up on the chat", () => /Summary of 2 messages/.test(document.querySelector("#ai-log .ai-msg.bot:last-child")?.textContent || ""));
+lb = await lastBot();
+const sent = (await last()).messages.at(-1).content;
+ok(/Summary of 2 messages/.test(lb.text) && /alice: movie night friday\?/.test(sent) && /bob: yes! 8pm/.test(sent), "catching up sends the chat back and answers from it", sent.slice(0, 200));
+ok(await page.evaluate(() => S.wallpaper === "live-synth") && lb.chips.length === 0, "…and that answer can't act (someone's chat message can't steer your AI)", JSON.stringify(lb.chips));
+ok(await page.$$eval("#ai-log .ai-msg.me", (m) => m.every((x) => !/From the site/.test(x.textContent))), "…and the chat log isn't shown as something you said");
+
 // the per-person limit
 const statuses = await page.evaluate(async () => {
   const out = [];

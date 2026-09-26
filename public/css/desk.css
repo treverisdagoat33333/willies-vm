@@ -1,0 +1,167 @@
+/*!
+ * william's vm
+ * Copyright (c) 2026 William (github.com/treverisdagoat33333)
+ * All rights reserved. Proprietary and confidential. See LICENSE.
+ */
+/* ═══════════════════════════════════════════════════════════
+   DESKTOP extras (js/desk.js): live wallpapers, theme presets,
+   widgets, and icons you can drag
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── live wallpapers: #bg-live draws on its own and two pseudo layers ── */
+#bg-live{position:absolute;inset:0;overflow:hidden;pointer-events:none}
+#bg-live:not([data-live=""])::before,#bg-live:not([data-live=""])::after{content:"";position:absolute;pointer-events:none}
+/* motion off, performance mode or the OS asking for less: they stand still */
+html[data-motion="off"] #bg-live,html[data-motion="off"] #bg-live::before,html[data-motion="off"] #bg-live::after,
+html[data-perf="on"] #bg-live,html[data-perf="on"] #bg-live::before,html[data-perf="on"] #bg-live::after{animation-play-state:paused!important}
+@media(prefers-reduced-motion:reduce){#bg-live,#bg-live::before,#bg-live::after{animation-play-state:paused!important}}
+
+/* aurora: soft coloured curtains drifting */
+#bg-live[data-live="aurora"]::before{inset:-30%;filter:blur(60px);opacity:.75;
+  background:radial-gradient(40% 30% at 30% 40%,rgba(34,211,238,.55),transparent 70%),radial-gradient(35% 28% at 65% 35%,rgba(34,197,94,.5),transparent 70%),radial-gradient(30% 25% at 50% 65%,rgba(168,85,247,.45),transparent 70%);
+  animation:lvAurora 26s ease-in-out infinite alternate}
+#bg-live[data-live="aurora"]::after{inset:-30%;filter:blur(70px);opacity:.55;
+  background:radial-gradient(30% 22% at 70% 60%,rgba(var(--accent-rgb),.55),transparent 70%),radial-gradient(28% 20% at 25% 70%,rgba(20,184,166,.45),transparent 70%);
+  animation:lvAurora2 34s ease-in-out infinite alternate}
+@keyframes lvAurora{0%{translate:-6% -3%;rotate:-4deg;scale:1}50%{translate:5% 4%;rotate:3deg;scale:1.08}100%{translate:-2% 6%;rotate:6deg;scale:.96}}
+@keyframes lvAurora2{0%{translate:6% 3%;rotate:5deg}100%{translate:-7% -5%;rotate:-6deg;scale:1.12}}
+
+/* colour flow: the accent and friends sliding across */
+#bg-live[data-live="flow"]{background:linear-gradient(120deg,rgb(var(--accent-rgb)),#a855f7,#06b6d4,#f43f5e,rgb(var(--accent-rgb)));background-size:400% 400%;animation:lvFlow 24s ease-in-out infinite;opacity:.85}
+#bg-live[data-live="flow"]::after{inset:0;background:radial-gradient(ellipse at 50% 120%,rgba(0,0,0,.55),transparent 60%),linear-gradient(rgba(0,0,0,.25),rgba(0,0,0,.35))}
+@keyframes lvFlow{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
+
+/* synthwave: a striped sun sinking into a moving grid */
+#bg-live[data-live="synth"]::before{left:50%;top:18%;width:min(44vw,480px);aspect-ratio:1;translate:-50% 0;border-radius:50%;
+  background:linear-gradient(#ffe45e 0%,#ff9f43 38%,#ff2e97 78%);
+  -webkit-mask:linear-gradient(#000 52%,transparent 52% 56%,#000 56% 63%,transparent 63% 68%,#000 68% 75%,transparent 75% 81%,#000 81% 87%,transparent 87%);
+          mask:linear-gradient(#000 52%,transparent 52% 56%,#000 56% 63%,transparent 63% 68%,#000 68% 75%,transparent 75% 81%,#000 81% 87%,transparent 87%);
+  filter:drop-shadow(0 0 40px rgba(255,46,151,.55));animation:lvSun 8s ease-in-out infinite alternate}
+#bg-live[data-live="synth"]::after{left:-50%;right:-50%;bottom:-10%;height:52%;transform-origin:50% 0;transform:perspective(320px) rotateX(62deg);
+  background:linear-gradient(transparent 0 94%,rgba(255,46,151,.85) 94%),linear-gradient(90deg,transparent 0 96%,rgba(255,46,151,.7) 96%),linear-gradient(#1a0530,#07010e);
+  background-size:100% 46px,46px 100%,100% 100%;animation:lvGrid 2.4s linear infinite;box-shadow:0 -30px 60px rgba(255,46,151,.35)}
+@keyframes lvGrid{to{background-position:0 46px,0 0,0 0}}
+@keyframes lvSun{to{filter:drop-shadow(0 0 70px rgba(255,46,151,.8))}}
+
+/* lava lamp: warm blobs rising and sinking */
+#bg-live[data-live="lava"]::before,#bg-live[data-live="lava"]::after{border-radius:50%;filter:blur(38px)}
+#bg-live[data-live="lava"]::before{width:46vmax;height:46vmax;left:8%;bottom:-20%;background:radial-gradient(circle,rgba(249,115,22,.85),rgba(239,68,68,.45) 55%,transparent 70%);animation:lvLava 19s ease-in-out infinite alternate}
+#bg-live[data-live="lava"]::after{width:38vmax;height:38vmax;right:6%;top:-15%;background:radial-gradient(circle,rgba(234,179,8,.7),rgba(220,38,38,.4) 55%,transparent 70%);animation:lvLava2 23s ease-in-out infinite alternate}
+@keyframes lvLava{0%{translate:0 0;scale:1}50%{translate:18vw -45vh;scale:1.25}100%{translate:36vw -10vh;scale:.9}}
+@keyframes lvLava2{0%{translate:0 0;scale:1}50%{translate:-20vw 40vh;scale:.85}100%{translate:-38vw 12vh;scale:1.2}}
+
+/* starfield: two layers of stars drifting at different speeds, twinkling */
+#bg-live[data-live="stars"]::before,#bg-live[data-live="stars"]::after{inset:-50%}
+#bg-live[data-live="stars"]::before{background-image:radial-gradient(1.4px 1.4px at 20px 30px,#fff,transparent),radial-gradient(1px 1px at 90px 120px,#cfe3ff,transparent),radial-gradient(1.6px 1.6px at 160px 60px,#fff,transparent),radial-gradient(1px 1px at 210px 190px,#fff,transparent),radial-gradient(1.2px 1.2px at 60px 210px,#d8ccff,transparent);
+  background-size:240px 240px;animation:lvStars 120s linear infinite,lvTwinkle 5s ease-in-out infinite alternate}
+#bg-live[data-live="stars"]::after{background-image:radial-gradient(2px 2px at 50px 80px,#fff,transparent),radial-gradient(1.8px 1.8px at 300px 260px,#bcd4ff,transparent),radial-gradient(2.2px 2.2px at 380px 60px,#fff,transparent);
+  background-size:420px 420px;animation:lvStars 70s linear infinite,lvTwinkle 3.5s ease-in-out infinite alternate-reverse;opacity:.8}
+@keyframes lvStars{to{translate:-240px 120px}}
+@keyframes lvTwinkle{from{opacity:.55}to{opacity:1}}
+
+/* deep sea: light rays and slow swells */
+#bg-live[data-live="sea"]::before{inset:-20% -10% 30%;background:repeating-linear-gradient(100deg,transparent 0 60px,rgba(125,211,252,.08) 60px 90px,transparent 90px 170px);filter:blur(6px);animation:lvRays 14s ease-in-out infinite alternate;transform-origin:50% 0}
+#bg-live[data-live="sea"]::after{left:-20%;right:-20%;bottom:-8%;height:45%;
+  background:radial-gradient(60% 40% at 30% 100%,rgba(6,182,212,.35),transparent 70%),radial-gradient(50% 35% at 75% 100%,rgba(59,130,246,.35),transparent 70%);
+  animation:lvSwell 12s ease-in-out infinite alternate}
+@keyframes lvRays{from{rotate:-4deg;opacity:.6}to{rotate:4deg;opacity:1}}
+@keyframes lvSwell{from{translate:-6% 0;scale:1}to{translate:6% -4%;scale:1.08}}
+
+/* the wallpaper picker marks live ones */
+.wall.live::after{content:"Live";position:absolute;top:6px;right:6px;padding:1px 6px;border-radius:5px;background:rgba(0,0,0,.55);color:#fff;font-size:.6rem;font-weight:800;letter-spacing:.05em;text-transform:uppercase}
+.wall{position:relative}
+
+/* ── theme presets ── */
+.card-sub{margin:0;padding:0 16px 10px;font-size:.8em;color:var(--text-3)}
+.presets{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:12px 10px;padding:4px 16px 16px}
+.preset{display:flex;flex-direction:column;gap:6px;padding:0;border:0;background:none;color:var(--text);font:inherit;cursor:pointer;text-align:left}
+.preset .pv{position:relative;display:block;aspect-ratio:16/10;border-radius:10px;overflow:hidden;border:2px solid var(--border);transition:border-color .15s,transform .15s}
+.preset:hover .pv{transform:translateY(-2px)}
+.preset.on .pv{border-color:var(--pa);box-shadow:0 0 0 3px color-mix(in srgb,var(--pa) 30%,transparent)}
+.preset .pw{position:absolute;left:12%;top:20%;width:56%;height:52%;border-radius:6px;background:rgba(18,21,30,.78);box-shadow:0 4px 12px rgba(0,0,0,.35)}
+.preset .pw.light{background:rgba(255,255,255,.85)}
+.preset .pw.oled{background:rgba(0,0,0,.85)}
+.preset .pd{position:absolute;left:18%;top:30%;width:28%;height:10%;border-radius:4px;background:linear-gradient(90deg,var(--pa),var(--pb))}
+.preset b{font-size:.8em;font-weight:600;padding-left:2px}
+.preset.live .pv::after{content:"Live";position:absolute;top:5px;right:5px;padding:0 5px;border-radius:4px;background:rgba(0,0,0,.55);color:#fff;font-size:.55rem;font-weight:800;text-transform:uppercase}
+
+/* ── widgets ── */
+#widgets{position:absolute;inset:0;pointer-events:none;z-index:1}
+.wd{position:absolute;pointer-events:auto;min-width:200px;padding:14px 16px;border-radius:18px;color:var(--text);
+  background:var(--glass);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);border:1px solid var(--border);box-shadow:0 10px 30px rgba(0,0,0,.28);
+  cursor:grab;user-select:none;animation:rise .35s var(--spring);transition:box-shadow .15s}
+.wd[hidden]{display:none}
+.wd.dragging{cursor:grabbing;box-shadow:0 20px 50px rgba(0,0,0,.45);z-index:2}
+html[data-glow="on"] .wd{box-shadow:0 0 22px rgba(var(--accent-rgb),.25),0 10px 30px rgba(0,0,0,.28)}
+html[data-motion="off"] .wd,html[data-perf="on"] .wd{animation:none}
+.wd .field{cursor:text}
+
+.wd-clock{min-width:210px;text-align:left}
+.wc-time{font-size:3.2em;font-weight:800;letter-spacing:-.03em;line-height:1;font-variant-numeric:tabular-nums;
+  background:linear-gradient(135deg,var(--text),rgb(var(--accent-rgb)));-webkit-background-clip:text;background-clip:text;color:transparent}
+.wc-time small{font-size:.32em;margin-left:6px;letter-spacing:0;color:var(--text-2);-webkit-text-fill-color:var(--text-2)}
+.wc-date{margin-top:6px;font-size:.85em;color:var(--text-2)}
+
+.wd-weather{width:230px}
+.wx-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.wx-top b{font-size:.86em;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wx-top b:hover{text-decoration:underline}
+.wx-unit{padding:2px 7px;border:1px solid var(--border);border-radius:6px;background:var(--glass-2);color:var(--text-2);font:inherit;font-size:.72em;cursor:pointer}
+.wx-now{display:flex;align-items:center;gap:10px;margin-top:6px}
+.wx-ic{font-size:2.4em;line-height:1}
+.wx-t{font-size:2.6em;font-weight:800;letter-spacing:-.03em;line-height:1}
+.wx-d{margin-top:6px;font-size:.84em;color:var(--text-2)}
+.wx-hl{margin-top:2px;font-size:.74em;color:var(--text-3)}
+.wx-msg{margin-top:8px;font-size:.84em;color:var(--text-3)}
+.wx-pick{display:flex;flex-direction:column;gap:6px}
+.wx-pick small{color:var(--text-3);font-size:.8em}
+.wx-form{display:flex;gap:6px}
+.wx-form .field{flex:1;min-width:0;padding:6px 9px}
+.wx-hits{display:flex;flex-direction:column;gap:2px;font-size:.8em;color:var(--text-3)}
+.wx-hits button{display:flex;flex-direction:column;align-items:flex-start;padding:5px 8px;border:0;border-radius:8px;background:none;color:var(--text);font:inherit;text-align:left;cursor:pointer}
+.wx-hits button:hover{background:var(--glass-3)}
+.wx-hits small{font-size:.85em}
+.wx-cancel{align-self:flex-start;padding:0;border:0;background:none;color:var(--text-3);font:inherit;font-size:.78em;cursor:pointer;text-decoration:underline}
+
+.wd-music{display:flex;align-items:center;gap:12px;width:320px;padding:12px}
+.wm-art{flex:0 0 auto;width:56px;height:56px;border-radius:12px;background:var(--glass-3) center/cover;box-shadow:0 4px 14px rgba(0,0,0,.35);cursor:pointer}
+.wm-t{flex:1;min-width:0;cursor:pointer}
+.wm-t b,.wm-t small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wm-t b{font-size:.86em}
+.wm-t small{font-size:.74em;color:var(--text-3);margin-top:1px}
+.wm-bar{height:3px;margin-top:8px;border-radius:3px;background:var(--glass-3);overflow:hidden}
+.wm-bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,rgb(var(--accent-rgb)),var(--accent2));transition:width 1s linear}
+.wm-btns{display:flex;align-items:center;gap:2px}
+.wm-btns button{display:grid;place-items:center;width:30px;height:30px;border:0;border-radius:50%;background:none;color:var(--text-2);cursor:pointer}
+.wm-btns button:hover{color:var(--text);background:var(--glass-3)}
+.wm-btns button.big{width:36px;height:36px;background:var(--text);color:var(--bg0)}
+.wm-btns .i{width:16px;height:16px}
+
+.wd-todo{width:260px}
+.wt-top{display:flex;align-items:baseline;gap:8px}
+.wt-top b{font-size:.92em}
+.wt-top small{flex:1;font-size:.74em;color:var(--text-3)}
+.wt-clear{padding:0;border:0;background:none;color:var(--text-3);font:inherit;font-size:.72em;cursor:pointer}
+.wt-clear:hover{color:var(--text);text-decoration:underline}
+.wt-list{list-style:none;margin:8px 0;padding:0;max-height:220px;overflow-y:auto;display:flex;flex-direction:column;gap:2px;scrollbar-width:thin}
+.wt-list li{display:flex;align-items:center;gap:6px;padding:4px 6px;border-radius:8px}
+.wt-list li:hover{background:var(--glass-2)}
+.wt-list label{flex:1;min-width:0;display:flex;align-items:flex-start;gap:8px;font-size:.84em;cursor:pointer}
+.wt-list input{margin-top:2px;accent-color:rgb(var(--accent-rgb));flex:0 0 auto}
+.wt-list span{word-break:break-word}
+.wt-list li.done span{text-decoration:line-through;color:var(--text-3)}
+.wt-list li button{opacity:0;width:22px;height:22px;border:0;border-radius:6px;background:none;color:var(--text-3);font-size:1.1em;cursor:pointer}
+.wt-list li:hover button{opacity:1}
+.wt-list li button:hover{color:#f87171;background:rgba(248,113,113,.12)}
+.wt-add .field{width:100%;padding:7px 10px}
+
+/* ── icons placed freely (after the first drag) ── */
+#icons.free{display:block;inset:0;left:0;top:0;max-height:none;position:absolute}
+#icons.free .dicon{position:absolute;transition:left .18s var(--ease),top .18s var(--ease),background var(--dur)}
+#icons.free .dicon.dragging{transition:none;z-index:3;opacity:.9;background:rgba(255,255,255,.14)}
+html[data-motion="off"] #icons.free .dicon,html[data-perf="on"] #icons.free .dicon{transition:none}
+
+@media(max-width:640px){
+  .wd{min-width:0;max-width:calc(100vw - 24px)}
+  .wd-music,.wd-todo,.wd-weather{width:min(300px,calc(100vw - 24px))}
+}
