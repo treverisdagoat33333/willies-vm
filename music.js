@@ -9,43 +9,62 @@ import fs from "node:fs";
 import fsp from "node:fs/promises";
 import path from "node:path";
 import { Readable } from "node:stream";
+import dns from "node:dns/promises";
 import express from "express";
+import { Innertube, Log as YTLog } from "youtubei.js";
 import { MUSIC_DIR } from "./db.js";
+import { isPrivateIp } from "./fastnet.js";
 
 /*
 |--------------------------------------------------------------------------
 | Music
 |
-| Songs are found on SoundCloud and played through this server, so the
-| browser only ever talks to our site (school filters that block SoundCloud
-| don't matter, and any browser can play it):
-|   - search goes to SoundCloud's web API. SOUNDCLOUD_CLIENT_ID is used when
-|     set; otherwise the public id soundcloud.com's own pages use is looked
-|     up and cached, and looked up again if SoundCloud rotates it.
-|   - /stream/<track id> is the audio. A track's plain MP3 is passed through
-|     as it downloads (Range requests too, so seeking works). A track that
-|     only comes in HLS pieces is fetched whole, stitched into one file and
-|     kept in DATA_DIR/music (oldest cleared past MAX_CACHE). Signed links
+| Four sources, picked with the toggle in the music window (SoundCloud by
+| default). SoundCloud and Audius play through this server, so the browser
+| only ever talks to our site (school filters that block them don't matter,
+| and any browser can play it):
+|   - SoundCloud search goes to SoundCloud's web API. SOUNDCLOUD_CLIENT_ID is
+|     used when set; otherwise the public id soundcloud.com's own pages use is
+|     looked up and cached, and looked up again if SoundCloud rotates it.
+|   - /stream/<track id> is SoundCloud's audio. A track's plain MP3 is passed
+|     through as it downloads (Range requests too, so seeking works). A track
+|     that only comes in HLS pieces is fetched whole, stitched into one file
+|     and kept in DATA_DIR/music (oldest cleared past MAX_CACHE). Signed links
 |     that run out are asked for again. Label uploads are DRM-locked
 |     (encrypted HLS only), so they're left out of search.
-|   - "Top hits" are Deezer's public charts, which need no key. A chart song
-|     is matched to a full-length SoundCloud upload when someone plays it.
+|   - Audius is a free service with a public API and full-length MP3s:
+|     search, trending per genre, and /stream/au:<id> passed through the same
+|     way. Its files sit on community-run servers with any host name, so the
+|     address its API redirects to is checked against private networks first.
+|   - YouTube: search goes through here (youtubei.js), but the audio can't.
+|     YouTube asks datacenter addresses like ours to sign in ("confirm you're
+|     not a bot"), so the song plays in the visitor's own browser, in
+|     YouTube's embedded player (public/js/music.js).
+|   - Deezer is its catalogue and charts, which need no key. Its full tracks
+|     are DRM-locked, so a Deezer song (like a chart song) is matched to a
+|     full-length SoundCloud or YouTube upload when someone plays it.
 |   - artwork is re-served from our origin, because the page's COEP header
 |     blocks third-party images that don't send CORP.
-| SOUNDCLOUD_API and DEEZER_API exist only so the tests can point these at
-| a pretend SoundCloud and Deezer.
+| SOUNDCLOUD_API, DEEZER_API and AUDIUS_API exist only so the tests can
+| point these at pretend services.
 |--------------------------------------------------------------------------
 */
 
 const SC_API = process.env.SOUNDCLOUD_API || "https://api-v2.soundcloud.com";
 const DEEZER_API = process.env.DEEZER_API || "https://api.deezer.com";
+const AUDIUS_API = process.env.AUDIUS_API || "https://api.audius.co/v1";
+const AUDIUS_APP = "williesvm";
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36";
-const ART_HOST = /(^|\.)(sndcdn\.com|dzcdn\.net)$/i;
+const ART_HOST = /(^|\.)(sndcdn\.com|dzcdn\.net|ytimg\.com)$/i;
+// Audius artwork lives on its content servers, whatever their host; only its artwork paths are fetched
+const AUDIUS_ART_PATH = /^\/content\/[A-Za-z0-9]{10,80}\/(150x150|480x480|1000x1000)\.jpg$/;
 const TIMEOUT_MS = 8000;
 // where SoundCloud's API may send us for the audio itself (plus the pretend SoundCloud in the tests)
 const MEDIA_HOST = /(^|\.)(sndcdn\.com|soundcloud\.cloud|soundcloud\.com)$/i;
 const TEST_HOST = process.env.SOUNDCLOUD_API ? new URL(process.env.SOUNDCLOUD_API).host : null;
+const AUDIUS_TEST_HOST = process.env.AUDIUS_API ? new URL(process.env.AUDIUS_API).host : null;
+export const SOURCES = ["sc", "yt", "au", "dz"];
 const MAX_CACHE = 300 * 1024 * 1024; // stitched songs kept on disk
 const MAX_SONG = 40 * 1024 * 1024;
 
@@ -218,7 +237,7 @@ const norm = (s) =>
     .replace(/[^\p{L}\p{N}]+/gu, " ")
     .trim();
 
-const JUNK = /\b(cover|remix|sped ?up|slowed|nightcore|8d|instrumental|karaoke|reverb|live|lyrics? video|acapella|mashup|edit)\b/i;
+const JUNK = /\b(cover|remix|re-?make|bootleg|type beat|sped ?up|slowed|nightcore|8d|instrumental|karaoke|reverb|live|lyrics? video|acapella|mashup|edit)\b/i;
 
 export function scoreMatch(t, want) {
   const title = norm(t.title);
@@ -243,11 +262,12 @@ export function scoreMatch(t, want) {
   return score;
 }
 
-async function resolveSong(want) {
-  const key = `${norm(want.artist)}|${norm(want.title)}`;
+async function resolveSong(want, via = "sc") {
+  const key = `${via}|${norm(want.artist)}|${norm(want.title)}`;
   const hit = resolveCache.get(key);
   if (hit !== undefined) return hit;
-  const results = await searchTracks(`${want.artist} ${norm(want.title)}`.trim());
+  const q = `${want.artist} ${norm(want.title)}`.trim();
+  const results = via === "yt" ? await youtubeSearch(q) : await searchTracks(q);
   let best = null;
   let bestScore = -Infinity;
   for (const t of results) {
@@ -279,6 +299,160 @@ async function chart(genre) {
   }));
   chartCache.set(genre, out);
   return out;
+}
+
+/* Deezer search: its catalogue, played like a chart song (matched to a full upload) */
+async function deezerSearch(q) {
+  const key = `dz|${q.toLowerCase()}`;
+  const hit = searchCache.get(key);
+  if (hit) return hit;
+  const data = await get(`${DEEZER_API}/search?q=${encodeURIComponent(q)}&limit=40`);
+  if (data.error) throw new Error(data.error.message || "Deezer error");
+  const out = (data.data || []).map((t) => ({
+    key: `dz${t.id}`,
+    title: String(t.title_short || t.title || ""),
+    artist: String(t.artist?.name || ""),
+    artwork: String(t.album?.cover_medium || t.album?.cover || ""),
+    duration: t.duration || 0,
+    chart: true,
+  }));
+  searchCache.set(key, out);
+  return out;
+}
+
+/* ---- Audius ---- */
+
+// our chart genres (Deezer ids) -> Audius genre names
+const AUDIUS_GENRES = { 116: "Hip-Hop/Rap", 132: "Pop", 165: "R&B/Soul", 113: "Electronic", 152: "Rock", 197: "Latin", 84: "Country", 85: "Alternative" };
+const audius = (path) => get(`${AUDIUS_API}${path}${path.includes("?") ? "&" : "?"}app_name=${AUDIUS_APP}`);
+
+function shapeAudius(t) {
+  return {
+    id: `au:${t.id}`,
+    src: "au",
+    title: String(t.title || ""),
+    artist: String(t.user?.name || ""),
+    uploader: String(t.user?.handle || ""),
+    artwork: String(t.artwork?.["480x480"] || t.artwork?.["150x150"] || ""),
+    duration: t.duration || 0,
+    url: t.permalink ? `https://audius.co${t.permalink}` : "",
+    plays: t.play_count || 0,
+  };
+}
+// gated tracks need a purchase or a follow; the rest stream for anyone
+const audiusPlayable = (t) => t && /^[A-Za-z0-9]{1,20}$/.test(String(t.id)) && t.is_streamable !== false && !t.is_stream_gated;
+
+async function audiusSearch(q) {
+  const key = `au|${q.toLowerCase()}`;
+  const hit = searchCache.get(key);
+  if (hit) return hit;
+  const data = await audius(`/tracks/search?query=${encodeURIComponent(q)}&limit=40`);
+  const out = (data.data || []).filter(audiusPlayable).map(shapeAudius);
+  searchCache.set(key, out);
+  return out;
+}
+
+async function audiusTrending(genre) {
+  const key = `au|${genre}`;
+  const hit = chartCache.get(key);
+  if (hit) return hit;
+  const g = AUDIUS_GENRES[genre];
+  const data = await audius(`/tracks/trending?limit=50${g ? `&genre=${encodeURIComponent(g)}` : ""}`);
+  const out = (data.data || []).filter(audiusPlayable).map(shapeAudius);
+  chartCache.set(key, out);
+  return out;
+}
+
+/* Where an Audius track's MP3 is right now. The API redirects to a signed link on
+   one of its content servers, which may redirect again, and they may be any host.
+   Each hop is followed by hand so none can lead into a private network. */
+const audiusCache = cache(10 * 60_000, 1000);
+async function safeHop(url) {
+  if (url.host === AUDIUS_TEST_HOST) return;
+  if (url.protocol !== "https:") throw new Error("Audius sent a plain-http link");
+  const addrs = await dns.lookup(url.hostname, { all: true });
+  if (!addrs.length || addrs.some((a) => isPrivateIp(a.address))) throw new Error("Audius link points into a private network");
+}
+async function audiusFile(id, fresh) {
+  const hit = !fresh && audiusCache.get(id);
+  if (hit) return hit;
+  let url = new URL(`${AUDIUS_API}/tracks/${id}/stream?app_name=${AUDIUS_APP}`);
+  for (let hop = 0; hop < 5; hop++) {
+    const r = await fetch(url, {
+      headers: { "User-Agent": UA, Range: "bytes=0-0" },
+      redirect: "manual",
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
+    r.body?.cancel().catch(() => {});
+    const loc = r.headers.get("location");
+    if (r.status >= 300 && r.status <= 399 && loc) {
+      url = new URL(loc, url);
+      await safeHop(url);
+      continue;
+    }
+    if (r.status === 404) throw fail404("no such track");
+    if (r.status !== 200 && r.status !== 206) throw Object.assign(new Error(`Audius answered ${r.status}`), { status: r.status });
+    if (hop === 0) throw new Error("Audius didn't redirect to a file");
+    const out = { id: `au:${id}`, file: url.href, type: "audio/mpeg", noRedirect: true };
+    audiusCache.set(id, out);
+    return out;
+  }
+  throw new Error("Audius redirected too many times");
+}
+
+/* ---- YouTube (search only; the audio plays in the visitor's browser) ---- */
+
+YTLog.setLevel(YTLog.Level.NONE);
+let ytPromise = null;
+function youtube(fresh) {
+  if (fresh) ytPromise = null;
+  ytPromise ||= Innertube.create({ generate_session_locally: true, retrieve_player: false }).catch((err) => {
+    ytPromise = null;
+    throw err;
+  });
+  return ytPromise;
+}
+const TOPIC = / - Topic$/;
+async function youtubeSearch(q) {
+  const key = `yt|${q.toLowerCase()}`;
+  const hit = searchCache.get(key);
+  if (hit) return hit;
+  let res;
+  try {
+    res = await (await youtube()).search(q, { type: "video" });
+  } catch (_) {
+    // a stale session is the usual cause; one fresh try
+    res = await (await youtube(true)).search(q, { type: "video" });
+  }
+  const out = [];
+  for (const v of res.videos || []) {
+    const secs = v.duration?.seconds || 0;
+    // songs, not livestreams, shorts or hour-long mixes
+    if (v.type !== "Video" || !/^[\w-]{11}$/.test(v.id || "") || v.is_live || secs < 30 || secs > 1200) continue;
+    out.push({
+      id: `yt:${v.id}`,
+      src: "yt",
+      title: String(v.title?.toString() || ""),
+      artist: String(v.author?.name || "").replace(TOPIC, ""),
+      uploader: String(v.author?.name || ""),
+      artwork: `https://i.ytimg.com/vi/${v.id}/hqdefault.jpg`,
+      duration: secs,
+      url: `https://www.youtube.com/watch?v=${v.id}`,
+      plays: Number(String(v.view_count?.toString() || "").replace(/\D/g, "")) || 0,
+    });
+    if (out.length >= 30) break;
+  }
+  searchCache.set(key, out);
+  return out;
+}
+
+/* ---- one search, any source ---- */
+
+function searchSource(source, q) {
+  if (source === "yt") return youtubeSearch(q);
+  if (source === "au") return audiusSearch(q);
+  if (source === "dz") return deezerSearch(q);
+  return searchTracks(q);
 }
 
 /* ---- the audio ---- */
@@ -422,7 +596,7 @@ async function passThrough(req, res, s) {
   if (/^bytes=\d*-\d*$/.test(req.headers.range || "")) headers.Range = req.headers.range;
   let up;
   try {
-    up = await fetch(s.file, { headers, signal: ac.signal });
+    up = await fetch(s.file, { headers, signal: ac.signal, redirect: s.noRedirect ? "error" : "follow" });
   } finally {
     clearTimeout(timer);
   }
@@ -453,11 +627,13 @@ export function musicRouter({ requireSession, limiter, streamLimiter }) {
     res.status(502).json({ error: `Couldn't reach the music service. Try again in a bit.` });
   };
 
+  const sourceOf = (req) => (SOURCES.includes(String(req.query.source)) ? String(req.query.source) : "sc");
+
   r.get("/search", requireSession, limiter, async (req, res) => {
     const q = String(req.query.q || "").trim().slice(0, 120);
     if (!q) return res.json({ tracks: [] });
     try {
-      res.json({ tracks: await searchTracks(q) });
+      res.json({ tracks: await searchSource(sourceOf(req), q) });
     } catch (err) {
       fail(res, err, "search");
     }
@@ -467,7 +643,8 @@ export function musicRouter({ requireSession, limiter, streamLimiter }) {
     const genre = Number(req.query.genre) || 0;
     if (!GENRES.some((g) => g.id === genre)) return res.status(400).json({ error: "Unknown genre." });
     try {
-      res.json({ genres: GENRES, tracks: await chart(genre) });
+      // Audius has its own trending lists; the other sources share Deezer's charts
+      res.json({ genres: GENRES, tracks: sourceOf(req) === "au" ? await audiusTrending(genre) : await chart(genre) });
     } catch (err) {
       fail(res, err, "charts");
     }
@@ -480,9 +657,10 @@ export function musicRouter({ requireSession, limiter, streamLimiter }) {
       duration: Number(req.query.duration) || 0,
     };
     if (!want.title) return res.status(400).json({ error: "Missing title." });
+    const via = req.query.via === "yt" ? "yt" : "sc";
     try {
-      const track = await resolveSong(want);
-      if (!track) return res.status(404).json({ error: "No full version of that song on SoundCloud." });
+      const track = await resolveSong(want, via);
+      if (!track) return res.status(404).json({ error: `No full version of that song on ${via === "yt" ? "YouTube" : "SoundCloud"}.` });
       res.json({ track });
     } catch (err) {
       fail(res, err, "resolve");
@@ -497,8 +675,13 @@ export function musicRouter({ requireSession, limiter, streamLimiter }) {
     } catch (_) {
       return res.status(400).end();
     }
-    if (url.protocol !== "https:" || !ART_HOST.test(url.hostname)) return res.status(403).end();
+    const audiusArt = AUDIUS_ART_PATH.test(url.pathname) && !url.search;
+    if (url.protocol !== "https:" || !(ART_HOST.test(url.hostname) || audiusArt)) return res.status(403).end();
     try {
+      if (!ART_HOST.test(url.hostname)) {
+        const addrs = await dns.lookup(url.hostname, { all: true });
+        if (!addrs.length || addrs.some((a) => isPrivateIp(a.address))) return res.status(403).end();
+      }
       const upstream = await fetch(url, { headers: { accept: "image/*" }, signal: AbortSignal.timeout(TIMEOUT_MS) });
       if (!upstream.ok) return res.status(upstream.status).end();
       const type = upstream.headers.get("content-type") || "image/jpeg";
@@ -514,10 +697,11 @@ export function musicRouter({ requireSession, limiter, streamLimiter }) {
   // the audio: ?warm=1 gets it ready (the next song in the queue) without sending it
   r.get("/stream/:id", requireSession, streamLimiter, async (req, res) => {
     const id = String(req.params.id || "");
-    if (!/^\d{1,15}$/.test(id)) return res.status(400).json({ error: "Bad song id." });
+    const au = /^au:([A-Za-z0-9]{1,20})$/.exec(id);
+    if (!au && !/^\d{1,15}$/.test(id)) return res.status(400).json({ error: "Bad song id." });
     for (let attempt = 0; ; attempt++) {
       try {
-        const s = await resolveStream(id, attempt > 0);
+        const s = au ? await audiusFile(au[1], attempt > 0) : await resolveStream(id, attempt > 0);
         if (req.query.warm != null) {
           if (s.parts) await stitched(s);
           return res.status(204).end();
@@ -532,8 +716,8 @@ export function musicRouter({ requireSession, limiter, streamLimiter }) {
       } catch (err) {
         if (res.headersSent) return res.destroy();
         // a signed link ran out (or SoundCloud moved the file): ask for a fresh one, once
-        if (attempt === 0 && !err.final && [401, 403, 404, 410].includes(err.status)) continue;
-        if (err.status === 404) return res.status(404).json({ error: "SoundCloud won't stream that one." });
+        if (attempt === 0 && !err.final && (au || [401, 403, 404, 410].includes(err.status))) continue;
+        if (err.status === 404) return res.status(404).json({ error: `${au ? "Audius" : "SoundCloud"} won't stream that one.` });
         return fail(res, err, "stream");
       }
     }

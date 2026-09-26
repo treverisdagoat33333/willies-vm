@@ -36,7 +36,7 @@ try{const ws=new WebSocket("ws://"+location.host+"/ws");ws.onopen=()=>ws.send("p
   if (u.pathname.startsWith("/bench/")) return bench(u, res);
   if (u.pathname.startsWith("/t/c/")) return chunk(u, res);
   if (u.pathname.startsWith("/v1/")) return aiMock(req, res, u);
-  if (u.pathname.startsWith("/sc/") || u.pathname.startsWith("/sc-") || u.pathname.startsWith("/dz/")) return musicMock(req, res, u);
+  if (/^\/(sc\/|sc-|dz\/|au\/|au-node\/)/.test(u.pathname)) return musicMock(req, res, u);
   switch (u.pathname) {
     case "/t/iframe": return page("iframe", `<iframe id="f" src="/t/child"></iframe><iframe id="b"></iframe><script>
       const b=document.getElementById("b");b.contentDocument.open();b.contentDocument.write("<p id=w>written</p>");b.contentDocument.close();
@@ -101,7 +101,8 @@ try{const ws=new WebSocket("ws://"+location.host+"/ws");ws.onopen=()=>ws.send("p
    "Hello **there**" plus a code block and what you said; "fail" in your message
    gets a 500, "slow" streams slowly. /v1/_last shows the last request it got. */
 let aiLast = null;
-/* ---- a pretend SoundCloud (/sc/ API, /sc-cdn/ audio) and Deezer (/dz/) for the music tests ---- */
+/* ---- a pretend SoundCloud (/sc/ API, /sc-cdn/ audio), Deezer (/dz/) and Audius (/au/ API,
+   /au-node/ its content servers) for the music tests ---- */
 // 10 s of silent MP3 (MPEG-1 layer III, 128 kb/s, 44.1 kHz): 383 frames of 417 bytes
 const MP3_FRAME = Buffer.alloc(417);
 MP3_FRAME.set([0xff, 0xfb, 0x90, 0x64]);
@@ -124,6 +125,21 @@ function musicMock(req, res, u) {
     105: track(105, "Test Song Stale", [tc(105, "progressive", "audio/mpeg")]),
   };
   if (u.pathname === "/sc-test/stats") return json(200, { mediaCalls, size: MP3.length });
+  if (u.pathname === "/dz/search") return json(200, { data: /test/i.test(u.searchParams.get("q") || "") ? [{ id: 7, title: "Test Song", title_short: "Test Song", artist: { name: "Test Artist" }, album: { cover_medium: "" }, duration: 10 }] : [] });
+  if (u.pathname.startsWith("/au/")) {
+    if (u.searchParams.get("app_name") !== "williesvm") return json(400, { error: "app_name required" });
+    const au = (id, title, extra = {}) => ({ id, title, duration: 10, permalink: `/test/${id}`, user: { name: "Audius Artist", handle: "audiusartist" }, artwork: { "480x480": "" }, is_streamable: true, is_stream_gated: false, play_count: 50, ...extra });
+    const list = [au("A1", "Test Audius Song"), au("A2", "Test Audius Members Only", { is_stream_gated: true }), au("A3", "Test Audius Sneaky")];
+    if (u.pathname === "/au/tracks/search") return json(200, { data: /test/i.test(u.searchParams.get("query") || "") ? list : [] });
+    if (u.pathname === "/au/tracks/trending") return json(200, { data: list });
+    const m = /^\/au\/tracks\/(\w+)\/stream$/.exec(u.pathname);
+    if (!m || !list.some((t) => t.id === m[1])) return json(404, {});
+    // A3's content server points into a private network; the real ones redirect once more to the file
+    res.writeHead(302, { location: m[1] === "A3" ? "https://127.0.0.1:9/secret.mp3" : `${origin}/au-node/${m[1]}` });
+    return res.end();
+  }
+  if (/^\/au-node\/\w+$/.test(u.pathname)) { res.writeHead(302, { location: `${u.pathname}.mp3?sig=ok` }); return res.end(); }
+  if (/^\/au-node\/\w+\.mp3$/.test(u.pathname)) return sendMp3(req, res);
   if (u.pathname.startsWith("/dz/chart/")) return json(200, { data: [{ id: 1, title: "Test Song", title_short: "Test Song", artist: { name: "Test Artist" }, album: { cover_medium: "" }, duration: 10 }] });
   if (u.pathname.startsWith("/sc/")) {
     if (u.searchParams.get("client_id") !== "test-client-id") return json(401, {});
@@ -153,15 +169,16 @@ function musicMock(req, res, u) {
   }
   m = /^\/sc-cdn\/(\d+)-p(\d)\.mp3$/.exec(u.pathname);
   if (m) { res.writeHead(200, { "content-type": "audio/mpeg" }); return res.end(MP3.subarray(PIECES[+m[2]], PIECES[+m[2] + 1])); }
-  if (/^\/sc-cdn\/\d+\.mp3$/.test(u.pathname)) {
-    const r = /^bytes=(\d*)-(\d*)$/.exec(req.headers.range || "");
-    if (!r) { res.writeHead(200, { "content-type": "audio/mpeg", "content-length": MP3.length, "accept-ranges": "bytes" }); return res.end(MP3); }
-    const start = r[1] ? +r[1] : MP3.length - +r[2], end = r[1] && r[2] ? Math.min(+r[2], MP3.length - 1) : MP3.length - 1;
-    if (start >= MP3.length) { res.writeHead(416, { "content-range": `bytes */${MP3.length}` }); return res.end(); }
-    res.writeHead(206, { "content-type": "audio/mpeg", "content-length": end - start + 1, "content-range": `bytes ${start}-${end}/${MP3.length}`, "accept-ranges": "bytes" });
-    return res.end(MP3.subarray(start, end + 1));
-  }
+  if (/^\/sc-cdn\/\d+\.mp3$/.test(u.pathname)) return sendMp3(req, res);
   res.writeHead(404); res.end();
+}
+function sendMp3(req, res) {
+  const r = /^bytes=(\d*)-(\d*)$/.exec(req.headers.range || "");
+  if (!r) { res.writeHead(200, { "content-type": "audio/mpeg", "content-length": MP3.length, "accept-ranges": "bytes" }); return res.end(MP3); }
+  const start = r[1] ? +r[1] : MP3.length - +r[2], end = r[1] && r[2] ? Math.min(+r[2], MP3.length - 1) : MP3.length - 1;
+  if (start >= MP3.length) { res.writeHead(416, { "content-range": `bytes */${MP3.length}` }); return res.end(); }
+  res.writeHead(206, { "content-type": "audio/mpeg", "content-length": end - start + 1, "content-range": `bytes ${start}-${end}/${MP3.length}`, "accept-ranges": "bytes" });
+  res.end(MP3.subarray(start, end + 1));
 }
 
 function aiMock(req, res, u) {

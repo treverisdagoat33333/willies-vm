@@ -5,18 +5,22 @@
  */
 /* ═══════════════════════════════════════════════════════════
    MUSIC
-   Songs are found on SoundCloud and play in a plain <audio> element from
+   Four sources, picked with the switch at the top (lib.source, SoundCloud by
+   default). SoundCloud and Audius songs play in a plain <audio> element from
    /api/music/stream/<id>: our server fetches the audio, so the browser never
-   talks to SoundCloud (it works where SoundCloud is blocked, in any browser,
-   in the background and with media keys). Search, charts and artwork come
-   from /api/music too. Uses app.js helpers ($, $$, esc, toast,
+   talks to them (it works where they're blocked, in any browser, in the
+   background and with media keys). YouTube won't hand its audio to a server,
+   so YouTube songs play in its embedded player, hidden and driven from here.
+   Deezer songs, like chart songs, are matched to a full SoundCloud or YouTube
+   upload when played. Search, charts and artwork come from /api/music too. Uses app.js helpers ($, $$, esc, toast,
    store, put, click, typing, dcModal, onCloseDone).
    The library (likes, playlists, recent, volume) lives in localStorage
    under "music", which settings sync carries between devices.
    ═══════════════════════════════════════════════════════════ */
 (()=>{
 const W=$('#music-window'),BODY=$('#mu-body'),MINI=$('#music-mini');
-const LIB_DEFAULT={liked:[],playlists:[],recent:[],vol:80,shuffle:false,repeat:'off'};
+const LIB_DEFAULT={liked:[],playlists:[],recent:[],vol:80,shuffle:false,repeat:'off',source:'sc'};
+const SOURCES={sc:'SoundCloud',yt:'YouTube',au:'Audius',dz:'Deezer'};
 const MAX_LIKED=500,MAX_PLAYLISTS=50,MAX_PER_PLAYLIST=300,MAX_RECENT=16;
 const AUDIO=$('#mu-audio');
 
@@ -34,14 +38,18 @@ const ICON={
 };
 const art=u=>u?'/api/music/art?u='+encodeURIComponent(u):'';
 const artStyle=u=>u?` style="background-image:url('${esc(art(u))}')"`:'';
-const keyOf=t=>t?(t.id?'sc'+t.id:t.key):'';
+/* SoundCloud ids are bare numbers (and stay that way in saved libraries); the
+   other sources' ids carry their prefix: "yt:<video>", "au:<track>" */
+const srcOf=t=>typeof t?.id==='string'&&/^(yt|au):/.test(t.id)?t.id.slice(0,2):'sc';
+const isYT=t=>srcOf(t)==='yt';
+const keyOf=t=>t?(t.id?(srcOf(t)==='sc'?'sc'+t.id:t.id):t.key):'';
 /* a chart song keeps its chart key once matched, so its row still lights up */
 const same=(a,b)=>!!(a&&b)&&(keyOf(a)===keyOf(b)||a.fromKey===keyOf(b)||b.fromKey===keyOf(a));
 const time=s=>{s=Math.max(0,Math.round(s||0));return Math.floor(s/60)+':'+String(s%60).padStart(2,'0')};
 /* what gets stored: small, so the library fits in settings sync */
 const slim=t=>t.chart
   ?{key:t.key,title:t.title,artist:t.artist,artwork:t.artwork,duration:t.duration,chart:true}
-  :{id:t.id,title:t.title,artist:t.artist,uploader:t.uploader,artwork:t.artwork,duration:t.duration,url:t.url,preview:!!t.preview};
+  :{id:t.id,src:t.src,title:t.title,artist:t.artist,uploader:t.uploader,artwork:t.artwork,duration:t.duration,url:t.url,preview:!!t.preview};
 async function getJSON(url){
   const r=await fetch(url);let d={};try{d=await r.json()}catch(_){}
   if(!r.ok){const e=new Error(d.error||`HTTP ${r.status}`);e.status=r.status;throw e}
@@ -83,7 +91,7 @@ function rowHTML(t,i){
   return `<div class="mu-row${on?' on':''}" data-i="${i}" role="button" tabindex="0">
     <span class="n">${on&&playing?ICON.eq:i+1}</span>
     <div class="art"${artStyle(t.artwork)}></div>
-    <div class="t"><b>${esc(t.title)}</b><small>${esc(t.artist||t.uploader||'')}${t.preview?' <em class="pv">30s preview</em>':''}</small></div>
+    <div class="t"><b>${esc(t.title)}</b><small>${srcOf(t)!=='sc'&&t.id?`<em class="src ${srcOf(t)}">${SOURCES[srcOf(t)]}</em> `:''}${esc(t.artist||t.uploader||'')}${t.preview?' <em class="pv">30s preview</em>':''}</small></div>
     <span class="d">${t.duration?time(t.duration):''}</span>
     <button class="mu-iconbtn lk${isLiked(t)?' on':''}" data-act="like" aria-label="Like">${ICON.heart}</button>
     <button class="mu-iconbtn" data-act="more" aria-label="More">${ICON.more}</button>
@@ -106,18 +114,18 @@ async function renderHome(){
   const chips=(genres.length?genres:[{id:0,name:'Top hits'}]).map(g=>`<button class="mu-chip${g.id===genre?' on':''}" data-genre="${g.id}">${esc(g.name)}</button>`).join('');
   const recent=lib.recent.length?`<h3 class="mu-h3">Recently played</h3><div class="mu-shelf">${lib.recent.map((t,i)=>`<button class="mu-card" data-recent="${i}"><div class="art"${artStyle(t.artwork)}><span class="pl">${ICON.play}</span></div><b>${esc(t.title)}</b><small>${esc(t.artist||t.uploader||'')}</small></button>`).join('')}</div>`:'';
   BODY.innerHTML=`<div class="mu-hero"><h1>${greeting()}${currentUsername&&currentUsername!=='Guest'?', '+esc(currentUsername):''}</h1><p>Search any song up top, or start with what's hot right now.</p></div>
-    ${recent}<h3 class="mu-h3">Charts</h3><div class="mu-chips">${chips}</div><div id="mu-chart"><div class="mu-empty"><span class="mu-spin"></span>Loading the charts…</div></div>`;
+    ${recent}<h3 class="mu-h3">${lib.source==='au'?'Trending on Audius':'Charts'}</h3><div class="mu-chips">${chips}</div><div id="mu-chart"><div class="mu-empty"><span class="mu-spin"></span>Loading the charts…</div></div>`;
   rows=[];
-  const g=genre;
+  const g=genre,src=chartSrc(),ck=src+':'+g;
   try{
-    if(!charts[g]){const d=await getJSON('/api/music/charts?genre='+g);charts[g]=d.tracks||[];genres=d.genres||genres}
+    if(!charts[ck]){const d=await getJSON(`/api/music/charts?genre=${g}&source=${src}`);charts[ck]=d.tracks||[];genres=d.genres||genres}
   }catch(e){
     if(view==='home'&&g===genre)$('#mu-chart').innerHTML=`<div class="mu-empty">Couldn't load the charts. ${esc(e.message)}</div>`;
     return;
   }
-  if(view!=='home'||g!==genre)return;
+  if(view!=='home'||g!==genre||src!==chartSrc())return;
   if(genres.length&&!$('.mu-chip[data-genre="116"]'))$('.mu-chips').innerHTML=genres.map(x=>`<button class="mu-chip${x.id===genre?' on':''}" data-genre="${x.id}">${esc(x.name)}</button>`).join('');
-  rows=charts[g];
+  rows=charts[ck];
   $('#mu-chart').innerHTML=`<div class="mu-rows">${rows.map(rowHTML).join('')}</div>`;
 }
 function renderNow(){
@@ -125,8 +133,8 @@ function renderNow(){
   BODY.innerHTML=cur?`<div class="mu-nowview">
       <div class="big art"${artStyle(cur.artwork)}></div>
       <div class="meta"><small>Now playing</small><h1>${esc(cur.title)}</h1><p>${esc(cur.artist||cur.uploader||'')}</p>
-        <div class="acts">${cur.url?`<a class="btn sm" href="${esc(cur.url)}" target="_blank" rel="noopener">Open on SoundCloud</a>`:''}<button class="btn sm" data-list="queue">Up next</button></div>
-        ${cur.uploader?`<p class="credit">Uploaded by <b>${esc(cur.uploader)}</b> on SoundCloud</p>`:''}</div>
+        <div class="acts">${cur.url?`<a class="btn sm" href="${esc(cur.url)}" target="_blank" rel="noopener">Open on ${SOURCES[srcOf(cur)]}</a>`:''}<button class="btn sm" data-list="queue">Up next</button></div>
+        ${cur.uploader?`<p class="credit">Uploaded by <b>${esc(cur.uploader)}</b> on ${SOURCES[srcOf(cur)]}</p>`:''}</div>
     </div>`:'<div class="mu-empty">Nothing playing yet.</div>';
 }
 /* only the playing marks changed: patch rows in place instead of re-rendering */
@@ -203,7 +211,7 @@ function step(dir){
   return seq[p];
 }
 function next(auto){
-  if(auto&&lib.repeat==='one'&&cur){seekTo(0);AUDIO.play().catch(()=>{});return}
+  if(auto&&lib.repeat==='one'&&cur){seekTo(0);resume();return}
   const n=step(1);
   if(n<0){if(auto){playing=false;updateBar();refreshRows()}else toast("That's the end of the queue.");return}
   qi=n;startCurrent();
@@ -238,18 +246,26 @@ async function startCurrent(){
   cur=t;pos=0;dur=t.duration||0;playing=false;miniHidden=false;
   updateBar();refreshRows();if(view==='now')render();
   if(t.chart){
-    setStatus('Finding it on SoundCloud…');
-    try{
-      const d=await getJSON('/api/music/resolve?'+new URLSearchParams({title:t.title,artist:t.artist,duration:t.duration||0}));
-      if(seq!==loadSeq)return;
-      t={...d.track,artwork:d.track.artwork||t.artwork,fromKey:t.key};
-      queue[qi]=t;cur=t;updateBar();if(view==='now')render();
-    }catch(e){
-      if(seq!==loadSeq)return;
-      if(e.status===404){toast("Couldn't find a full version of that one. Here's what SoundCloud has.",'err');search(`${t.artist} ${t.title}`);}
-      else toast(e.message,'err');
+    // a chart or Deezer song: find the full version. YouTube has the official audio of
+    // nearly everything, so it goes first for YouTube and Deezer; SoundCloud first otherwise
+    let vias=lib.source==='yt'||lib.source==='dz'?['yt','sc']:['sc','yt'];
+    // YouTube already failed for this song, or keeps failing on this network (a school filter, say)
+    if(t.noYT)vias=['sc'];else if(ytFails>=2)vias=['sc','yt'];
+    let found=null,err=null;
+    for(const via of vias){
+      setStatus(`Finding it on ${SOURCES[via]}…`);
+      try{found=(await getJSON('/api/music/resolve?'+new URLSearchParams({title:t.title,artist:t.artist,duration:t.duration||0,via}))).track;break}
+      catch(e){err=e} // not found there, or that service is down: try the next
+      finally{if(seq!==loadSeq)return}
+    }
+    if(!found){
+      if(err?.status===404||err?.status===502){toast("Couldn't find a full version of that one. Here's what turned up.",'err');search(`${t.artist} ${t.title}`);}
+      else toast(err?.message||"Couldn't find that song.",'err');
       setStatus('');return;
     }
+    // a YouTube match keeps the chart song, to fall back to SoundCloud if YouTube won't play it
+    t={...found,artwork:t.artwork||found.artwork,fromKey:t.key,orig:found.src==='yt'?{key:t.key,title:t.title,artist:t.artist,artwork:t.artwork,duration:t.duration,chart:true}:undefined};
+    queue[qi]=t;cur=t;updateBar();if(view==='now')render();
   }
   addRecent(t);mediaMeta(t);
   load(t,seq);
@@ -258,42 +274,124 @@ const streamUrl=t=>'/api/music/stream/'+encodeURIComponent(t.id);
 function load(t,seq,at=0){
   retried=at>0;
   setStatus('Loading…');
+  if(isYT(t)){
+    stopAudio();
+    ytLoad(t.id.slice(3),at);
+    return;
+  }
+  ytStop();
   AUDIO.src=streamUrl(t);
   AUDIO.volume=lib.vol/100;
   if(at)AUDIO.currentTime=at;
   AUDIO.play().catch(e=>{if(seq===loadSeq&&e.name==='NotAllowedError')setStatus('Press play to start')}); // other failures arrive as 'error'
 }
+function stopAudio(){if(AUDIO.getAttribute('src')){AUDIO.pause();AUDIO.removeAttribute('src');AUDIO.load()}}
 /* the next SoundCloud song in the queue gets ready on the server while this one plays */
 function warmNext(){
   const n=step(1),t=n>=0?queue[n]:null;
-  if(!t?.id||warmed===String(t.id))return;
+  if(!t?.id||srcOf(t)!=='sc'||warmed===String(t.id))return;
   warmed=String(t.id);
   fetch(streamUrl(t)+'?warm=1').catch(()=>{});
 }
-AUDIO.addEventListener('playing',()=>{
-  playing=true;failures=0;setStatus('');updateBar();refreshRows();
-  setTimeout(warmNext,4000);
-});
-AUDIO.addEventListener('pause',()=>{playing=false;updateBar();refreshRows()});
-AUDIO.addEventListener('ended',()=>{playing=false;next(true)});
-AUDIO.addEventListener('waiting',()=>{if(cur)setStatus('Loading…')});
-AUDIO.addEventListener('timeupdate',()=>{pos=AUDIO.currentTime;if(!seeking)updateProgress()});
-AUDIO.addEventListener('durationchange',()=>{if(isFinite(AUDIO.duration)&&AUDIO.duration>0){dur=AUDIO.duration;updateProgress()}});
-AUDIO.addEventListener('error',()=>{
-  if(!cur||!AUDIO.getAttribute('src'))return;
+/* both engines report through these */
+function onPlaying(){playing=true;failures=0;setStatus('');updateBar();refreshRows();setTimeout(warmNext,4000)}
+function onPaused(){playing=false;updateBar();refreshRows()}
+function onFailed(msg){
   const seq=loadSeq;playing=false;updateBar();refreshRows();
-  // the connection dropped partway: pick up where it stopped, once
-  if(AUDIO.error?.code===MediaError.MEDIA_ERR_NETWORK&&pos>1&&!retried){load(cur,seq,pos);return}
   if(++failures>=3){failures=0;setStatus('');toast("Music isn't loading right now. Try again in a bit.",'err');return}
-  toast("Couldn't play that one. Skipping.",'err');
+  toast(msg||"Couldn't play that one. Skipping.",'err');
   setTimeout(()=>{if(seq===loadSeq)next(true)},900);
+}
+const onAudio=f=>e=>{if(!isYT(cur))f(e)}; // the audio element's events mean nothing while YouTube plays
+AUDIO.addEventListener('playing',onAudio(onPlaying));
+AUDIO.addEventListener('pause',onAudio(onPaused));
+AUDIO.addEventListener('ended',onAudio(()=>{playing=false;next(true)}));
+AUDIO.addEventListener('waiting',onAudio(()=>{if(cur)setStatus('Loading…')}));
+AUDIO.addEventListener('timeupdate',onAudio(()=>{pos=AUDIO.currentTime;if(!seeking)updateProgress()}));
+AUDIO.addEventListener('durationchange',onAudio(()=>{if(isFinite(AUDIO.duration)&&AUDIO.duration>0){dur=AUDIO.duration;updateProgress()}}));
+AUDIO.addEventListener('error',onAudio(()=>{
+  if(!cur||!AUDIO.getAttribute('src'))return;
+  // the connection dropped partway: pick up where it stopped, once
+  if(AUDIO.error?.code===MediaError.MEDIA_ERR_NETWORK&&pos>1&&!retried){load(cur,loadSeq,pos);return}
+  onFailed();
+}));
+
+/* ═══ YouTube ═══
+   YouTube asks servers to sign in, so its songs play in the visitor's own
+   browser: YouTube's embedded player in a hidden credentialless frame (our COEP
+   header allows no other kind), driven by its postMessage protocol, the same
+   one its IFrame API script speaks. */
+const YT_ORIGIN='https://www.youtube-nocookie.com';
+let ytF=null,ytReady=false,ytWant=null,ytState=-1,ytVid='',ytHello=0,ytT=0,ytFails=0;
+// a video that's blocked where you are (region, school filter) just never starts, without an error
+const YT_START_MS=15000;
+function ytWatch(id){clearTimeout(ytT);ytT=setTimeout(()=>{if(isYT(cur)&&ytVid===id&&ytState!==1&&ytState!==2)ytFailed()},YT_START_MS)}
+function ytFailed(msg){
+  clearTimeout(ytT);ytFails++;ytStop();
+  if(cur?.orig&&!cur.orig.noYT){setStatus('Trying SoundCloud…');queue[qi]={...cur.orig,noYT:true};startCurrent();return}
+  onFailed(msg||"That YouTube video won't play here. Skipping.");
+}
+function ytSend(func,...args){try{ytF?.contentWindow?.postMessage(JSON.stringify({event:'command',func,args}),YT_ORIGIN)}catch(_){}}
+function ytLoad(id,at=0){
+  ytVid=id;ytState=-1;ytWatch(id);
+  if(ytF&&ytReady){ytSend('loadVideoById',{videoId:id,startSeconds:at});ytSend('setVolume',lib.vol);return}
+  ytWant={id,at};
+  if(ytF)return; // still starting up; onReady plays ytWant
+  if(!('credentialless' in HTMLIFrameElement.prototype)){ytFailed("This browser can't play YouTube songs here. Try another source.");return}
+  ytF=document.createElement('iframe');
+  ytF.id='mu-yt';ytF.title='YouTube player';ytF.tabIndex=-1;ytF.setAttribute('aria-hidden','true');
+  ytF.setAttribute('credentialless','');ytF.allow='autoplay; encrypted-media';
+  ytF.src=`${YT_ORIGIN}/embed/${encodeURIComponent(id)}?enablejsapi=1&autoplay=1&controls=0&disablekb=1&playsinline=1&rel=0&start=${Math.floor(at)}&origin=${encodeURIComponent(location.origin)}`;
+  // the player only starts reporting once told someone is listening; keep saying so until it answers
+  ytF.onload=()=>{clearInterval(ytHello);let n=0;const hi=()=>{if(ytReady||++n>40)return clearInterval(ytHello);try{ytF.contentWindow.postMessage(JSON.stringify({event:'listening',id:'mu',channel:'widget'}),YT_ORIGIN)}catch(_){}};hi();ytHello=setInterval(hi,250)};
+  document.body.appendChild(ytF);
+}
+function ytStop(){clearTimeout(ytT);if(ytVid){ytSend('stopVideo');ytVid='';ytState=-1}}
+addEventListener('message',e=>{
+  if(!ytF||e.source!==ytF.contentWindow||e.origin!==YT_ORIGIN)return;
+  let d;try{d=typeof e.data==='string'?JSON.parse(e.data):e.data}catch(_){return}
+  if(!d||typeof d!=='object')return;
+  if(d.event==='onReady'){
+    ytReady=true;clearInterval(ytHello);ytSend('setVolume',lib.vol);
+    const w=ytWant;ytWant=null;
+    if(w&&w.id!==new URL(ytF.src).pathname.split('/').pop())ytSend('loadVideoById',{videoId:w.id,startSeconds:w.at});
+    else if(ytVid)ytSend('playVideo');
+    return;
+  }
+  if(!isYT(cur)||!ytVid)return;
+  if(d.event==='onError'){
+    // 101/150: the uploader doesn't allow embedding; 100: removed; 2/5: bad id or player error
+    ytFailed(d.info===101||d.info===150?"That video can't play outside YouTube. Skipping.":undefined);return;
+  }
+  const i=d.event==='infoDelivery'?d.info:d.event==='onStateChange'?{playerState:d.info}:null;
+  if(!i||typeof i!=='object')return;
+  if(i.duration>0){dur=i.duration}
+  if(typeof i.currentTime==='number'){pos=i.currentTime;if(!seeking)updateProgress()}
+  if(typeof i.playerState==='number'&&i.playerState!==ytState){
+    ytState=i.playerState;
+    if(ytState===1){clearTimeout(ytT);ytFails=0;onPlaying()}
+    else if(ytState===2){clearTimeout(ytT);onPaused()}
+    else if(ytState===3)setStatus('Loading…');
+    else if(ytState===0){playing=false;next(true)}
+  }
 });
+
+/* ═══ controls, for either engine ═══ */
+const loaded=()=>isYT(cur)?!!ytVid:!!AUDIO.getAttribute('src')&&!AUDIO.error;
+const paused=()=>isYT(cur)?ytState!==1&&ytState!==3:AUDIO.paused;
+function resume(){if(isYT(cur))ytSend('playVideo');else AUDIO.play().catch(()=>{})}
+function pause(){if(isYT(cur))ytSend('pauseVideo');else AUDIO.pause()}
 function togglePlay(){
   if(!cur){const list=rows.length?rows:lib.liked;if(list.length)playFrom(list,0);else toast('Pick a song first');return}
-  if(!AUDIO.getAttribute('src')||AUDIO.error){startCurrent();return}
-  if(AUDIO.paused)AUDIO.play().catch(()=>{});else AUDIO.pause();
+  if(!loaded()){startCurrent();return}
+  if(paused())resume();else pause();
 }
-function seekTo(sec){pos=Math.max(0,sec);if(AUDIO.getAttribute('src')&&!AUDIO.error)AUDIO.currentTime=pos;updateProgress()}
+function seekTo(sec){
+  pos=Math.max(0,sec);
+  if(isYT(cur)){if(ytVid)ytSend('seekTo',pos,true)}
+  else if(AUDIO.getAttribute('src')&&!AUDIO.error)AUDIO.currentTime=pos;
+  updateProgress();
+}
 function setStatus(text){statusText=text||'';$('#mu-artist').textContent=statusText||(cur?(cur.artist||cur.uploader||''):'Pick a song to start')}
 
 /* the OS media controls (keyboard media keys, lock screen, Chromebook shelf) */
@@ -304,7 +402,7 @@ function mediaMeta(t){
 }
 if('mediaSession' in navigator){
   const h=(a,f)=>{try{navigator.mediaSession.setActionHandler(a,f)}catch(_){}};
-  h('play',()=>togglePlay());h('pause',()=>AUDIO.pause());
+  h('play',()=>togglePlay());h('pause',()=>pause());
   h('nexttrack',()=>next());h('previoustrack',()=>prev());
   h('seekto',d=>seekTo(d.seekTime||0));
 }
@@ -348,7 +446,7 @@ function openMenu(t,anchor){
     ${lib.playlists.map(p=>`<button data-m="pl" data-pl="${esc(p.id)}">${esc(p.name)}</button>`).join('')}
     <button data-m="newpl">+ New playlist…</button>
     ${inPl?'<div class="sep"></div><button data-m="unpl" class="bad">Remove from this playlist</button>':''}
-    ${t.url?`<div class="sep"></div><a data-m="sc" href="${esc(t.url)}" target="_blank" rel="noopener">Open on SoundCloud</a>`:''}`;
+    ${t.url?`<div class="sep"></div><a data-m="sc" href="${esc(t.url)}" target="_blank" rel="noopener">Open on ${SOURCES[srcOf(t)]}</a>`:''}`;
   pop.classList.add('show');
   const r=anchor.getBoundingClientRect(),w=W.getBoundingClientRect();
   const top=Math.min(r.bottom+4,w.bottom-pop.offsetHeight-8);
@@ -374,6 +472,21 @@ $('#mu-pop').addEventListener('click',e=>{
 });
 document.addEventListener('pointerdown',e=>{if(!e.target.closest('#mu-pop,[data-act="more"]'))closeMenu()});
 
+/* ═══ source switch ═══ */
+/* Audius has its own trending lists; every other source plays Deezer's charts */
+const chartSrc=()=>lib.source==='au'?'au':'dz';
+function setSource(src){
+  if(!SOURCES[src]||src===lib.source)return;
+  lib.source=src;saveLib();paintSource();
+  toast(`Searching ${SOURCES[src]}`);
+  if(view==='search'&&lastQ)search(lastQ);else if(view==='home')renderHome();
+}
+function paintSource(){
+  $$('#mu-src button').forEach(b=>{const on=b.dataset.src===lib.source;b.classList.toggle('on',on);b.setAttribute('aria-pressed',on)});
+  $('#mu-q').placeholder=`Search ${SOURCES[lib.source]||'songs'}`;
+}
+$('#mu-src').addEventListener('click',e=>{const b=e.target.closest('[data-src]');if(b){click();setSource(b.dataset.src)}});
+
 /* ═══ search ═══ */
 async function search(q){
   q=String(q||'').trim();if(!q)return;
@@ -381,7 +494,7 @@ async function search(q){
   if(!W.classList.contains('show'))open();
   setView('search');
   const seq=++searchSeq;
-  try{const d=await getJSON('/api/music/search?q='+encodeURIComponent(q));if(seq!==searchSeq)return;results=d.tracks||[]}
+  try{const d=await getJSON(`/api/music/search?q=${encodeURIComponent(q)}&source=${lib.source}`);if(seq!==searchSeq)return;results=d.tracks||[]}
   catch(e){if(seq!==searchSeq)return;results=[];toast(e.message,'err')}
   searching=false;
   if(view==='search')render();
@@ -451,7 +564,7 @@ seek.addEventListener('input',()=>{seeking=true;const d=dur||cur?.duration||0;$(
 seek.addEventListener('change',()=>{const d=dur||cur?.duration||0;seeking=false;if(cur&&d)seekTo(seek.value/1000*d)});
 const vol=$('#mu-vol');
 vol.value=lib.vol;vol.style.setProperty('--p',lib.vol+'%');
-vol.addEventListener('input',()=>{lib.vol=+vol.value;vol.style.setProperty('--p',lib.vol+'%');AUDIO.volume=lib.vol/100});
+vol.addEventListener('input',()=>{lib.vol=+vol.value;vol.style.setProperty('--p',lib.vol+'%');AUDIO.volume=lib.vol/100;ytSend('setVolume',lib.vol)});
 vol.addEventListener('change',saveLib);
 $('#mm-play').onclick=()=>{click();togglePlay()};
 $('#mm-prev').onclick=()=>{click();prev()};
@@ -484,7 +597,7 @@ function hide(){
 }
 function toggle(){W.classList.contains('show')&&!W.classList.contains('closing')?hide():open()}
 /* another full-screen app opening covers the music window: step aside, keep playing */
-const OTHERS=['#chat-window','#browser-wrap','#vm-wrap','#cloud-wrap','#remote-wrap','#ai-window'].map(s=>$(s)).filter(Boolean);
+const OTHERS=['#chat-window','#browser-wrap','#vm-wrap','#cloud-wrap','#remote-wrap','#ai-window','#movies-wrap'].map(s=>$(s)).filter(Boolean);
 const shown=el=>getComputedStyle(el).display!=='none'&&!el.classList.contains('closing');
 let wasShown=new Map(OTHERS.map(el=>[el,shown(el)]));
 const appWatch=new MutationObserver(()=>{
@@ -500,8 +613,11 @@ window.music={
   open,hide,toggle,search,
   play:(tracks,i=0)=>playFrom(tracks,i),
   /* for the tests: what's playing and where */
-  stats:()=>({title:cur?.title||'',id:cur?.id||null,playing,pos:AUDIO.currentTime,dur:AUDIO.duration,src:AUDIO.currentSrc,paused:AUDIO.paused,volume:AUDIO.volume}),
-  reload(){lib=loadLib();vol.value=lib.vol;vol.style.setProperty('--p',lib.vol+'%');renderPls();if(opened)render();updateBar()}
+  stats:()=>isYT(cur)
+    ?{title:cur.title,id:cur.id,source:'yt',playing,pos,dur,src:ytF?.src||'',paused:paused(),volume:lib.vol/100}
+    :{title:cur?.title||'',id:cur?.id||null,source:cur?srcOf(cur):null,playing,pos:AUDIO.currentTime,dur:AUDIO.duration,src:AUDIO.currentSrc,paused:AUDIO.paused,volume:AUDIO.volume},
+  setSource,
+  reload(){lib=loadLib();vol.value=lib.vol;vol.style.setProperty('--p',lib.vol+'%');paintSource();renderPls();if(opened)render();updateBar()}
 };
-renderPls();updateBar();
+paintSource();renderPls();updateBar();
 })();

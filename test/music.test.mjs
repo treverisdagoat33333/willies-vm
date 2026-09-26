@@ -5,7 +5,8 @@
  */
 // Music plays through our server: search, the audio stream (whole file, ranges,
 // HLS pieces stitched together, links that ran out), and the player itself.
-// SoundCloud and Deezer are the test site's pretend ones (/sc/, /dz/).
+// SoundCloud, Deezer and Audius are the test site's pretend ones (/sc/, /dz/, /au/).
+// YouTube can't be faked here: its songs play in YouTube's own embedded player.
 import { chromium } from "playwright";
 const BASE = process.env.BASE, SITE = process.env.SITE;
 let pass = 0, fail = 0;
@@ -86,6 +87,38 @@ ok(await until(() => { const s = window.music.stats(); return s.id === 101 && s.
 await page.evaluate(() => window.music.play([{ id: 999999, title: "Gone" }, { id: 105, title: "Test Song Stale" }]));
 ok(await until(() => { const s = window.music.stats(); return s.id === 105 && s.playing; }), "a song that can't play is skipped", JSON.stringify(await stats()));
 ok(await page.evaluate(() => [...document.querySelectorAll("#toasts *, .toast")].some((t) => /Skipping/.test(t.textContent))), "…and it says so");
+
+// ---- other sources: Audius streams through us, Deezer is a catalogue
+const api = (path) => page.evaluate(async (path) => { const r = await fetch(path); return { status: r.status, body: await r.json().catch(() => null) }; }, path);
+let a = await api("/api/music/search?q=test&source=au");
+ok(JSON.stringify(a.body.tracks.map((t) => t.id)) === '["au:A1","au:A3"]' && a.body.tracks[0].src === "au", "Audius search leaves out members-only tracks", JSON.stringify(a.body));
+r = await grab("/api/music/stream/au:A1");
+ok(r.status === 200 && r.type === "audio/mpeg" && r.len === size, "an Audius song streams from our site, through its redirects", JSON.stringify(r));
+r = await grab("/api/music/stream/au:A1", "bytes=100-199");
+ok(r.status === 206 && r.len === 100 && r.range === `bytes 100-199/${size}`, "…and seeks", JSON.stringify(r));
+ok((await grab("/api/music/stream/au:A3")).status === 502, "an Audius link into a private network is refused");
+ok((await grab("/api/music/stream/au:NOPE")).status === 404, "…and a missing Audius track is a 404");
+a = await api("/api/music/charts?genre=116&source=au");
+ok(a.body.tracks.length === 2 && a.body.tracks[0].id === "au:A1", "Audius has its own trending chart", JSON.stringify(a.body.tracks));
+a = await api("/api/music/search?q=test%20song&source=dz");
+ok(a.body.tracks.length === 1 && a.body.tracks[0].key === "dz7" && a.body.tracks[0].chart, "Deezer search is its catalogue, played like a chart song", JSON.stringify(a.body));
+ok((await api("/api/music/search?q=test&source=nope")).body.tracks.some((t) => t.id === 101), "an unknown source falls back to SoundCloud");
+
+// ---- the switch
+ok(await page.$eval("#mu-src .on", (e) => e.dataset.src) === "sc", "SoundCloud is the default source");
+await page.click('#mu-src [data-src="au"]');
+ok(await page.evaluate(() => JSON.parse(localStorage.getItem("music")).source) === "au", "the pick is saved with the library");
+await page.fill("#mu-q", "test");
+await page.press("#mu-q", "Enter");
+ok(await until(() => [...document.querySelectorAll("#mu-body .mu-row .src.au")].length === 2), "searching now searches Audius, marked as such");
+await page.click("#mu-body .mu-row");
+ok(await until(() => { const s = window.music.stats(); return s.source === "au" && s.playing && s.pos > 0.3; }), "an Audius song plays", JSON.stringify(await stats()));
+ok(decodeURIComponent(new URL((await stats()).src).pathname) === "/api/music/stream/au:A1", "…from our own site", (await stats()).src);
+await page.click('#mu-src [data-src="dz"]');
+ok(await until(() => [...document.querySelectorAll("#mu-body .mu-row")].length === 1), "switching sources runs the search again");
+await page.click("#mu-body .mu-row");
+ok(await until(() => { const s = window.music.stats(); return s.id === 101 && s.playing; }, null, 15000), "a Deezer song finds its full upload (YouTube can't be reached here, so SoundCloud)", JSON.stringify(await stats()));
+await page.click('#mu-src [data-src="sc"]');
 
 ok(!errors.length, "no page errors", errors.join("\n"));
 console.log(`\n${pass} passed, ${fail} failed`);

@@ -691,12 +691,18 @@ https://discord.com/</textarea><div class="ctl"><button class="btn sm" id="st-ru
     </nav>
     <div class="mu-sec"><span>Playlists</span><button id="mu-new-pl" title="New playlist" aria-label="New playlist"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button></div>
     <div class="mu-pls" id="mu-pls"></div>
-    <p class="mu-credit">Songs play on <a href="https://soundcloud.com" target="_blank" rel="noopener">SoundCloud</a>. Charts from <a href="https://www.deezer.com" target="_blank" rel="noopener">Deezer</a>.</p>
+    <p class="mu-credit">Songs from <a href="https://soundcloud.com" target="_blank" rel="noopener">SoundCloud</a>, <a href="https://www.youtube.com" target="_blank" rel="noopener">YouTube</a> and <a href="https://audius.co" target="_blank" rel="noopener">Audius</a>. Charts and catalogue from <a href="https://www.deezer.com" target="_blank" rel="noopener">Deezer</a>.</p>
   </aside>
   <main class="mu-main">
     <header class="mu-top">
       <button class="mu-iconbtn mu-menu-btn" id="mu-side-btn" aria-label="Menu"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M3 12h18M3 18h18"/></svg></button>
       <label class="mu-search"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg><input id="mu-q" type="search" placeholder="Search any song, artist or album" autocomplete="off" spellcheck="false"></label>
+      <div class="mu-src" id="mu-src" role="group" aria-label="Music source">
+        <button data-src="sc" title="Search SoundCloud">SoundCloud</button>
+        <button data-src="yt" title="Search YouTube">YouTube</button>
+        <button data-src="au" title="Search Audius">Audius</button>
+        <button data-src="dz" title="Search Deezer's catalogue (plays the full version from SoundCloud or YouTube)">Deezer</button>
+      </div>
       <button class="btn sm" id="mu-close">Close</button>
     </header>
     <div class="mu-scroll" id="mu-scroll">

@@ -65,13 +65,14 @@ let failed = 0;
 try {
   const [sitePort, port, strictPort] = [await freePort(), await freePort(), await freePort()];
   await startProcess("test site", ["test/site.mjs"], { SITE_PORT: String(sitePort) }, `http://127.0.0.1:${sitePort}/hits`);
-  // the AI app and music talk to the test site's pretend AI API, SoundCloud and Deezer
+  // the AI app and music talk to the test site's pretend AI API, SoundCloud, Deezer and Audius
   await server(port, {
     AI_API_KEY: "test-ai-key",
     AI_BASE_URL: `http://127.0.0.1:${sitePort}/v1`,
     SOUNDCLOUD_API: `http://127.0.0.1:${sitePort}/sc`,
     SOUNDCLOUD_CLIENT_ID: "test-client-id",
     DEEZER_API: `http://127.0.0.1:${sitePort}/dz`,
+    AUDIUS_API: `http://127.0.0.1:${sitePort}/au`,
   });
   await server(strictPort, { WJ_STRICT: "1" });
   const env = { BASE: `http://localhost:${port}`, STRICT_BASE: `http://localhost:${strictPort}`, SITE: `http://127.0.0.1:${sitePort}` };
