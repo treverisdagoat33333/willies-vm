@@ -583,6 +583,7 @@ https://discord.com/</textarea><div class="ctl"><button class="btn sm" id="st-ru
   <div id="mv-toolbar">
     <span class="lb"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="2" width="20" height="20" rx="2.18"/><path d="M7 2v20M17 2v20M2 12h20M2 7h5M2 17h5M17 7h5M17 17h5"/></svg> <span id="mv-title">Movies</span></span>
     <button class="btn sm" id="mv-back" hidden>&larr; Browse</button>
+    <button class="btn sm" id="mv-reload" title="Load the player again on another vidsrc server" hidden>Reload player</button>
     <span class="sp"></span>
     <input class="field" id="mv-search" type="search" placeholder="Search movies &amp; shows…" autocomplete="off">
     <button class="btn sm" id="mv-fs">Fullscreen</button>
@@ -610,7 +611,8 @@ https://discord.com/</textarea><div class="ctl"><button class="btn sm" id="st-ru
       <label id="mv-season-wrap" hidden>Season <select class="field" id="mv-season"></select></label>
       <div id="mv-eps"></div>
     </aside>
-    <div id="mv-stage"><iframe id="mv-frame" title="Video player" allow="autoplay; fullscreen; encrypted-media" referrerpolicy="no-referrer"></iframe></div>
+    <div id="mv-stage"><iframe id="mv-frame" title="Video player" allow="autoplay; fullscreen; encrypted-media" referrerpolicy="no-referrer"></iframe>
+      <div id="mv-stall" role="alert" hidden><span>The player isn't loading. vidsrc sometimes hands out a broken server.</span><button class="btn sm primary" id="mv-retry">Try again</button></div></div>
   </div>
 </div>
 
