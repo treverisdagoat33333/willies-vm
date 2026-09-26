@@ -13,8 +13,10 @@
    plain new tab. */
 (()=>{
 const VIDSRC='https://vidsrc.ir/embed';
-const wrap=$('#movies-wrap'),grid=$('#mv-grid'),frame=$('#mv-frame');
-let row='movies',query='',items=[],skip=0,searchSeq=0,current=null,meta=null;
+const wrap=$('#movies-wrap'),grid=$('#mv-grid'),hero=$('#mv-hero'),frame=$('#mv-frame');
+// mirrors GENRES in the server's movies.js; the anime row is itself a genre filter
+const GENRES=['Action','Adventure','Animation','Comedy','Crime','Documentary','Drama','Family','Fantasy','History','Horror','Mystery','Romance','Sci-Fi','Thriller','War','Western'];
+let row='movies',genre='',query='',items=[],skip=0,searchSeq=0,current=null,meta=null;
 
 /* what was watched, most recent first, so a show reopens on its episode (this device only) */
 const RECENT_MAX=12;
@@ -36,29 +38,58 @@ async function api(path){
 
 /* ── browse ───────────────────────────────── */
 function card(m,progress){
-  const sub=[m.year,m.rating&&`★ ${m.rating}`,progress].filter(Boolean).join(' · ');
+  const sub=[m.year,(m.genres||[]).slice(0,2).join(', '),progress].filter(Boolean).join(' · ');
   return `<button class="cg-card mv-card" data-mv="${esc(m.id)}" data-mvtype="${esc(m.type)}">
     <div class="cg-art mv-art">${m.poster?`<img loading="lazy" src="${esc(art(m.poster))}" alt="">`:''}
       ${m.type==='series'?'<span class="cg-tag">TV</span>':''}
+      ${m.rating?`<span class="mv-rate">★ ${esc(m.rating)}</span>`:''}
       <div class="cg-play"><span><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3l14 9-14 9z"/></svg> Watch</span></div></div>
     <div class="cg-meta"><b>${esc(m.name)}</b><small>${esc(sub)}</small></div></button>`;
 }
+/* the first title with a backdrop becomes the banner; its card is left out of the grid */
+function renderHero(m){
+  hero.hidden=!m;
+  if(!m)return;
+  hero.innerHTML=`<img class="mv-hero-bg" src="${esc(art(m.background))}" alt="">
+    <div class="mv-hero-in">
+      ${m.type==='series'?'<span class="mv-hero-tag">Series</span>':'<span class="mv-hero-tag">Movie</span>'}
+      <h2>${esc(m.name)}</h2>
+      <small>${esc([m.year,m.rating&&`★ ${m.rating}`,(m.genres||[]).join(' · ')].filter(Boolean).join(' · '))}</small>
+      ${m.description?`<p>${esc(m.description)}</p>`:''}
+      <button class="btn primary mv-hero-play" data-mv="${esc(m.id)}" data-mvtype="${esc(m.type)}"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3l14 9-14 9z"/></svg> Watch now</button>
+    </div>`;
+}
 function renderGrid(){
+  const featured=(!query&&items.find(m=>m.background&&m.description))||null;
+  renderHero(featured);
   const rec=!query&&recents();
   let html='';
   if(rec&&rec.length){
     html+=`<div class="mv-sect">Continue watching</div><div class="mv-strip">${rec.map(r=>card(r,r.season?`S${r.season} E${r.episode}`:'')).join('')}</div>`;
-    html+=`<div class="mv-sect">${{movies:'Popular movies',shows:'Popular shows',anime:'Popular anime'}[row]}</div>`;
+    html+=`<div class="mv-sect">${genre||({movies:'Popular movies',shows:'Popular shows',anime:'Popular anime'}[row])}</div>`;
   }
-  html+=items.map(m=>card(m)).join('');
+  html+=items.filter(m=>m!==featured).map(m=>card(m)).join('');
   grid.innerHTML=html||(query?'<div class="cg-empty">Nothing found. Try another name.</div>':'<div class="cg-empty">Nothing here right now.</div>');
   $('#mv-more').hidden=!!query||!items.length;
 }
+/* posters fade in as they arrive instead of popping */
+$('#mv-browse').addEventListener('load',e=>{if(e.target.tagName==='IMG')e.target.classList.add('ok')},true);
+function renderGenres(){
+  const box=$('#mv-genres');
+  if(row==='anime'){box.innerHTML='';return}
+  box.innerHTML=[`<button class="cg-chip${genre?'':' active'}" data-mvgenre="">All</button>`,
+    ...GENRES.map(g=>`<button class="cg-chip${g===genre?' active':''}" data-mvgenre="${g}">${g}</button>`)].join('');
+}
+$('#mv-genres').addEventListener('click',e=>{
+  const b=e.target.closest('[data-mvgenre]');if(!b)return;click();
+  genre=b.dataset.mvgenre;renderGenres();
+  $('#mv-search').value='';query='';loadRow();
+});
 async function loadRow(more){
   const seq=++searchSeq;
-  if(!more){items=[];skip=0;grid.innerHTML='<div class="cg-skel"></div>'.repeat(12);$('#mv-more').hidden=true}
+  if(!more){items=[];skip=0;hero.hidden=true;grid.innerHTML='<div class="cg-skel"></div>'.repeat(12);$('#mv-more').hidden=true}
   try{
-    const d=await api(`/browse?row=${row}&skip=${skip}`);
+    const d=await api(`/browse?row=${row}&genre=${encodeURIComponent(genre)}&skip=${skip}`);
     if(seq!==searchSeq)return;
     const seen=new Set(items.map(m=>m.id));
     items=items.concat((d.items||[]).filter(m=>!seen.has(m.id)));
@@ -71,7 +102,7 @@ async function loadRow(more){
 }
 async function runSearch(){
   const seq=++searchSeq;
-  grid.innerHTML='<div class="cg-skel"></div>'.repeat(8);$('#mv-more').hidden=true;
+  hero.hidden=true;grid.innerHTML='<div class="cg-skel"></div>'.repeat(8);$('#mv-more').hidden=true;
   try{
     const d=await api(`/search?q=${encodeURIComponent(query)}`);
     if(seq!==searchSeq)return;
@@ -83,7 +114,9 @@ async function runSearch(){
 }
 $('#mv-tabs').addEventListener('click',e=>{
   const b=e.target.closest('[data-mvrow]');if(!b)return;click();
-  row=b.dataset.mvrow;$$('#mv-tabs .cg-chip').forEach(c=>c.classList.toggle('active',c===b));
+  row=b.dataset.mvrow;genre='';
+  $$('#mv-tabs .mv-tab').forEach(c=>c.classList.toggle('active',c===b));
+  renderGenres();
   $('#mv-search').value='';query='';loadRow();
 });
 let searchT;
@@ -93,7 +126,7 @@ $('#mv-search').addEventListener('input',e=>{
   searchT=setTimeout(()=>{query=q;q?runSearch():loadRow()},350);
 });
 $('#mv-more').onclick=()=>{click();loadRow(true)};
-grid.addEventListener('click',e=>{
+for(const el of[grid,hero])el.addEventListener('click',e=>{
   const b=e.target.closest('[data-mv]');if(!b)return;click();
   const id=b.dataset.mv;
   play(recents().find(m=>m.id===id)||items.find(m=>m.id===id)||{id,type:b.dataset.mvtype,name:''});
@@ -182,6 +215,7 @@ function open(){
   ['#vm-wrap','#browser-wrap','#cloud-wrap','#remote-wrap'].forEach(s=>{const w=$(s);if(w)w.style.display='none'});
   wrap.style.display='flex';wrap.classList.remove('closing');
   $('#tb-movies').classList.add('active');
+  renderGenres();
   if(!items.length&&!query)loadRow();else renderGrid();
   setTimeout(()=>$('#mv-search').focus(),80);
 }

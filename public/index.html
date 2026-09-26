@@ -589,11 +589,15 @@ https://discord.com/</textarea><div class="ctl"><button class="btn sm" id="st-ru
     <button class="btn sm danger" id="mv-close">Close</button>
   </div>
   <div id="mv-browse">
-    <div class="mv-tabs" id="mv-tabs">
-      <button class="cg-chip active" data-mvrow="movies">Popular movies</button>
-      <button class="cg-chip" data-mvrow="shows">Popular shows</button>
-      <button class="cg-chip" data-mvrow="anime">Anime</button>
+    <div class="mv-top">
+      <div class="mv-tabs" id="mv-tabs">
+        <button class="mv-tab active" data-mvrow="movies"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="2" width="20" height="20" rx="2.18"/><path d="M7 2v20M17 2v20M2 12h20M2 7h5M2 17h5M17 7h5M17 17h5"/></svg> Movies</button>
+        <button class="mv-tab" data-mvrow="shows"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="7" width="20" height="15" rx="2"/><path d="m17 2-5 5-5-5"/></svg> TV Shows</button>
+        <button class="mv-tab" data-mvrow="anime"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg> Anime</button>
+      </div>
+      <div class="cg-chips" id="mv-genres"></div>
     </div>
+    <div id="mv-hero" hidden></div>
     <div class="cg-grid" id="mv-grid"></div>
     <div class="mv-morewrap"><button class="btn sm" id="mv-more" hidden>Show more</button></div>
   </div>

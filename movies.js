@@ -40,6 +40,8 @@ const ROWS = {
   // Cinemeta has no "anime" genre; its Animation chart is Japanese anime almost to the top
   anime: { type: "series", extra: "/genre=Animation" },
 };
+// the genres Cinemeta's top catalogues can be filtered by (movies and shows only)
+export const GENRES = ["Action", "Adventure", "Animation", "Comedy", "Crime", "Documentary", "Drama", "Family", "Fantasy", "History", "Horror", "Mystery", "Romance", "Sci-Fi", "Thriller", "War", "Western"];
 
 /* A small TTL cache that forgets its oldest entries past `max`. */
 function cache(ttlMs, max = 300) {
@@ -85,6 +87,9 @@ function shapeItem(m, type) {
     year: String(m.releaseInfo || m.year || "").replace(/–$/, "–"),
     rating: String(m.imdbRating || ""),
     genres: (m.genres || m.genre || []).slice(0, 3).map(String),
+    // for the hero banner at the top of the grid
+    background: String(m.background || ""),
+    description: String(m.description || "").slice(0, 300),
   };
 }
 
@@ -157,12 +162,15 @@ export function moviesRouter({ requireSession, limiter }) {
   r.get("/browse", requireSession, limiter, async (req, res) => {
     const row = ROWS[String(req.query.row || "")];
     if (!row) return res.status(400).json({ error: "Unknown row." });
+    const genre = String(req.query.genre || "");
+    // the anime row already is a genre filter; Cinemeta can't stack two
+    if (genre && (row.extra || !GENRES.includes(genre))) return res.status(400).json({ error: "Unknown genre." });
     const skip = Math.min(500, Math.max(0, Number(req.query.skip) || 0));
-    const key = `${req.query.row}:${skip}`;
+    const key = `${req.query.row}:${genre}:${skip}`;
     try {
       let items = listCache.get(key);
       if (!items) {
-        items = await catalog(row.type, row.extra, skip);
+        items = await catalog(row.type, genre ? `/genre=${genre}` : row.extra, skip);
         listCache.set(key, items);
       }
       res.json({ items });
