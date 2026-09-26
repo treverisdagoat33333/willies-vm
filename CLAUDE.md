@@ -188,7 +188,15 @@ Voice calls ride the same socket (`chat.js` relays; audio and screen go peer to 
 - Each speaker gets their own playback timeline, and their avatar lights up while they talk (`.talking`). The voice bar (`#vc`) floats bottom-left, or sits in the channel list while chat is open.
 - Everyone connected to chat gets `{type:'voice', channel, members}` on each change (and `voice` in `ready`), shown as a count next to the channel.
 - Guests can't join. Kicks, bans, timeouts and deleted channels close the voice socket (`dropFromVoice`, plus a 10 s sweep). Starting or answering a call leaves voice; you can't join voice mid-call.
-- `test/voice.test.mjs` covers three people talking, the badge, a guest refused, mute, leave and calls.
+- **The stage (`#vstage`):** a Discord-style tile per member (speaking ring, muted/deafened icons). It docks over `#dc-callslot` while chat is open (`html.voice-docked`) and shrinks to a draggable pip otherwise. Deafen (`{t:'deaf'}`) mutes you and stops the server sending you voice.
+- **Go Live:** `{t:'live',on}` announces a stream (`live` in the roster and the `voice` broadcast). A viewer sends `{t:'watch',who,on,relay}`; the streamer gets `{t:'watchers'}` and opens one RTCPeerConnection per direct viewer, signalled through the server as `{t:'rtc',to,data}` → `{t:'rtc',from,data}`. It reuses the call's quality presets (`window.calls.share`). If a viewer isn't connected in 9 s (or `wvm.callRelayUntil` says the network blocks it), they watch through the server instead: the streamer sends `WVS1`+JPEG, the server forwards `WVS1`+[streamer index]+JPEG only to relay watchers, within `STREAM_RATE`/`STREAM_BURST`.
+- `test/voice.test.mjs` covers three people talking, the badge, a guest refused, mute, leave, calls, the stage, deafen, and Go Live watched directly and through the relay.
+
+**Analytics (`analytics.js`, `js/stats.js`, `css/stats.css`, owner only):** Admin panel > Analytics.
+- Counts only, per UTC day and hour, in tables `stats` and `stats_seen`: visits, app launches, songs, movies, VM starts, AI replies, chat messages, calls, voice joins, sign-ups. Daily visitors are salted HMAC hashes (the salt lives in memory), pruned after 120 days.
+- The page reports through `track(kind,name)` → `POST /api/stats/event` (only `visit`, `app`, `song`, `movie`; apps from `APP_NAMES`); the rest are recorded on the server with `record()`. `GET /api/stats/report?days=7|30|90` is owner-only.
+- Charts are hand-drawn SVG at the card's real width (redrawn on resize and theme change), with tooltips and a table view each; the busiest-times heatmap is shown in the owner's local time. On Render's free plan the counts reset with the database on every deploy.
+- `test/analytics.test.mjs` covers it.
 
 **Pictures and files in chat (`files.js`, the `FILES` part of `app.js`):**
 - The paperclip, pasting, or dropping a file uploads it straight away (`POST /api/chat/files?channel=&name=`, raw body, accounts who may post there, 8 MB, no program files). The next message carries `{file: id}`; a message can be just a file. `chat.js` checks the file is yours, unsent, and for that channel.

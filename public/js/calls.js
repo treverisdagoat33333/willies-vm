@@ -654,6 +654,8 @@ $('#dc-call').onclick=()=>{click();start($('#dc-call').dataset.to)};
 window.addEventListener('beforeunload',()=>{if(call)dcSend({type:call.dir==='in'&&!call.pc&&!call.relay?'call.decline':'call.end',callId:call.id})});
 
 window.calls={start,onMessage,hangup,get active(){return !!call},
+  /* the screen share presets, shared with Go Live in voice channels (js/voice.js) */
+  share:{presets:SHARE_Q,get quality(){return shareQ},set quality(q){if(SHARE_Q[q]){shareQ=q;lsSet('wvm.shareQuality',q)}},get sound(){return shareSound},set sound(on){shareSound=!!on;lsSet('wvm.shareSound',on?'1':'0')}},
   /* for the tests: WebRTC's own numbers (what's being sent and received) */
   async rtc(){const pc=call?.pc;if(!pc)return null;const out=[];(await pc.getStats()).forEach(r=>{if(/^(in|out)bound-rtp$/.test(r.type)&&r.kind==='video')out.push({type:r.type,bytes:r.bytesSent??r.bytesReceived,frames:r.framesEncoded??r.framesDecoded,w:r.frameWidth,h:r.frameHeight,fps:r.framesPerSecond,limit:r.qualityLimitationReason})});return{sig:pc.signalingState,conn:pc.connectionState,tx:pc.getTransceivers().map(t=>(t.receiver.track?.kind||"?")+":"+t.currentDirection),out,senders:pc.getSenders().filter(x=>x.track?.kind==='video').map(x=>{const p=x.getParameters();return{hint:x.track.contentHint,maxBitrate:p.encodings?.[0]?.maxBitrate,maxFramerate:p.encodings?.[0]?.maxFramerate,pref:p.degradationPreference}})}},
   /* how the call is going: direct, or through our server with what's been sent and received */

@@ -173,3 +173,67 @@ html[data-tbside="top"] #call[data-mode="pip"],html[data-tbhide="on"] #call[data
 }
 html[data-motion="off"] #call,html[data-perf="on"] #call,html[data-motion="off"] #call *,html[data-perf="on"] #call *{animation:none!important;transition:none!important}
 @media(prefers-reduced-motion:reduce){#call,#call *{animation:none!important}}
+
+/* ═══ the voice channel stage (js/voice.js), the call's look for a whole channel ═══ */
+html.voice-docked .dc-callslot{display:block;height:var(--cl-slot,300px)}
+#vstage{--cl-bg:#111214;--cl-tile:#232428;--cl-btn:#2b2d31;--cl-btn-h:#3a3c42;--cl-ok:#23a55a;--cl-bad:#da373c;
+  position:fixed;z-index:9590;display:none;flex-direction:column;color:#f2f3f5;font-size:15px;background:var(--cl-bg)}
+#vstage[data-mode="dock"],#vstage[data-mode="pip"]{display:flex}
+#vstage[data-mode="dock"]{border-bottom:1px solid rgba(255,255,255,.06)}
+#vstage[data-mode="pip"]{left:16px;bottom:calc(var(--tb-h) + 170px);width:min(360px,calc(100vw - 32px));border-radius:12px;box-shadow:0 14px 40px rgba(0,0,0,.55),0 0 0 1px rgba(255,255,255,.07)}
+html[data-tbside="top"] #vstage[data-mode="pip"],html[data-tbhide="on"] #vstage[data-mode="pip"]{bottom:170px}
+.vs-head{display:flex;align-items:center;gap:8px;padding:10px 12px;min-width:0}
+.vs-head b{font-size:.92em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vs-head small{font-size:.76em;color:#b5bac1;white-space:nowrap}
+.vs-head .sp{flex:1}
+.vs-dot{width:8px;height:8px;border-radius:50%;background:var(--cl-ok);box-shadow:0 0 8px var(--cl-ok);flex:0 0 auto}
+#vstage[data-mode="pip"] .vs-head{cursor:grab}
+#vstage[data-mode="pip"] #vs-size{display:none}
+#vstage[data-mode="dock"] .vs-head{position:absolute;top:0;left:0;right:0;z-index:3;background:linear-gradient(rgba(0,0,0,.55),transparent)}
+.vs-tiles{flex:1;min-height:0;padding:44px 16px 76px}
+#vstage[data-mode="pip"] .vs-tiles{padding:0 8px;flex:0 0 auto;cursor:pointer}
+#vstage[data-mode="pip"] .vs-p{display:none}
+#vstage[data-mode="pip"] .vs-stream:not(.watching){display:none}
+#vstage .cl-tile{display:flex}
+#vstage[data-mode="pip"] .cl-tile.vs-stream{flex-basis:100%;max-width:none}
+.vs-btns{display:flex;align-items:center;justify-content:center;gap:10px;padding:12px}
+#vstage[data-mode="dock"] .vs-btns{position:absolute;left:0;right:0;bottom:0;z-index:3;background:linear-gradient(transparent,rgba(0,0,0,.6))}
+#vstage .cl-b{display:grid;background:var(--cl-btn);color:#dbdee1;width:48px;height:48px}
+#vstage .cl-b:hover{background:var(--cl-btn-h);color:#fff}
+#vstage .cl-b.on{background:#fff;color:#111}
+#vstage #vs-mute.on,#vstage #vs-deaf.on{background:rgba(218,55,60,.18);color:#f23f43}
+#vstage #vs-live.on{background:#ed4245;color:#fff}
+#vstage .cl-b.bad{background:var(--cl-bad);color:#fff;width:58px;border-radius:24px}
+#vstage .cl-split{display:inline-flex}
+#vstage .cl-split .cl-b{border-radius:24px 0 0 24px}
+#vstage .cl-split .cl-caret{width:26px;border-radius:0 24px 24px 0;margin-left:1px}
+#vstage[data-mode="pip"] .vs-btns{gap:8px;padding:10px}
+#vstage[data-mode="pip"] .cl-b{width:38px;height:38px}
+#vstage[data-mode="pip"] .cl-b.bad{width:48px}
+#vstage[data-mode="pip"] .cl-split .cl-caret{width:22px}
+#vstage .cl-b .i{width:19px;height:19px}
+/* someone live: their tile says so */
+.vs-p.is-live::after{content:"Live";position:absolute;top:8px;right:8px;padding:2px 7px;border-radius:5px;background:#ed4245;color:#fff;font-size:.62rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase}
+/* a stream: the picture once it's coming, else a Watch button over a dark tile */
+.vs-stream{background:#0b0c0e}
+.vs-stream video,.vs-stream canvas{display:none}
+.vs-stream.playing:not(.relay) video,.vs-stream.playing.relay canvas{display:block}
+.vs-stream .vs-watch{position:relative;z-index:2}
+.vs-stream .vs-watch[hidden]{display:none}
+.vs-stream.watching:not(.playing)::after{content:"Connecting to the stream…";position:relative;z-index:2;color:#b5bac1;font-size:.82em}
+.vs-stream .cl-tag{font-weight:600}
+#vstage .cl-menu{position:fixed}
+/* no stream in focus: a grid that fits the stage (columns from js: 1-2 people one row, 3-4 two by two) */
+#vstage .vs-tiles:not(.focused){display:grid;grid-template-columns:repeat(var(--vs-cols,2),minmax(0,1fr));grid-auto-rows:minmax(0,1fr);align-content:stretch;justify-content:stretch}
+#vstage .vs-tiles:not(.focused) .cl-tile{width:auto;max-width:none;aspect-ratio:auto;min-height:0}
+/* the small window: just the stream you're watching, 16:9 across */
+#vstage[data-mode="pip"] .vs-tiles,#vstage[data-mode="pip"] .vs-tiles.focused{display:block}
+#vstage[data-mode="pip"] .cl-tile.vs-stream.watching{width:100%;height:auto;aspect-ratio:16/9}
+.dc-vc.live{color:#f23f43}
+.vc-live{padding:1px 6px;border-radius:4px;background:#ed4245;color:#fff;font-size:.6rem;font-weight:800;text-transform:uppercase;letter-spacing:.05em}
+html[data-motion="off"] #vstage *,html[data-perf="on"] #vstage *{animation:none!important;transition:none!important}
+.dc-vc.live{background:rgba(237,66,69,.16)}
+.vc-p .vc-live{position:absolute;top:-4px;right:-2px;margin:0;padding:0 4px;font-size:.5rem;line-height:1.5}
+/* short tiles in a busy channel: the avatar shrinks to fit */
+#vstage .cl-tile{container-type:size}
+#vstage .cl-tav{width:min(84px,58cqh);height:min(84px,58cqh);font-size:min(2rem,26cqh)}

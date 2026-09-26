@@ -727,23 +727,36 @@ relayWss.on("connection", (ws, _req, name, callId) => {
  * Voice channels: talk in a text channel with up to VOICE_MAX people, like
  * Discord. Everyone's voice goes through here (/voice/?channel=<slug>), so it
  * works on networks that block WebRTC:
- *   client -> server  binary: 20 ms of 16 kHz μ-law voice
- *                     text:   {"t":"mute","on":bool}
- *   server -> client  binary: [speaker index, ...voice]
- *                     text:   {"t":"roster","you":i,"members":[{i,name,muted}]}
+ *   client -> server  binary: 20 ms of 16 kHz μ-law voice, or "WVS1" + a JPEG
+ *                             of your stream (for watchers the direct path fails)
+ *                     text:   {"t":"mute","on":bool}, {"t":"deaf","on":bool},
+ *                             {"t":"live","on":bool} (Go Live, a shared screen),
+ *                             {"t":"watch","who":i,"on":bool,"relay":bool},
+ *                             {"t":"rtc","to":i,"data":{...}} (the stream's WebRTC
+ *                             handshake, passed to one other member)
+ *   server -> client  binary: [speaker index, ...voice], or "WVS1" + [streamer
+ *                             index] + a JPEG
+ *                     text:   {"t":"roster","you":i,"members":[{i,name,muted,deaf,live}]},
+ *                             {"t":"rtc","from":i,"data":{...}},
+ *                             {"t":"watchers","watchers":[{i,relay}]} (to a streamer)
  * Everyone connected to chat hears who's in which channel's voice ({type:"voice"}).
  */
-const voiceWss = new WebSocketServer({ noServer: true, maxPayload: 4096 });
+const voiceWss = new WebSocketServer({ noServer: true, maxPayload: 512 * 1024 });
 const voiceRooms = new Map(); // slug -> Map(name -> { ws, i, muted, state })
 const VOICE_MAX = 6;
 const VOICE_RATE = 48 * 1024; // voice is 16 KB/s; this leaves room for jitter
+// a stream through here is JPEG pictures a few times a second, sent on to each
+// watcher who couldn't get it directly: a budget per streamer, bursts allowed
+const STREAM_RATE = 900 * 1024, STREAM_BURST = 2 * 1024 * 1024;
+const STREAM_TAG = Buffer.from("WVS1");
+const RTC_RATE = 60; // handshake messages a second, per member
 
 function voiceMembers(slug) {
-  return [...(voiceRooms.get(slug)?.entries() || [])].map(([name, m]) => ({ i: m.i, name, muted: m.muted }));
+  return [...(voiceRooms.get(slug)?.entries() || [])].map(([name, m]) => ({ i: m.i, name, muted: m.muted, deaf: m.deaf, live: m.live }));
 }
 function voiceSnapshot() {
   const out = {};
-  for (const slug of voiceRooms.keys()) out[slug] = voiceMembers(slug).map(({ name, muted }) => ({ name, muted }));
+  for (const slug of voiceRooms.keys()) out[slug] = voiceMembers(slug).map(({ name, muted, live }) => ({ name, muted, live }));
   return out;
 }
 function voiceChanged(slug) {
@@ -752,7 +765,7 @@ function voiceChanged(slug) {
     if (m.ws.readyState === 1) m.ws.send(JSON.stringify({ t: "roster", you: m.i, members }));
   }
   if (!members.length) voiceRooms.delete(slug);
-  broadcast({ type: "voice", channel: slug, members: members.map(({ name, muted }) => ({ name, muted })) });
+  broadcast({ type: "voice", channel: slug, members: members.map(({ name, muted, live }) => ({ name, muted, live })) });
 }
 /* someone kicked, banned or timed out (or a channel gone): out of voice too */
 function dropFromVoice(pred, code = 4003, reason = "removed") {
@@ -773,20 +786,59 @@ voiceWss.on("connection", (ws, _req, name, slug, ip) => {
   const used = new Set([...room.values()].map((m) => m.i));
   let i = 0;
   while (used.has(i)) i++;
-  const me = { ws, i, muted: false, state: { name, account: true, ip } };
+  const me = { ws, i, muted: false, deaf: false, live: false, watching: new Map(), state: { name, account: true, ip } };
   room.set(name, me);
   voiceChanged(slug);
   let tokens = VOICE_RATE, at = Date.now();
+  let sTokens = STREAM_BURST, sAt = Date.now();
+  let rtcCount = 0, rtcAt = Date.now();
+  const byIndex = (i) => [...room.values()].find((m) => m.i === i);
+  // a streamer hears who's watching, and which of them need pictures through here
+  const tellWatchers = (streamer) => {
+    if (streamer?.ws.readyState !== 1) return;
+    const watchers = [...room.values()].filter((m) => m.watching.has(streamer.i)).map((m) => ({ i: m.i, relay: m.watching.get(streamer.i) }));
+    streamer.ws.send(JSON.stringify({ t: "watchers", watchers }));
+  };
+  me.tellWatchers = tellWatchers;
   ws.on("message", (data, isBinary) => {
     if (room.get(name) !== me) return;
     if (!isBinary) {
-      try {
-        const d = JSON.parse(String(data));
-        if (d?.t === "mute" && typeof d.on === "boolean" && d.on !== me.muted) { me.muted = d.on; voiceChanged(slug); }
-      } catch (_) {}
+      let d;
+      try { d = JSON.parse(String(data)); } catch (_) { return; }
+      if (d?.t === "mute" && typeof d.on === "boolean" && d.on !== me.muted) { me.muted = d.on; voiceChanged(slug); }
+      else if (d?.t === "deaf" && typeof d.on === "boolean" && d.on !== me.deaf) { me.deaf = d.on; voiceChanged(slug); }
+      else if (d?.t === "live" && typeof d.on === "boolean" && d.on !== me.live) {
+        me.live = d.on;
+        if (!d.on) for (const m of room.values()) m.watching.delete(me.i); // the stream ended: nobody's watching it now
+        voiceChanged(slug);
+      } else if (d?.t === "watch" && Number.isInteger(d.who) && d.who !== me.i) {
+        const streamer = byIndex(d.who);
+        if (d.on && streamer?.live) me.watching.set(d.who, !!d.relay);
+        else me.watching.delete(d.who);
+        tellWatchers(streamer);
+      } else if (d?.t === "rtc" && Number.isInteger(d.to) && d.data && typeof d.data === "object") {
+        const now = Date.now();
+        if (now - rtcAt > 1000) { rtcAt = now; rtcCount = 0; }
+        if (++rtcCount > RTC_RATE) return;
+        const other = byIndex(d.to);
+        if (other && other !== me && other.ws.readyState === 1) other.ws.send(JSON.stringify({ t: "rtc", from: me.i, data: d.data }));
+      }
       return;
     }
     const now = Date.now();
+    // a picture of your stream: on to the watchers who asked for pictures
+    if (data.length > STREAM_TAG.length + 16 && data.subarray(0, 4).equals(STREAM_TAG)) {
+      sTokens = Math.min(STREAM_BURST, sTokens + ((now - sAt) / 1000) * STREAM_RATE);
+      sAt = now;
+      if (!me.live || data.length > sTokens) return;
+      sTokens -= data.length;
+      const out = Buffer.allocUnsafe(data.length + 1);
+      STREAM_TAG.copy(out, 0);
+      out[4] = me.i;
+      data.copy(out, 5, 4);
+      for (const m of room.values()) if (m.watching.get(me.i) === true && m.ws.readyState === 1 && m.ws.bufferedAmount < 1024 * 1024) m.ws.send(out, { binary: true });
+      return;
+    }
     tokens = Math.min(VOICE_RATE, tokens + ((now - at) / 1000) * VOICE_RATE);
     at = now;
     if (me.muted || data.length > tokens || data.length > 2048) return;
@@ -794,11 +846,15 @@ voiceWss.on("connection", (ws, _req, name, slug, ip) => {
     const out = Buffer.allocUnsafe(data.length + 1);
     out[0] = me.i;
     data.copy(out, 1);
-    for (const [other, m] of room) if (other !== name && m.ws.readyState === 1 && m.ws.bufferedAmount < 256 * 1024) m.ws.send(out, { binary: true });
+    // deafened people hear nothing, so nothing is sent to them
+    for (const [other, m] of room) if (other !== name && !m.deaf && m.ws.readyState === 1 && m.ws.bufferedAmount < 256 * 1024) m.ws.send(out, { binary: true });
   });
   ws.on("close", () => {
     if (room.get(name) === me) {
       room.delete(name);
+      // whoever they were watching loses a watcher
+      for (const who of me.watching.keys()) tellWatchers(byIndex(who));
+      if (me.live) for (const m of room.values()) m.watching.delete(me.i);
       voiceChanged(slug);
     }
   });
