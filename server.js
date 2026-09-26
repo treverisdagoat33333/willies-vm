@@ -813,9 +813,15 @@ app.get("/api/calls/ice", requireAccount, (_req, res) => {
 |--------------------------------------------------------------------------
 */
 const musicLimiter = createLimiter({ windowMs: 60_000, max: 90 });
+// the audio has its own budget: each song is a request or a few (seeking asks again), and a school shares one IP
+const musicStreamLimiter = createLimiter({ windowMs: 60_000, max: 400 });
 app.use(
   "/api/music",
-  musicRouter({ requireSession, limiter: limitByIp(musicLimiter, "Too many music requests from your network.") })
+  musicRouter({
+    requireSession,
+    limiter: limitByIp(musicLimiter, "Too many music requests from your network."),
+    streamLimiter: limitByIp(musicStreamLimiter, "Too many songs from your network at once. Try again in a minute."),
+  })
 );
 
 /*

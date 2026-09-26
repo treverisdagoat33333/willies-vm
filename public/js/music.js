@@ -5,10 +5,12 @@
  */
 /* ═══════════════════════════════════════════════════════════
    MUSIC
-   Songs play in SoundCloud's own player (the official widget) in a
-   credentialless iframe, driven through its JS API. Search, charts and
-   artwork come from /api/music. Uses app.js helpers ($, $$, esc, toast,
-   store, put, click, typing, dcModal, openBrowser, onCloseDone).
+   Songs are found on SoundCloud and play in a plain <audio> element from
+   /api/music/stream/<id>: our server fetches the audio, so the browser never
+   talks to SoundCloud (it works where SoundCloud is blocked, in any browser,
+   in the background and with media keys). Search, charts and artwork come
+   from /api/music too. Uses app.js helpers ($, $$, esc, toast,
+   store, put, click, typing, dcModal, onCloseDone).
    The library (likes, playlists, recent, volume) lives in localStorage
    under "music", which settings sync carries between devices.
    ═══════════════════════════════════════════════════════════ */
@@ -16,7 +18,7 @@
 const W=$('#music-window'),BODY=$('#mu-body'),MINI=$('#music-mini');
 const LIB_DEFAULT={liked:[],playlists:[],recent:[],vol:80,shuffle:false,repeat:'off'};
 const MAX_LIKED=500,MAX_PLAYLISTS=50,MAX_PER_PLAYLIST=300,MAX_RECENT=16;
-const SUPPORTED='credentialless' in HTMLIFrameElement.prototype;
+const AUDIO=$('#mu-audio');
 
 let lib=loadLib();
 function loadLib(){const l=store('music',null);return {...LIB_DEFAULT,...(l&&typeof l==='object'&&!Array.isArray(l)?l:{})}}
@@ -51,7 +53,7 @@ let view='home',viewArg=null,genre=0,genres=[],charts={},results=[],lastQ='',sea
 let rows=[]; // the tracks shown right now, so a row click finds its track
 let queue=[],qi=-1,order=null; // order: shuffled queue indexes, or null
 let cur=null,playing=false,pos=0,dur=0,seeking=false,miniHidden=false,statusText='';
-let widget=null,iframe=null,widgetReady=false,apiP=null,watchdog=null,loadSeq=0,searchSeq=0;
+let loadSeq=0,searchSeq=0,failures=0,retried=false,warmed='';
 
 /* ═══ views ═══ */
 function setView(v,arg){
@@ -201,7 +203,7 @@ function step(dir){
   return seq[p];
 }
 function next(auto){
-  if(auto&&lib.repeat==='one'&&cur){seekTo(0);widget?.play();return}
+  if(auto&&lib.repeat==='one'&&cur){seekTo(0);AUDIO.play().catch(()=>{});return}
   const n=step(1);
   if(n<0){if(auto){playing=false;updateBar();refreshRows()}else toast("That's the end of the queue.");return}
   qi=n;startCurrent();
@@ -250,82 +252,49 @@ async function startCurrent(){
     }
   }
   addRecent(t);mediaMeta(t);
-  loadInWidget(t,seq);
+  load(t,seq);
 }
-function widgetSrc(url){
-  return 'https://w.soundcloud.com/player/?'+new URLSearchParams({url,auto_play:'true',visual:'true',hide_related:'true',
-    show_comments:'false',show_reposts:'false',show_teaser:'false',color:String(S.accent||'#ff5500').replace('#','')});
-}
-function loadApi(){
-  return apiP||=new Promise((ok,bad)=>{
-    if(window.SC?.Widget)return ok();
-    const s=document.createElement('script');s.src='/api/music/widget.js';
-    s.onload=()=>window.SC?.Widget?ok():bad(new Error('no widget'));
-    s.onerror=()=>{apiP=null;bad(new Error('widget script failed'))};
-    document.head.appendChild(s);
-  });
-}
-async function loadInWidget(t,seq){
-  hideFallback();
-  if(!SUPPORTED)return showFallback(t,'unsupported');
-  try{await loadApi()}catch(_){return showFallback(t,'blocked')}
-  if(seq!==loadSeq)return;
-  const url='https://api.soundcloud.com/tracks/'+t.id;
+const streamUrl=t=>'/api/music/stream/'+encodeURIComponent(t.id);
+function load(t,seq,at=0){
+  retried=at>0;
   setStatus('Loading…');
-  clearTimeout(watchdog);
-  // SoundCloud never answered: blocked on this network. It answered but won't start: autoplay was refused.
-  watchdog=setTimeout(()=>{if(seq!==loadSeq||playing)return;if(!widgetReady)showFallback(t,'blocked');else setStatus('Press play to start')},15000);
-  if(!iframe){
-    iframe=document.createElement('iframe');
-    iframe.setAttribute('credentialless','');
-    iframe.allow='autoplay; encrypted-media';
-    iframe.title='SoundCloud player';
-    iframe.src=widgetSrc(url);
-    $('#mu-player').prepend(iframe);
-    widget=SC.Widget(iframe);
-    bindWidget();
-  }else{
-    widget.load(url,{auto_play:true,visual:true,hide_related:true,show_comments:false,show_reposts:false,show_teaser:false,
-      callback:()=>{widgetReady=true;widget.setVolume(lib.vol)}});
-  }
+  AUDIO.src=streamUrl(t);
+  AUDIO.volume=lib.vol/100;
+  if(at)AUDIO.currentTime=at;
+  AUDIO.play().catch(e=>{if(seq===loadSeq&&e.name==='NotAllowedError')setStatus('Press play to start')}); // other failures arrive as 'error'
 }
-function bindWidget(){
-  const E=SC.Widget.Events;
-  widget.bind(E.READY,()=>{widgetReady=true;widget.setVolume(lib.vol)});
-  widget.bind(E.PLAY,()=>{
-    playing=true;clearTimeout(watchdog);hideFallback();setStatus('');
-    widget.getDuration(ms=>{if(ms>0){dur=ms/1000;updateProgress()}});
-    widget.setVolume(lib.vol);
-    updateBar();refreshRows();
-  });
-  widget.bind(E.PAUSE,()=>{playing=false;updateBar();refreshRows()});
-  widget.bind(E.FINISH,()=>{playing=false;next(true)});
-  widget.bind(E.PLAY_PROGRESS,e=>{pos=(e.currentPosition||0)/1000;if(!seeking)updateProgress()});
-  widget.bind(E.ERROR,()=>{
-    if(!cur)return;
-    toast("SoundCloud can't play that one here. Skipping.",'err');
-    const seq=loadSeq;setTimeout(()=>{if(seq===loadSeq)next(true)},900);
-  });
+/* the next SoundCloud song in the queue gets ready on the server while this one plays */
+function warmNext(){
+  const n=step(1),t=n>=0?queue[n]:null;
+  if(!t?.id||warmed===String(t.id))return;
+  warmed=String(t.id);
+  fetch(streamUrl(t)+'?warm=1').catch(()=>{});
 }
+AUDIO.addEventListener('playing',()=>{
+  playing=true;failures=0;setStatus('');updateBar();refreshRows();
+  setTimeout(warmNext,4000);
+});
+AUDIO.addEventListener('pause',()=>{playing=false;updateBar();refreshRows()});
+AUDIO.addEventListener('ended',()=>{playing=false;next(true)});
+AUDIO.addEventListener('waiting',()=>{if(cur)setStatus('Loading…')});
+AUDIO.addEventListener('timeupdate',()=>{pos=AUDIO.currentTime;if(!seeking)updateProgress()});
+AUDIO.addEventListener('durationchange',()=>{if(isFinite(AUDIO.duration)&&AUDIO.duration>0){dur=AUDIO.duration;updateProgress()}});
+AUDIO.addEventListener('error',()=>{
+  if(!cur||!AUDIO.getAttribute('src'))return;
+  const seq=loadSeq;playing=false;updateBar();refreshRows();
+  // the connection dropped partway: pick up where it stopped, once
+  if(AUDIO.error?.code===MediaError.MEDIA_ERR_NETWORK&&pos>1&&!retried){load(cur,seq,pos);return}
+  if(++failures>=3){failures=0;setStatus('');toast("Music isn't loading right now. Try again in a bit.",'err');return}
+  toast("Couldn't play that one. Skipping.",'err');
+  setTimeout(()=>{if(seq===loadSeq)next(true)},900);
+});
 function togglePlay(){
   if(!cur){const list=rows.length?rows:lib.liked;if(list.length)playFrom(list,0);else toast('Pick a song first');return}
-  if(widget&&widgetReady)widget.toggle();
+  if(!AUDIO.getAttribute('src')||AUDIO.error){startCurrent();return}
+  if(AUDIO.paused)AUDIO.play().catch(()=>{});else AUDIO.pause();
 }
-function seekTo(sec){pos=sec;if(widget&&widgetReady)widget.seekTo(Math.max(0,sec)*1000);updateProgress()}
+function seekTo(sec){pos=Math.max(0,sec);if(AUDIO.getAttribute('src')&&!AUDIO.error)AUDIO.currentTime=pos;updateProgress()}
 function setStatus(text){statusText=text||'';$('#mu-artist').textContent=statusText||(cur?(cur.artist||cur.uploader||''):'Pick a song to start')}
-
-/* blocked or unsupported: the proxy browser can still play SoundCloud */
-function showFallback(t,why){
-  clearTimeout(watchdog);playing=false;updateBar();setStatus('');
-  const box=$('#mu-fallback');
-  box.innerHTML=`<b>${why==='unsupported'?"This browser can't play SoundCloud inside the page.":"SoundCloud didn't load. It may be blocked on this network."}</b>
-    <p>${why==='unsupported'?'Chrome and Edge can. You can still play it in the browser app.':'The browser app goes through the proxy, so it usually still works there.'}</p>
-    <div class="acts"><button class="btn sm primary" data-fb="proxy">Play in the browser app</button>${t.url?`<a class="btn sm" href="${esc(t.url)}" target="_blank" rel="noopener">Open on SoundCloud</a>`:''}</div>`;
-  box.classList.add('show');
-  toast(why==='unsupported'?"SoundCloud can't play inside the page in this browser.":"SoundCloud didn't load. It may be blocked here.",'err');
-  if(W.classList.contains('show'))setView('now');
-}
-function hideFallback(){$('#mu-fallback').classList.remove('show')}
 
 /* the OS media controls (keyboard media keys, lock screen, Chromebook shelf) */
 function mediaMeta(t){
@@ -335,7 +304,7 @@ function mediaMeta(t){
 }
 if('mediaSession' in navigator){
   const h=(a,f)=>{try{navigator.mediaSession.setActionHandler(a,f)}catch(_){}};
-  h('play',()=>widget?.play());h('pause',()=>widget?.pause());
+  h('play',()=>togglePlay());h('pause',()=>AUDIO.pause());
   h('nexttrack',()=>next());h('previoustrack',()=>prev());
   h('seekto',d=>seekTo(d.seekTime||0));
 }
@@ -455,10 +424,6 @@ BODY.addEventListener('click',e=>{
   playFrom(rows,+row.dataset.i);
 });
 BODY.addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&e.target.classList.contains('mu-row')){e.preventDefault();e.target.click()}});
-$('#mu-player').addEventListener('click',e=>{
-  if(!e.target.closest('[data-fb="proxy"]')||!cur?.url)return;
-  click();hide();openBrowser(cur.url);
-});
 $$('.mu-nav button').forEach(b=>b.onclick=()=>{click();setView(b.dataset.view);if(b.dataset.view==='search')setTimeout(()=>$('#mu-q').focus(),50)});
 $('#mu-pls').addEventListener('click',e=>{const b=e.target.closest('[data-pl]');if(b){click();setView('playlist',b.dataset.pl)}});
 $('#mu-new-pl').onclick=()=>{click();newPlaylist()};
@@ -486,7 +451,7 @@ seek.addEventListener('input',()=>{seeking=true;const d=dur||cur?.duration||0;$(
 seek.addEventListener('change',()=>{const d=dur||cur?.duration||0;seeking=false;if(cur&&d)seekTo(seek.value/1000*d)});
 const vol=$('#mu-vol');
 vol.value=lib.vol;vol.style.setProperty('--p',lib.vol+'%');
-vol.addEventListener('input',()=>{lib.vol=+vol.value;vol.style.setProperty('--p',lib.vol+'%');if(widget&&widgetReady)widget.setVolume(lib.vol)});
+vol.addEventListener('input',()=>{lib.vol=+vol.value;vol.style.setProperty('--p',lib.vol+'%');AUDIO.volume=lib.vol/100});
 vol.addEventListener('change',saveLib);
 $('#mm-play').onclick=()=>{click();togglePlay()};
 $('#mm-prev').onclick=()=>{click();prev()};
@@ -533,6 +498,9 @@ OTHERS.forEach(el=>appWatch.observe(el,{attributes:true,attributeFilter:['class'
 
 window.music={
   open,hide,toggle,search,
+  play:(tracks,i=0)=>playFrom(tracks,i),
+  /* for the tests: what's playing and where */
+  stats:()=>({title:cur?.title||'',id:cur?.id||null,playing,pos:AUDIO.currentTime,dur:AUDIO.duration,src:AUDIO.currentSrc,paused:AUDIO.paused,volume:AUDIO.volume}),
   reload(){lib=loadLib();vol.value=lib.vol;vol.style.setProperty('--p',lib.vol+'%');renderPls();if(opened)render();updateBar()}
 };
 renderPls();updateBar();

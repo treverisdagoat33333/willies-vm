@@ -36,6 +36,7 @@ try{const ws=new WebSocket("ws://"+location.host+"/ws");ws.onopen=()=>ws.send("p
   if (u.pathname.startsWith("/bench/")) return bench(u, res);
   if (u.pathname.startsWith("/t/c/")) return chunk(u, res);
   if (u.pathname.startsWith("/v1/")) return aiMock(req, res, u);
+  if (u.pathname.startsWith("/sc/") || u.pathname.startsWith("/sc-") || u.pathname.startsWith("/dz/")) return musicMock(req, res, u);
   switch (u.pathname) {
     case "/t/iframe": return page("iframe", `<iframe id="f" src="/t/child"></iframe><iframe id="b"></iframe><script>
       const b=document.getElementById("b");b.contentDocument.open();b.contentDocument.write("<p id=w>written</p>");b.contentDocument.close();
@@ -100,6 +101,69 @@ try{const ws=new WebSocket("ws://"+location.host+"/ws");ws.onopen=()=>ws.send("p
    "Hello **there**" plus a code block and what you said; "fail" in your message
    gets a 500, "slow" streams slowly. /v1/_last shows the last request it got. */
 let aiLast = null;
+/* ---- a pretend SoundCloud (/sc/ API, /sc-cdn/ audio) and Deezer (/dz/) for the music tests ---- */
+// 10 s of silent MP3 (MPEG-1 layer III, 128 kb/s, 44.1 kHz): 383 frames of 417 bytes
+const MP3_FRAME = Buffer.alloc(417);
+MP3_FRAME.set([0xff, 0xfb, 0x90, 0x64]);
+const MP3 = Buffer.concat(Array.from({ length: 383 }, () => MP3_FRAME));
+const PIECES = [0, 96, 192, 288, 383].map((f) => f * 417); // the HLS version: 4 pieces on frame boundaries
+const mediaCalls = {};
+function musicMock(req, res, u) {
+  const origin = `http://${req.headers.host}`;
+  const json = (code, obj) => { res.writeHead(code, { "content-type": "application/json" }); res.end(JSON.stringify(obj)); };
+  const tc = (id, protocol, mime, extra = {}) => {
+    const preset = mime.includes("mp4") ? "aac_160k" : "mp3_1_0";
+    return { url: `${origin}/sc/media/${id}/${protocol}/${preset}`, preset, format: { protocol, mime_type: mime }, quality: "sq", snipped: false, ...extra };
+  };
+  const track = (id, title, transcodings, extra = {}) => ({ kind: "track", id, title, duration: 10000, full_duration: 10000, policy: "ALLOW", streamable: true, permalink_url: `https://soundcloud.com/test/${id}`, user: { username: "Test Artist" }, playback_count: 1000, track_authorization: `auth-${id}`, media: { transcodings }, ...extra });
+  const TRACKS = {
+    101: track(101, "Test Song", [tc(101, "hls", "audio/mpeg"), tc(101, "progressive", "audio/mpeg")]),
+    102: track(102, "Test Song Pieces", [tc(102, "hls", "audio/mp4; codecs=\"mp4a.40.2\""), tc(102, "hls", "audio/mpeg")]),
+    103: track(103, "Test Song Label Version", [tc(103, "ctr-encrypted-hls", "audio/mp4; codecs=\"mp4a.40.2\""), tc(103, "hls", "audio/mpeg")], { policy: "MONETIZE" }),
+    104: track(104, "Test Song Preview", [tc(104, "progressive", "audio/mpeg", { snipped: true })], { policy: "SNIP" }),
+    105: track(105, "Test Song Stale", [tc(105, "progressive", "audio/mpeg")]),
+  };
+  if (u.pathname === "/sc-test/stats") return json(200, { mediaCalls, size: MP3.length });
+  if (u.pathname.startsWith("/dz/chart/")) return json(200, { data: [{ id: 1, title: "Test Song", title_short: "Test Song", artist: { name: "Test Artist" }, album: { cover_medium: "" }, duration: 10 }] });
+  if (u.pathname.startsWith("/sc/")) {
+    if (u.searchParams.get("client_id") !== "test-client-id") return json(401, {});
+    if (u.pathname === "/sc/search/tracks") return json(200, { collection: /test/i.test(u.searchParams.get("q") || "") ? Object.values(TRACKS) : [] });
+    let m = /^\/sc\/tracks\/(\d+)$/.exec(u.pathname);
+    if (m) return TRACKS[m[1]] ? json(200, TRACKS[m[1]]) : json(404, {});
+    m = /^\/sc\/media\/(\d+)\/([\w-]+)\/(\w+)$/.exec(u.pathname);
+    if (!m || !TRACKS[m[1]]) return json(404, {});
+    const [, id, protocol, preset] = m;
+    if (u.searchParams.get("track_authorization") !== `auth-${id}`) return json(404, {});
+    const key = `${id}:${protocol}:${preset}`; // which of a track's streams the server asked for
+    mediaCalls[key] = (mediaCalls[key] || 0) + 1;
+    if (id === "103") return json(404, {}); // like a label upload: its plain MP3 doesn't answer
+    if (preset === "aac_160k") return json(404, {}); // (the MP3 should be picked first anyway)
+    const exp = id === "105" && mediaCalls[key] === 1 ? 1 : Date.now() + 3_600_000; // 105's first link has already run out
+    return json(200, { url: `${origin}/sc-cdn/${id}.${protocol === "progressive" ? "mp3" : "m3u8"}?exp=${exp}` });
+  }
+  // the CDN: links carry an expiry, like SoundCloud's signed ones
+  if (+u.searchParams.get("exp") < Date.now()) { res.writeHead(403); return res.end("expired"); }
+  let m = /^\/sc-cdn\/(\d+)\.m3u8$/.exec(u.pathname);
+  if (m) {
+    const exp = u.searchParams.get("exp");
+    res.writeHead(200, { "content-type": "application/vnd.apple.mpegurl" });
+    // the first piece's link is absolute, the rest relative
+    return res.end(["#EXTM3U", "#EXT-X-VERSION:6", "#EXT-X-PLAYLIST-TYPE:VOD", "#EXT-X-TARGETDURATION:3",
+      ...PIECES.slice(1).flatMap((_, i) => ["#EXTINF:2.5,", `${i ? "" : origin + "/sc-cdn/"}${m[1]}-p${i}.mp3?exp=${exp}`]), "#EXT-X-ENDLIST"].join("\n"));
+  }
+  m = /^\/sc-cdn\/(\d+)-p(\d)\.mp3$/.exec(u.pathname);
+  if (m) { res.writeHead(200, { "content-type": "audio/mpeg" }); return res.end(MP3.subarray(PIECES[+m[2]], PIECES[+m[2] + 1])); }
+  if (/^\/sc-cdn\/\d+\.mp3$/.test(u.pathname)) {
+    const r = /^bytes=(\d*)-(\d*)$/.exec(req.headers.range || "");
+    if (!r) { res.writeHead(200, { "content-type": "audio/mpeg", "content-length": MP3.length, "accept-ranges": "bytes" }); return res.end(MP3); }
+    const start = r[1] ? +r[1] : MP3.length - +r[2], end = r[1] && r[2] ? Math.min(+r[2], MP3.length - 1) : MP3.length - 1;
+    if (start >= MP3.length) { res.writeHead(416, { "content-range": `bytes */${MP3.length}` }); return res.end(); }
+    res.writeHead(206, { "content-type": "audio/mpeg", "content-length": end - start + 1, "content-range": `bytes ${start}-${end}/${MP3.length}`, "accept-ranges": "bytes" });
+    return res.end(MP3.subarray(start, end + 1));
+  }
+  res.writeHead(404); res.end();
+}
+
 function aiMock(req, res, u) {
   const json = (status, o) => { res.writeHead(status, { "content-type": "application/json" }); res.end(JSON.stringify(o)); };
   if (u.pathname === "/v1/_last") return json(200, aiLast);

@@ -119,6 +119,9 @@ db.exec(`
 `);
 export const FILES_DIR = path.join(DATA_DIR, "files");
 fs.mkdirSync(FILES_DIR, { recursive: true });
+/* songs stitched together from HLS pieces (music.js), a cache */
+export const MUSIC_DIR = path.join(DATA_DIR, "music");
+fs.mkdirSync(MUSIC_DIR, { recursive: true });
 // bumped to invalidate every token issued before (password change, sign out everywhere)
 addColumn("users", "token_version", "INTEGER NOT NULL DEFAULT 0");
 

@@ -342,9 +342,18 @@ No framework and no modules.
   - `js/remote-extra.js` → `window.rmx`
   - `app.js` calls into them through optional chaining (for example `window.calls?.onMessage(d)`).
 - **Music:**
-  - Plays in SoundCloud's official widget, in a `credentialless` iframe (the page's COEP would block it otherwise).
-  - `/api/music` covers search, the Deezer charts, `resolve` (chart song → full SoundCloud upload), `art` (host-locked image proxy) and `widget.js`.
+  - Songs are found on SoundCloud and play in a plain `<audio id="mu-audio">` from `/api/music/stream/<track id>`. The server fetches the audio, so the browser never talks to SoundCloud: it works where SoundCloud is blocked, in any browser, in the background and with media keys.
+  - Stream picking (`streamsOf` in `music.js`), best first:
+    1. The track's progressive MP3, passed through with Range requests so seeking works.
+    2. MP3 in HLS pieces.
+    3. AAC in HLS pieces.
+  - HLS-only songs are fetched whole, stitched into one file in `DATA_DIR/music` (`MUSIC_DIR`, 300 MB, played-longest-ago cleared first) and served with `sendFile` without ETag/Last-Modified.
+  - Signed links that run out (401/403/404/410) are asked for again, once.
+  - Tracks with any encrypted (DRM) stream are label uploads nobody can stream, so `playable` leaves them out of search and chart matching picks fan uploads.
+  - `?warm=1` gets the next queued song ready. The stream route has its own limit (400 a minute per network), apart from search (90).
+  - `/api/music` also covers search, the Deezer charts, `resolve` (chart song → full SoundCloud upload) and `art` (host-locked image proxy).
   - The library is localStorage `music`.
+  - `SOUNDCLOUD_API` and `DEEZER_API` exist only for the tests (`test/site.mjs` has a pretend SoundCloud under `/sc/` and `/sc-cdn/`, and Deezer under `/dz/`). The test MP3 is hand-made silent frames, because Playwright's Chromium can't decode AAC.
 - **AI** (taskbar, desktop, launcher, Alt+A): a chat window over `/api/ai` (`ai.js`).
   - The API key stays on the server (`AI_API_KEY`, never in the repo or the browser). `/api/ai/status` lists the API's models and picks a default (`AI_MODEL`, else a general chat model from the list). `/api/ai/chat` adds our system message, caps history (40 messages, 32k characters) and replies (2048 tokens), and streams the reply to the page as JSON lines (`{t:'text'}`, `{t:'done'}`, `{t:'error'}`).
   - Needs a session. Limited to 40 messages per person and 240 per network every 10 minutes.
