@@ -29,7 +29,7 @@ node willies-agent.mjs --url ws://localhost:3000 --key $REMOTE_KEY --name "My PC
 ## Architecture
 
 ### One HTTP server, three WebSocket endpoints
-Other server modules: `music.js` (the `/api/music` router), `ai.js` (the `/api/ai` router), `files.js` (the `/api/chat/files` router), `security.js` (rate limiters, `clientIp`, `safeEqual`).
+Other server modules: `music.js` (the `/api/music` router), `movies.js` (the `/api/movies` router), `ai.js` (the `/api/ai` router), `files.js` (the `/api/chat/files` router), `security.js` (rate limiters, `clientIp`, `safeEqual`).
 
 `server.js` owns the Express app and a single `http.Server`. Its `upgrade` handler dispatches by path:
 - `/wisp/`: the Wisp transport every proxy engine uses.
@@ -255,6 +255,10 @@ No framework and no modules.
   - `/api/music` also covers search, the Deezer charts, `resolve` (chart song → full SoundCloud upload) and `art` (host-locked image proxy).
   - The library is localStorage `music`.
   - `SOUNDCLOUD_API` and `DEEZER_API` exist only for the tests (`test/site.mjs` has a pretend SoundCloud under `/sc/` and `/sc-cdn/`, and Deezer under `/dz/`). The test MP3 is hand-made silent frames, because Playwright's Chromium can't decode AAC.
+- **Movies** (`public/js/movies.js` → `window.movies`, full-screen `#movies-wrap`, `css/movies.css`; server side `movies.js`, mounted at `/api/movies`):
+  - Listings come from Cinemeta, Stremio's public catalogue, which needs no key and hands back IMDB ids: popular movies, popular shows, anime (Cinemeta's series Animation chart), search and a show's episode list, all proxied and cached on our server. Posters go through `/api/movies/art` (host-locked to `metahub.space` and `media-amazon.com`) because of COEP. `CINEMETA_API` exists only for tests.
+  - The video is vidsrc.ir, embedded straight by IMDB id (`/embed/movie/<id>`, `/embed/tv/<id>/<season>/<episode>`) in a `credentialless` frame — same COEP trick as the CloudMoon portal, with the same new-tab fallback for browsers without it. None of the video touches our server.
+  - "Continue watching" is localStorage `movies.recent` (12 titles, this device only); reopening a show resumes on its last episode. The cards reuse the cloud-gaming grid classes (`.cg-*`), with 2:3 posters. `#movies-wrap [hidden]` is forced to `display:none` because the app's own display rules would beat the attribute.
 - **AI** (taskbar, desktop, launcher, Alt+A): a chat window over `/api/ai` (`ai.js`).
   - The API key stays on the server (`AI_API_KEY`, never in the repo or the browser). `/api/ai/status` lists the API's models and picks a default (`AI_MODEL`, else a general chat model from the list). `/api/ai/chat` adds our system message, caps history (40 messages, 32k characters) and replies (2048 tokens), and streams the reply to the page as JSON lines (`{t:'text'}`, `{t:'done'}`, `{t:'error'}`).
   - Needs a session. Limited to 40 messages per person and 240 per network every 10 minutes.

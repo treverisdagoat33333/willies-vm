@@ -63,6 +63,7 @@ import {
 import { clientIp, createLimiter, limitByIp, formatWait } from "./security.js";
 import { musicRouter } from "./music.js";
 import { aiRouter } from "./ai.js";
+import { moviesRouter } from "./movies.js";
 import { filesRouter } from "./files.js";
 import { hasBadWords } from "./profanity.js";
 import { fastnetHandler } from "./fastnet.js";
@@ -821,6 +822,20 @@ app.use(
     requireSession,
     limiter: limitByIp(musicLimiter, "Too many music requests from your network."),
     streamLimiter: limitByIp(musicStreamLimiter, "Too many songs from your network at once. Try again in a minute."),
+  })
+);
+
+/*
+|--------------------------------------------------------------------------
+| Movies & TV (see movies.js)
+|--------------------------------------------------------------------------
+*/
+const moviesLimiter = createLimiter({ windowMs: 60_000, max: 120 });
+app.use(
+  "/api/movies",
+  moviesRouter({
+    requireSession,
+    limiter: limitByIp(moviesLimiter, "Too many movie requests from your network."),
   })
 );
 
