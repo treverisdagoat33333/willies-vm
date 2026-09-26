@@ -68,7 +68,9 @@ function renderChats(){
   $$('.ai-chat',box).forEach((el,i)=>{el.querySelector('span').textContent=chats[i].title||'New chat'});
 }
 const ACTION_RE=/\[\[action\s+(\{[\s\S]*?\})\s*\]\]/g;
-const visibleText=t=>String(t||'').replace(ACTION_RE,'').replace(/\[\[a(c(t(i(o(n[^\]]*)?)?)?)?)?$/,'').replace(/\n{3,}/g,'\n\n').trim();
+// reasoning models stream their thinking in <think>…</think> first: never shown, never acted on
+const answerOf=t=>String(t||'').replace(/<think>[\s\S]*?(<\/think>|$)/g,'').replace(/^\s*<\/think>/,'');
+const visibleText=t=>answerOf(t).replace(ACTION_RE,'').replace(/\[\[a(c(t(i(o(n[^\]]*)?)?)?)?)?$/,'').replace(/\n{3,}/g,'\n\n').trim();
 function bubble(m){
   const d=document.createElement('div');d.className='ai-msg '+(m.role==='user'?'me':'bot');
   if(m.role==='user')d.textContent=m.content;
@@ -161,7 +163,8 @@ async function ask(canAct){
         else if(m.t==='error')throw new Error(m.error);
       }
     }
-    if(!reply.content)reply.error='The AI sent back an empty answer.';
+    // only thinking, or nothing at all, is an empty answer; actions alone are fine
+    if(!answerOf(reply.content).trim())reply.error='The AI sent back an empty answer.';
     else if(canAct)more=await runActions(reply);
   }catch(e){
     if(!ctl.signal.aborted)reply.error=String(e?.message||e);
@@ -214,7 +217,7 @@ const ACTIONS={
   },
 };
 async function runActions(reply){
-  const list=[...reply.content.matchAll(ACTION_RE)].slice(0,5);
+  const list=[...answerOf(reply.content).matchAll(ACTION_RE)].slice(0,5);
   if(!list.length)return null;
   reply.acts=[];let more=null;
   for(const [,json] of list){

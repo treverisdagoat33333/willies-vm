@@ -115,6 +115,11 @@ ok(/Summary of 2 messages/.test(lb.text) && /alice: movie night friday\?/.test(s
 ok(await page.evaluate(() => S.wallpaper === "live-synth") && lb.chips.length === 0, "…and that answer can't act (someone's chat message can't steer your AI)", JSON.stringify(lb.chips));
 ok(await page.$$eval("#ai-log .ai-msg.me", (m) => m.every((x) => !/From the site/.test(x.textContent))), "…and the chat log isn't shown as something you said");
 
+// a reasoning model's thinking isn't shown, and an action inside it isn't carried out
+await ask("think it over", () => /Thought about it/.test(document.querySelector("#ai-log .ai-msg.bot:last-child")?.textContent || ""));
+lb = await lastBot();
+ok(lb.text.trim() === "Thought about it." && !lb.chips.length && await page.evaluate(() => S.wallpaper) === "live-synth", "a model's <think> part is hidden, and nothing in it acts", JSON.stringify(lb));
+
 // the per-person limit
 const statuses = await page.evaluate(async () => {
   const out = [];

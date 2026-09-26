@@ -202,6 +202,7 @@ function aiMock(req, res, u) {
       [/play the test song/, ["On it.", act({ do: "music.play", query: "test song" })]],
       [/go synth/, ["Done!", act({ do: "theme.preset", id: "synth" }), act({ do: "todo.add", text: "water plants" }), act({ do: "nope.x" })]],
       [/catch me up/, ["Reading the chat.", act({ do: "chat.read" })]],
+      [/think it over/, ["<think>They might like ", `ember${act({ do: "theme.preset", id: "ember" })}`, "\n</think>", "Thought about it."]],
       [/^\(From the site/, [`Summary of ${said.split("\n").length - 1} messages.`, act({ do: "theme.preset", id: "ember" })]],
     ];
     const hit = ACTS.find(([re]) => re.test(said));
