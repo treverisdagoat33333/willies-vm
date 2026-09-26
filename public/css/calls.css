@@ -1,0 +1,175 @@
+/*!
+ * william's vm
+ * Copyright (c) 2026 William (github.com/treverisdagoat33333)
+ * All rights reserved. Proprietary and confidential. See LICENSE.
+ */
+/* ═══════════════════════════════════════════════════════════
+   VOICE CALLS, Discord style (the logic is in js/calls.js)
+   data-state: off | incoming | outgoing | active
+   data-mode:  card (ringing, top centre) | dock (over #dc-callslot at the
+               top of the chat) | pip (small, draggable, over everything)
+   classes: has-cam / has-screen (theirs), self-cam / self-screen (yours),
+            relay, big, deaf, muted; tiles get .speaking and .focus
+   ═══════════════════════════════════════════════════════════ */
+#call{--cl-bg:#111214;--cl-tile:#232428;--cl-btn:#2b2d31;--cl-btn-h:#3a3c42;--cl-ok:#23a55a;--cl-bad:#da373c;
+  position:fixed;z-index:9600;display:none;flex-direction:column;color:#f2f3f5;font-size:15px}
+#call:not([data-state="off"]){display:flex}
+
+/* ── buttons (also used by the voice-channel bar, #vc) ── */
+.cl-b{display:none;place-items:center;width:44px;height:44px;border-radius:50%;background:var(--glass-3);color:var(--text);border:0;cursor:pointer;transition:background .15s,transform .12s}
+.cl-b:hover{background:rgba(255,255,255,.16)}
+.cl-b:active{transform:scale(.92)}
+.cl-b .i{width:20px;height:20px}
+.cl-b.ok{background:#22c55e;color:#fff}.cl-b.ok:hover{background:#16a34a}
+.cl-b.bad{background:#ef4444;color:#fff}.cl-b.bad:hover{background:#dc2626}
+.cl-b.bad .i{rotate:135deg}
+.cl-b.on{background:var(--text);color:var(--bg0)}
+.cl-b .x{display:none}.cl-b.on .x{display:inline}
+#cl-mute .x{display:none}#cl-mute.on .x{display:inline}
+
+#call .cl-btns{display:flex;align-items:center;justify-content:center;gap:10px;padding:12px}
+#call .cl-b{background:var(--cl-btn);color:#dbdee1;width:48px;height:48px}
+#call .cl-b:hover{background:var(--cl-btn-h);color:#fff}
+#call .cl-b.on{background:#fff;color:#111}
+/* muted and deafened are red, like Discord */
+#call #cl-mute.on,#call #cl-deaf.on{background:rgba(218,55,60,.18);color:#f23f43}
+#call .cl-b.ok{background:var(--cl-ok);color:#fff}
+#call .cl-b.bad{background:var(--cl-bad);color:#fff;width:58px;border-radius:24px}
+#call .cl-b.bad:hover{background:#a12828}
+.cl-split{display:none;align-items:center}
+#call .cl-split .cl-b{border-radius:24px 0 0 24px;width:48px}
+#call .cl-split .cl-caret{width:26px;border-radius:0 24px 24px 0;margin-left:1px}
+#call .cl-caret .i{width:15px;height:15px}
+#call[data-state="incoming"] #cl-accept,#call[data-state="incoming"] #cl-decline,
+#call[data-state="outgoing"] #cl-end,#call[data-state="outgoing"] #cl-mute,#call[data-state="outgoing"] #cl-deaf,
+#call[data-state="active"] #cl-mute,#call[data-state="active"] #cl-deaf,#call[data-state="active"] #cl-end,
+#call[data-state="active"] #cl-cam:not([hidden]){display:grid}
+#call[data-state="active"] .cl-split:not([hidden]){display:inline-flex}
+#call[data-state="active"] .cl-split #cl-share{display:grid}
+#call[data-state="active"] .cl-split #cl-share-q{display:grid}
+
+/* ── the header: who, and the timer ── */
+.cl-head{display:flex;align-items:center;gap:10px;min-width:0;padding:10px 12px}
+.cl-av{width:34px;height:34px;border-radius:50%;flex:0 0 auto;display:grid;place-items:center;font-weight:800;font-size:.9rem;color:#fff;text-transform:uppercase;background:#5865f2}
+.cl-t{flex:1;min-width:0}
+.cl-t b{display:block;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cl-t small{display:block;margin-top:1px;font-size:.8em;color:#b5bac1;font-variant-numeric:tabular-nums}
+.cl-ib{display:grid;place-items:center;width:32px;height:32px;border-radius:8px;border:0;background:transparent;color:#b5bac1;cursor:pointer;flex:0 0 auto}
+.cl-ib:hover{background:rgba(255,255,255,.08);color:#fff}
+.cl-ib .i{width:17px;height:17px}
+
+/* ── ringing: a card at the top, with a big pulsing avatar ── */
+#call[data-mode="card"]{top:18px;left:50%;translate:-50% 0;width:min(320px,calc(100vw - 32px));border-radius:16px;background:var(--cl-bg);
+  box-shadow:0 18px 50px rgba(0,0,0,.55),0 0 0 1px rgba(255,255,255,.06);animation:rise .35s var(--spring)}
+#call[data-mode="card"] .cl-head{flex-direction:column;text-align:center;padding:26px 18px 6px;gap:12px}
+#call[data-mode="card"] .cl-av{width:84px;height:84px;font-size:1.9rem}
+#call[data-mode="card"] .cl-t b{font-size:1.2em}
+#call[data-mode="card"] .cl-ib,#call[data-mode="card"] .cl-tiles{display:none}
+#call[data-mode="card"] .cl-btns{padding:10px 18px 22px;gap:28px}
+#call[data-mode="card"] .cl-b{width:56px;height:56px;border-radius:50%}
+#call[data-state="incoming"] .cl-av,#call[data-state="outgoing"] .cl-tav{animation:clPulse 1.6s ease-out infinite}
+@keyframes clPulse{0%{box-shadow:0 0 0 0 rgba(35,165,90,.6)}100%{box-shadow:0 0 0 18px rgba(35,165,90,0)}}
+
+/* ── docked over the chat: the stage ── */
+.dc-callslot{display:none;flex:0 0 auto}
+html.call-docked .dc-callslot{display:block;height:var(--cl-slot,320px)}
+#call[data-mode="dock"]{background:var(--cl-bg);border-bottom:1px solid rgba(255,255,255,.06);animation:none}
+#call[data-mode="dock"] .cl-head .cl-av{display:none}
+#call[data-mode="dock"] .cl-head{position:absolute;top:0;left:0;right:0;z-index:3;background:linear-gradient(rgba(0,0,0,.55),transparent);opacity:0;transition:opacity .2s}
+#call[data-mode="dock"]:hover .cl-head,#call[data-mode="dock"][data-state="outgoing"] .cl-head{opacity:1}
+#call[data-mode="dock"] .cl-btns{position:absolute;left:0;right:0;bottom:0;z-index:3;padding:14px;background:linear-gradient(transparent,rgba(0,0,0,.6));opacity:0;transition:opacity .2s}
+#call[data-mode="dock"]:hover .cl-btns,#call[data-mode="dock"]:focus-within .cl-btns,#call[data-mode="dock"]:not(.has-video):not(.self-cam):not(.self-screen) .cl-btns{opacity:1}
+#call[data-mode="dock"] .cl-tiles{flex:1;min-height:0;padding:44px 16px 78px}
+
+/* ── picture in picture: small and draggable ── */
+#call[data-mode="pip"]{left:16px;bottom:calc(var(--tb-h) + 12px);width:min(340px,calc(100vw - 32px));border-radius:12px;background:var(--cl-bg);
+  box-shadow:0 14px 40px rgba(0,0,0,.55),0 0 0 1px rgba(255,255,255,.07)}
+html[data-tbside="top"] #call[data-mode="pip"],html[data-tbhide="on"] #call[data-mode="pip"]{bottom:16px}
+#call[data-mode="pip"] .cl-head{cursor:grab;padding:8px 10px}
+#call[data-mode="pip"].dragging .cl-head{cursor:grabbing}
+#call[data-mode="pip"] .cl-head .cl-av{width:26px;height:26px;font-size:.72rem}
+#call[data-mode="pip"] #cl-size{display:none}
+#call[data-mode="pip"] .cl-tiles{padding:0 8px;cursor:pointer}
+#call[data-mode="pip"] .cl-btns{gap:8px;padding:10px}
+#call[data-mode="pip"] .cl-b{width:38px;height:38px}
+#call[data-mode="pip"] .cl-b.bad{width:48px}
+#call[data-mode="pip"] .cl-split .cl-b{width:38px}
+#call[data-mode="pip"] .cl-split .cl-caret{width:22px}
+#call[data-mode="pip"] .cl-b .i{width:17px;height:17px}
+
+/* ── tiles ── */
+.cl-tiles{display:flex;flex-wrap:wrap;align-content:center;justify-content:center;gap:10px;min-height:0}
+.cl-tile{position:relative;display:none;align-items:center;justify-content:center;flex:1 1 280px;max-width:min(560px,100%);aspect-ratio:16/9;
+  border-radius:10px;background:var(--cl-tile);overflow:hidden;cursor:pointer;outline:3px solid transparent;outline-offset:-3px;transition:outline-color .12s}
+#call:not([data-state="off"]) #cl-t-them,#call:not([data-state="off"]) #cl-t-me{display:flex}
+#call.has-screen #cl-t-screen,#call.self-screen #cl-t-myscreen{display:flex}
+.cl-tile.speaking{outline-color:var(--cl-ok)}
+.cl-tile video,.cl-tile canvas{position:absolute;inset:0;width:100%;height:100%;display:none;background:#000}
+.cl-tile.screen video,.cl-tile.screen canvas{object-fit:contain}
+#cl-remote-cam,#cl-self,#cl-remote-cam-canvas{object-fit:cover}
+.cl-tav{width:84px;height:84px;border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:2rem;color:#fff;text-transform:uppercase;background:#5865f2;
+  box-shadow:0 0 0 0 transparent;transition:box-shadow .12s}
+.cl-tile.speaking .cl-tav{box-shadow:0 0 0 3px var(--cl-bg),0 0 0 6px var(--cl-ok)}
+#call[data-state="outgoing"] #cl-t-them .cl-tav{opacity:.55}
+.cl-tag{position:absolute;left:8px;bottom:8px;z-index:2;display:flex;align-items:center;gap:5px;max-width:calc(100% - 16px);padding:3px 8px;border-radius:6px;
+  background:rgba(0,0,0,.6);font-size:.78em;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cl-tag b{font-weight:600;overflow:hidden;text-overflow:ellipsis}
+.cl-st{display:none;width:14px;height:14px;color:#f23f43;flex:0 0 auto}
+.cl-st svg{width:100%;height:100%;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+.cl-tile.muted .cl-st.mic,.cl-tile.deaf .cl-st.deaf{display:block}
+.cl-tile.deaf .cl-st.mic{display:none}
+.cl-live{position:absolute;top:8px;left:8px;z-index:2;padding:2px 7px;border-radius:5px;background:#ed4245;color:#fff;font-size:.66rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase}
+/* who shows what: cameras cover their tile; direct calls use the <video>, the relay a <canvas> */
+#call.has-cam:not(.relay) #cl-remote-cam,#call.relay.has-cam #cl-remote-cam-canvas,
+#call.has-screen:not(.relay) #cl-remote-video,#call.relay.has-screen #cl-remote-canvas,
+#call.self-cam #cl-self,#call.self-screen #cl-self-screen{display:block}
+#call.has-cam #cl-them-av,#call.self-cam #cl-me-av{display:none}
+#cl-self.mirror{transform:scaleX(-1)}
+
+/* one tile in focus: big on top, the rest in a strip under it */
+.cl-tiles.focused{display:grid;grid-template-columns:repeat(auto-fit,minmax(0,150px));grid-template-rows:minmax(0,1fr) auto;justify-content:center;align-content:stretch}
+.cl-tiles.focused .cl-tile{max-width:none;width:150px}
+.cl-tiles.focused .cl-tile.focus{grid-column:1/-1;grid-row:1;width:100%;height:100%;aspect-ratio:auto;justify-self:center;min-height:0}
+.cl-tiles.focused .cl-tile:not(.focus) .cl-tav{width:44px;height:44px;font-size:1.1rem}
+.cl-tiles.focused .cl-tile:not(.focus) .cl-tag{font-size:.7em;padding:2px 6px}
+
+/* the big view fills the whole chat column */
+#call.big[data-mode="dock"] .cl-tiles{padding-top:48px}
+
+/* fullscreen, of the stage or one tile */
+#call:fullscreen,.cl-tile:fullscreen{background:#000}
+.cl-tile:fullscreen{border-radius:0;outline:0}
+
+/* ── the stream quality menu ── */
+.cl-menu{position:fixed;z-index:5;width:260px;padding:8px;border-radius:10px;background:#111214;
+  box-shadow:0 12px 32px rgba(0,0,0,.6),0 0 0 1px rgba(255,255,255,.07);display:flex;flex-direction:column;gap:2px}
+.cl-menu[hidden]{display:none}
+.cl-menu small{padding:4px 8px 6px;color:#b5bac1;font-size:.72em;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+.cl-menu button{display:flex;flex-direction:column;align-items:flex-start;gap:1px;padding:7px 10px 7px 30px;border:0;border-radius:6px;background:none;color:#dbdee1;font:inherit;text-align:left;cursor:pointer;position:relative}
+.cl-menu button:hover{background:#5865f2;color:#fff}
+.cl-menu button b{font-size:.88em}
+.cl-menu button span{font-size:.74em;opacity:.8}
+.cl-menu button[aria-checked="true"]::before{content:"";position:absolute;left:11px;top:13px;width:9px;height:9px;border-radius:50%;background:#23a55a;box-shadow:0 0 0 3px rgba(35,165,90,.25)}
+.cl-sound{display:flex;align-items:center;gap:8px;padding:8px 10px 4px;margin-top:4px;border-top:1px solid rgba(255,255,255,.07);font-size:.8em;color:#dbdee1;cursor:pointer}
+
+/* ── "Call connected", above your name in the chat sidebar ── */
+.dc-callbar{display:flex;align-items:center;gap:8px;padding:8px 10px;border-top:1px solid var(--border);background:var(--glass-3)}
+.dc-callbar[hidden]{display:none}
+.dc-callbar .cb-t{flex:1;min-width:0;line-height:1.2}
+.dc-callbar .cb-t b{display:block;font-size:.82em;color:#23a55a}
+.dc-callbar.ringing .cb-t b{color:#f0b232}
+.dc-callbar .cb-t button{display:block;max-width:100%;padding:0;border:0;background:none;color:var(--text-3);font:inherit;font-size:.74em;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dc-callbar .cb-t button:hover{color:var(--text);text-decoration:underline}
+.dc-callbar .cb-b{display:grid;place-items:center;width:32px;height:32px;border:0;border-radius:8px;background:none;color:var(--text-2);cursor:pointer}
+.dc-callbar .cb-b:hover{background:rgba(218,55,60,.16);color:#f23f43}
+.dc-callbar .cb-b .i{width:17px;height:17px;rotate:135deg}
+.dc-top #dc-call{color:#22c55e}
+
+@media(max-width:640px){
+  #call[data-mode="dock"] .cl-tiles{padding:40px 8px 70px}
+  .cl-tile{flex-basis:160px}
+  #call .cl-btns{gap:6px}
+  #call .cl-b{width:42px;height:42px}
+}
+html[data-motion="off"] #call,html[data-perf="on"] #call,html[data-motion="off"] #call *,html[data-perf="on"] #call *{animation:none!important;transition:none!important}
+@media(prefers-reduced-motion:reduce){#call,#call *{animation:none!important}}

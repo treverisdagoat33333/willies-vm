@@ -53,6 +53,8 @@ const a = await person("ann" + stamp), b = await person("bob" + stamp);
 await connect(a, b, "direct");
 await b.page.waitForFunction(() => document.querySelectorAll("#cl-audio audio").length > 0, null, { timeout: 10000 }).catch(() => {});
 ok(await b.page.$$eval("#cl-audio audio", (x) => x.length) > 0, "direct: the other side's voice arrives");
+// the fake microphone beeps: the one hearing it sees the speaker's tile light up
+ok(await b.page.waitForFunction(() => window.calls.stats()?.speaking.them, null, { timeout: 8000, polling: 50 }).then(() => true, () => false), "direct: their tile lights up green while they talk");
 // camera
 await a.page.click("#cl-cam");
 await b.page.waitForFunction(() => document.querySelector("#cl-remote-cam").videoWidth > 0 && window.calls.stats()?.video.cam, null, { timeout: 10000 }).catch(() => {});
@@ -61,6 +63,44 @@ ok(await a.page.$eval("#cl-self", (v) => v.classList.contains("mirror") && !!v.s
 await a.page.click("#cl-cam");
 await b.page.waitForFunction(() => !window.calls.stats()?.video.cam, null, { timeout: 10000 }).catch(() => {});
 ok(!(await stats(b))?.video.cam, "…and turning it off takes it away", JSON.stringify(await stats(b)));
+// the one who answered turns on a camera: their offer reaches the caller, whose mic is already on
+await b.page.click("#cl-cam");
+await a.page.waitForFunction(() => document.querySelector("#cl-remote-cam").videoWidth > 0, null, { timeout: 10000 }).catch(() => {});
+ok(await a.page.$eval("#cl-remote-cam", (v) => v.videoWidth > 0), "direct: the one who answered can turn on a camera too", JSON.stringify(await a.page.evaluate(() => window.calls.rtc())));
+await b.page.click("#cl-cam");
+// a shared screen: its own "Live" tile in focus, sent at the chosen quality
+if (await a.page.evaluate(() => !!navigator.mediaDevices?.getDisplayMedia)) {
+  await a.page.evaluate(() => localStorage.setItem("wvm.shareQuality", "balanced"));
+  await a.page.click("#cl-share");
+  await b.page.waitForFunction(() => document.querySelector("#cl-remote-video").videoWidth > 0, null, { timeout: 10000 }).catch(() => {});
+  ok(await b.page.$eval("#cl-remote-video", (v) => v.videoWidth > 0) && (await stats(b)).focus === "screen", "direct: a shared screen shows, in focus", JSON.stringify(await stats(b)));
+  await a.page.waitForFunction(async () => (await window.calls.rtc()).senders.some((x) => x.maxBitrate === 4e6), null, { timeout: 8000 }).catch(() => {});
+  let rtc = await a.page.evaluate(() => window.calls.rtc());
+  ok(rtc.senders.some((x) => x.maxBitrate === 4e6 && x.hint === "detail") && (await stats(a)).sharing?.frameRate === 30, "…at 1080p 30 on Balanced, with a proper bitrate", JSON.stringify({ rtc, sharing: (await stats(a)).sharing }));
+  await a.page.click("#cl-share-q");
+  await a.page.click('#cl-q-menu [data-q="smooth"]');
+  await a.page.waitForFunction(async () => (await window.calls.rtc()).senders.some((x) => x.maxBitrate === 6e6), null, { timeout: 8000 }).catch(() => {});
+  rtc = await a.page.evaluate(() => window.calls.rtc());
+  ok(rtc.senders.some((x) => x.maxBitrate === 6e6 && x.hint === "motion" && x.maxFramerate === 60) && (await stats(a)).sharing?.frameRate === 60, "…and Smooth switches it to 60 fps mid-stream", JSON.stringify({ rtc, sharing: (await stats(a)).sharing }));
+  await a.page.click("#cl-share");
+  await b.page.waitForFunction(() => !window.calls.stats()?.video.screen, null, { timeout: 8000 }).catch(() => {});
+  ok(!(await stats(b)).video.screen && (await stats(b)).focus === "", "…and stopping it goes back to the grid", JSON.stringify(await stats(b)));
+}
+// mute and deafen: the other side sees it
+await a.page.click("#cl-deaf");
+await b.page.waitForFunction(() => window.calls.stats()?.theirs?.deaf, null, { timeout: 5000 }).catch(() => {});
+ok((await stats(a)).deaf && (await stats(a)).muted && (await stats(b)).theirs?.deaf && await b.page.$eval("#cl-t-them", (t) => t.classList.contains("deaf")), "deafen mutes you, and the other side sees it", JSON.stringify([await stats(a), await stats(b)]));
+ok(await a.page.$$eval("#cl-audio audio", (x) => x.length > 0 && x.every((el) => el.muted)), "…and silences them for you");
+await a.page.click("#cl-deaf");
+await b.page.waitForFunction(() => !window.calls.stats()?.theirs?.deaf, null, { timeout: 5000 }).catch(() => {});
+ok(!(await stats(a)).deaf && !(await stats(a)).muted && !(await stats(b)).theirs?.deaf, "…and undeafening gives both back", JSON.stringify(await stats(a)));
+// where it sits: docked over the chat while it's open, a small window otherwise
+ok((await stats(a)).layout === "pip", "with the chat closed it's a small window", (await stats(a)).layout);
+await a.page.evaluate(() => openChat());
+await a.page.waitForFunction(() => window.calls.stats()?.layout === "dock", null, { timeout: 5000 }).catch(() => {});
+const dock = await a.page.evaluate(() => { const c = document.querySelector("#call").getBoundingClientRect(), s = document.querySelector("#dc-callslot").getBoundingClientRect(); return { layout: window.calls.stats().layout, over: Math.abs(c.top - s.top) < 2 && Math.abs(c.left - s.left) < 2 && s.height > 100, bar: !document.querySelector("#dc-callbar").hidden }; });
+ok(dock.layout === "dock" && dock.over && dock.bar, "…and docks at the top of the chat when it opens, with Call connected in the sidebar", JSON.stringify(dock));
+await a.page.evaluate(() => closeChat());
 await a.page.click("#cl-end");
 await b.page.waitForFunction(() => document.querySelector("#call").dataset.state === "off", null, { timeout: 10000 }).catch(() => {});
 ok(await state(a) === "off" && await state(b) === "off", "hanging up ends it on both sides");
@@ -73,6 +113,7 @@ let sa = await stats(a), sb = await stats(b);
 ok(sa?.mode === "relay" && sb?.mode === "relay" && /via our server/.test(await a.page.textContent("#cl-status")), "relay: the call goes through our server, and says so", JSON.stringify({ sa, sb }));
 ok(sb.got > 30 && sa.got > 30, "relay: voice arrives both ways", JSON.stringify({ sa, sb }));
 ok(sb.peak > 0.01 && sa.peak > 0.01, "…and it's sound, not silence", JSON.stringify({ a: sa.peak, b: sb.peak }));
+ok(await b.page.waitForFunction(() => window.calls.stats()?.speaking.them, null, { timeout: 8000, polling: 50 }).then(() => true, () => false), "relay: the speaking light works through our server too");
 // muting stops your voice being sent
 await a.page.click("#cl-mute");
 await a.page.waitForTimeout(300);
@@ -92,7 +133,7 @@ if (canShare) {
   await b.page.waitForFunction(() => (window.calls.stats()?.camFrames || 0) >= 3, null, { timeout: 10000 }).catch(() => {});
   sb = await stats(b);
   ok(sb.camFrames >= 3 && sb.video.cam && sb.video.screen, "relay: the camera comes through too, alongside the screen", JSON.stringify(sb));
-  ok(await b.page.$eval("#cl-remote-cam-canvas", (c) => getComputedStyle(c).position === "absolute" && c.width > 0), "…in the corner, over the screen");
+  ok(await b.page.$eval("#cl-remote-cam-canvas", (c) => c.width > 0 && getComputedStyle(c).display !== "none") && await b.page.$eval("#cl-t-screen", (t) => t.classList.contains("focus")), "…in its own tile, with the screen in focus");
   await a.page.click("#cl-cam");
   await b.page.waitForFunction(() => !window.calls.stats()?.video.cam, null, { timeout: 5000 }).catch(() => {});
   ok(!(await stats(b)).video.cam && (await stats(b)).video.screen, "…and turning the camera off leaves the screen", JSON.stringify(await stats(b)));

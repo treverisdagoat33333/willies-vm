@@ -24,6 +24,7 @@
 <link id="favicon" rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23f2f2f2' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='2' y='4' width='20' height='13' rx='2'/%3E%3Cline x1='8' y1='21' x2='16' y2='21'/%3E%3Cline x1='12' y1='17' x2='12' y2='21'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="/css/app.css">
 <link rel="stylesheet" href="/css/features.css">
+<link rel="stylesheet" href="/css/calls.css">
 <link rel="stylesheet" href="/css/music.css">
 <link rel="stylesheet" href="/css/movies.css">
 <link rel="stylesheet" href="/css/ai.css">
@@ -462,6 +463,10 @@ https://discord.com/</textarea><div class="ctl"><button class="btn sm" id="st-ru
       <div class="dc-cat"><span>Direct messages</span><button id="dc-new-dm" title="New DM">+</button></div>
       <div id="dc-dms"></div>
     </div>
+    <div class="dc-callbar" id="dc-callbar" hidden>
+      <div class="cb-t"><b id="dc-callbar-state">Call connected</b><button type="button" id="dc-callbar-who" title="Back to the call"></button></div>
+      <button class="cb-b" id="dc-callbar-end" title="Hang up" aria-label="Hang up"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z"/></svg></button>
+    </div>
     <div class="dc-me">
       <div class="av" id="dc-me-av">?</div>
       <div class="who"><b id="dc-me-name">…</b><span id="dc-me-role">connecting</span></div>
@@ -482,6 +487,7 @@ https://discord.com/</textarea><div class="ctl"><button class="btn sm" id="st-ru
       <button id="dc-close" title="Close"><svg class="i i-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
     </div>
 
+    <div class="dc-callslot" id="dc-callslot" aria-hidden="true"></div>
     <div class="dc-msgs" id="dc-msgs"></div>
     <div class="dc-typing" id="dc-typing"><span class="cdots"><i></i><i></i><i></i></span><span id="dc-typing-text"></span></div>
 
@@ -770,28 +776,52 @@ https://discord.com/</textarea><div class="ctl"><button class="btn sm" id="st-ru
 </div>
 
 
-<!-- VOICE CALL (the logic is in js/calls.js) -->
-<div id="call" data-state="off" role="dialog" aria-label="Voice call">
-  <div class="cl-video" id="cl-video">
-    <video id="cl-remote-video" autoplay playsinline></video>
-    <canvas id="cl-remote-canvas" aria-label="Their screen"></canvas>
-    <video id="cl-remote-cam" autoplay playsinline muted aria-label="Their camera"></video>
-    <canvas id="cl-remote-cam-canvas" aria-label="Their camera"></canvas>
-    <button class="cl-fs" id="cl-fs" title="Fullscreen" aria-label="Fullscreen"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"/></svg></button>
-  </div>
-  <div class="cl-row">
+<!-- VOICE CALL (the logic is in js/calls.js). Three layouts: a ringing card, docked
+     at the top of the chat while it's open (#dc-callslot), or a small draggable window. -->
+<div id="call" data-state="off" data-mode="card" role="dialog" aria-label="Voice call">
+  <div class="cl-head" id="cl-head">
     <div class="cl-av" id="cl-av">?</div>
     <div class="cl-t"><b id="cl-name"></b><small id="cl-status"></small></div>
-    <video id="cl-self" autoplay muted playsinline title="Your screen"></video>
+    <button class="cl-ib" id="cl-size" title="Bigger / smaller" aria-label="Bigger or smaller"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg></button>
+    <button class="cl-ib" id="cl-fs" title="Fullscreen" aria-label="Fullscreen"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"/></svg></button>
+  </div>
+  <div class="cl-tiles" id="cl-tiles">
+    <div class="cl-tile screen" id="cl-t-screen" data-tile="screen">
+      <video id="cl-remote-video" autoplay playsinline></video>
+      <canvas id="cl-remote-canvas" aria-label="Their screen"></canvas>
+      <span class="cl-live">Live</span><span class="cl-tag"><span><b class="nm"></b>'s screen</span></span>
+    </div>
+    <div class="cl-tile" id="cl-t-them" data-tile="them">
+      <div class="cl-tav" id="cl-them-av"></div>
+      <video id="cl-remote-cam" autoplay playsinline muted aria-label="Their camera"></video>
+      <canvas id="cl-remote-cam-canvas" aria-label="Their camera"></canvas>
+      <span class="cl-tag"><i class="cl-st mic"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v1a7 7 0 0 0 14 0v-1M12 18v4M2 2l20 20"/></svg></i><i class="cl-st deaf"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1v-6h3zM3 19a2 2 0 0 0 2 2h1v-6H3zM2 2l20 20"/></svg></i><b class="nm"></b></span>
+    </div>
+    <div class="cl-tile" id="cl-t-me" data-tile="me">
+      <div class="cl-tav" id="cl-me-av"></div>
+      <video id="cl-self" autoplay muted playsinline title="Your camera"></video>
+      <span class="cl-tag"><i class="cl-st mic"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v1a7 7 0 0 0 14 0v-1M12 18v4M2 2l20 20"/></svg></i><i class="cl-st deaf"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1v-6h3zM3 19a2 2 0 0 0 2 2h1v-6H3zM2 2l20 20"/></svg></i><b>You</b></span>
+    </div>
+    <div class="cl-tile screen" id="cl-t-myscreen" data-tile="myscreen">
+      <video id="cl-self-screen" autoplay muted playsinline title="Your screen"></video>
+      <span class="cl-live">Live</span><span class="cl-tag">Your screen</span>
+    </div>
   </div>
   <div class="cl-btns">
     <button class="cl-b ok" id="cl-accept" title="Answer" aria-label="Answer"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z"/></svg></button>
+    <button class="cl-b" id="cl-cam" title="Turn on camera" aria-label="Camera"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M23 7l-7 5 7 5z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg></button>
+    <span class="cl-split"><button class="cl-b" id="cl-share" title="Share your screen" aria-label="Share your screen"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4M12 7v6M9 10l3-3 3 3"/></svg></button><button class="cl-b cl-caret" id="cl-share-q" title="Stream quality" aria-label="Stream quality" aria-haspopup="menu"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 15 6-6 6 6"/></svg></button></span>
     <button class="cl-b" id="cl-mute" title="Mute" aria-label="Mute"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v1a7 7 0 0 0 14 0v-1M12 18v4"/><path class="x" d="M3 3l18 18"/></svg></button>
-    <button class="cl-b" id="cl-cam" title="Camera" aria-label="Camera"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M23 7l-7 5 7 5z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg></button>
-    <button class="cl-b" id="cl-share" title="Share your screen" aria-label="Share your screen"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4M12 7v6M9 10l3-3 3 3"/></svg></button>
-    <button class="cl-b" id="cl-size" title="Bigger / smaller" aria-label="Resize"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg></button>
+    <button class="cl-b" id="cl-deaf" title="Deafen" aria-label="Deafen"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1v-6h3zM3 19a2 2 0 0 0 2 2h1v-6H3z"/><path class="x" d="M2 2l20 20"/></svg></button>
     <button class="cl-b bad" id="cl-decline" title="Decline" aria-label="Decline"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z"/></svg></button>
     <button class="cl-b bad" id="cl-end" title="Hang up" aria-label="Hang up"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z"/></svg></button>
+  </div>
+  <div class="cl-menu" id="cl-q-menu" role="menu" hidden>
+    <small>Stream quality</small>
+    <button role="menuitemradio" data-q="smooth"><b>Smooth</b><span>1080p, 60 fps. Games and videos.</span></button>
+    <button role="menuitemradio" data-q="balanced"><b>Balanced</b><span>1080p, 30 fps. Good for most things.</span></button>
+    <button role="menuitemradio" data-q="sharp"><b>Sharp</b><span>Up to 1440p. Text and code stay crisp.</span></button>
+    <label class="cl-sound"><input type="checkbox" id="cl-share-sound" checked> Share sound too</label>
   </div>
   <div id="cl-audio" hidden></div>
 </div>

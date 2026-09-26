@@ -44,38 +44,177 @@ function ring(kind){
 }
 function stopRing(){clearInterval(ringer);ringer=null}
 
-/* ---- UI ---- */
+/* ---- UI ----
+   Discord style: a tile each for them and you (their avatar lights up green while
+   they talk), plus a "Live" tile for each shared screen. Ringing shows a card; once
+   calling, the call docks at the top of the chat while it's open, else it shrinks
+   to a small window you can drag (see layout()). */
+const muted=()=>!!call?.mic&&!call.mic.getAudioTracks()[0]?.enabled;
+function paintAv(el,name){el.textContent=(nameOf(name)[0]||'?').toUpperCase();el.style.background=colorOf(name)}
 function ui(state,status){
   C.dataset.state=state;
-  if(!call)return;
-  const av=$('#cl-av');av.textContent=(nameOf(call.peer)[0]||'?').toUpperCase();av.style.background=colorOf(call.peer);
+  if(!call){layout();return}
+  paintAv($('#cl-av'),call.peer);paintAv($('#cl-them-av'),call.peer);paintAv($('#cl-me-av'),chatMe);
   $('#cl-name').textContent=nameOf(call.peer);
+  $$('#call .cl-tile .nm').forEach(el=>{el.textContent=nameOf(call.peer)});
   if(status!=null)$('#cl-status').textContent=status;
-  $('#cl-mute').classList.toggle('on',!!call.mic&&!call.mic.getAudioTracks()[0]?.enabled);
-  $('#cl-share').classList.toggle('on',!!call.screen);
-  $('#cl-share').hidden=!CAN_SHARE;
-  $('#cl-cam').classList.toggle('on',!!call.cam);
+  const m=muted();
+  $('#cl-mute').classList.toggle('on',m);$('#cl-mute').title=m?'Unmute':'Mute';
+  $('#cl-deaf').classList.toggle('on',!!call.deaf);$('#cl-deaf').title=call.deaf?'Undeafen':'Deafen';
+  $('#cl-share').classList.toggle('on',!!call.screen);$('#cl-share').title=call.screen?'Stop sharing':'Share your screen';
+  $('.cl-split').hidden=!CAN_SHARE;
+  $('#cl-cam').classList.toggle('on',!!call.cam);$('#cl-cam').title=call.cam?'Turn off camera':'Turn on camera';
   $('#cl-cam').hidden=!CAN_CAM;
+  $('#cl-t-me').classList.toggle('muted',m&&!call.deaf);$('#cl-t-me').classList.toggle('deaf',!!call.deaf);
+  $('#cl-t-them').classList.toggle('muted',!!call.theirs?.muted&&!call.theirs?.deaf);$('#cl-t-them').classList.toggle('deaf',!!call.theirs?.deaf);
+  callbar();layout();
 }
-/* their camera and their screen: the screen fills the panel with the camera in a
-   corner; either one alone fills it */
+/* their camera and their screen, each in its own tile; a shared screen takes the focus */
 function remoteVideo(kind,on){
-  const had=C.classList.contains('has-video');
   C.classList.toggle(kind==='cam'?'has-cam':'has-screen',on);
-  const any=C.classList.contains('has-cam')||C.classList.contains('has-screen');
-  C.classList.toggle('has-video',any);
-  if(any&&!had)C.classList.add('big');
+  C.classList.toggle('has-video',C.classList.contains('has-cam')||C.classList.contains('has-screen'));
+  autoFocus();layout();
 }
-/* your own camera (mirrored, like a mirror) or, without one, the screen you share */
+/* your camera (mirrored, like a mirror) and the screen you share, each in its own tile */
 function selfPreview(){
-  const s=call?.cam||call?.screen,el=$('#cl-self');
-  el.srcObject=s?new MediaStream(s.getVideoTracks()):null;
-  el.classList.toggle('mirror',!!call?.cam);
-  C.classList.toggle('self-video',!!s);
+  $('#cl-self').srcObject=call?.cam?new MediaStream(call.cam.getVideoTracks()):null;
+  $('#cl-self').classList.toggle('mirror',!!call?.cam);
+  $('#cl-self-screen').srcObject=call?.screen?new MediaStream(call.screen.getVideoTracks()):null;
+  C.classList.toggle('self-cam',!!call?.cam);C.classList.toggle('self-screen',!!call?.screen);
+  autoFocus();layout();
+}
+
+/* ---- which tile is big ----
+   A screen share takes the focus the moment it starts (theirs before yours); click a
+   tile to focus it, click it again for the grid. A pick you make sticks until that
+   tile goes away. */
+let focus='',focusPicked=false;
+const TILES={screen:'#cl-t-screen',them:'#cl-t-them',me:'#cl-t-me',myscreen:'#cl-t-myscreen'};
+const tileOn=t=>!!$(TILES[t])&&getComputedStyle($(TILES[t])).display!=='none';
+function autoFocus(){
+  if(focus&&!tileOn(focus)){focus='';focusPicked=false}
+  if(!focusPicked)focus=tileOn('screen')?'screen':tileOn('myscreen')?'myscreen':'';
+  paintFocus();
+}
+function paintFocus(){
+  const box=$('#cl-tiles');
+  if(C.dataset.mode==='dock')requestAnimationFrame(placeDock);
+  box.classList.toggle('focused',!!focus);
+  for(const[t,sel]of Object.entries(TILES))$(sel).classList.toggle('focus',t===focus);
+}
+$('#cl-tiles').addEventListener('click',e=>{
+  const t=e.target.closest('.cl-tile');if(!t||!call)return;
+  if(C.dataset.mode==='pip'){openCallChat();return}
+  click();
+  const name=t.dataset.tile;
+  if(focus===name){focus='';focusPicked=true}else{focus=name;focusPicked=true}
+  paintFocus();
+});
+$('#cl-tiles').addEventListener('dblclick',e=>{
+  const t=e.target.closest('.cl-tile');if(!t||C.dataset.mode==='pip')return;
+  (document.fullscreenElement?document.exitFullscreen():t.requestFullscreen()).catch(()=>{});
+});
+
+/* ---- where the call sits ---- */
+const chatShown=()=>$('#chat-window').classList.contains('show')&&!$('#chat-window').classList.contains('closing');
+function layout(){
+  const st=C.dataset.state;
+  const mode=st==='off'?'card':st==='incoming'?'card':chatShown()?'dock':'pip';
+  if(C.dataset.mode!==mode){
+    C.dataset.mode=mode;
+    C.style.left=C.style.top=C.style.width=C.style.height=C.style.bottom='';
+    closeMenu();
+  }
+  document.documentElement.classList.toggle('call-docked',mode==='dock');
+  if(mode==='dock')placeDock();
+  else if(mode==='pip'&&pipAt)placePip(pipAt.x,pipAt.y);
+}
+/* docked: over the slot at the top of the chat, the full column when made big */
+function placeDock(){
+  const slot=$('#dc-callslot'),main=slot.parentElement,big=C.classList.contains('big');
+  const col=main.getBoundingClientRect(),top=$('.dc-top',main)?.getBoundingClientRect();
+  // a live screen gets more room, like Discord's stream view
+  const want=big?col.bottom-(top?top.bottom:col.top):focus?Math.max(300,Math.min(col.height*.68,760)):Math.max(240,Math.min(col.height*.46,520));
+  if(!big)document.documentElement.style.setProperty('--cl-slot',Math.round(want)+'px');
+  const r=slot.getBoundingClientRect();
+  Object.assign(C.style,{left:r.left+'px',top:r.top+'px',width:r.width+'px',height:Math.round(big?want:r.height||want)+'px',bottom:'auto'});
+}
+new ResizeObserver(()=>{if(C.dataset.mode==='dock')placeDock()}).observe($('#chat-window'));
+addEventListener('resize',()=>{if(C.dataset.mode==='dock')placeDock();else if(C.dataset.mode==='pip'&&pipAt)placePip(pipAt.x,pipAt.y)});
+new MutationObserver(()=>{if(call)requestAnimationFrame(layout)}).observe($('#chat-window'),{attributes:true,attributeFilter:['class']});
+/* the small window can be dragged by its header; where you leave it is remembered */
+let pipAt=(()=>{try{return JSON.parse(localStorage.getItem('wvm.callPip'))}catch(_){return null}})();
+function placePip(x,y){
+  const w=C.offsetWidth,h=C.offsetHeight;
+  x=Math.max(8,Math.min(x,innerWidth-w-8));y=Math.max(8,Math.min(y,innerHeight-h-8));
+  Object.assign(C.style,{left:x+'px',top:y+'px',bottom:'auto'});
+  return{x,y};
+}
+$('#cl-head').addEventListener('pointerdown',e=>{
+  if(C.dataset.mode!=='pip'||e.target.closest('button'))return;
+  const r=C.getBoundingClientRect(),dx=e.clientX-r.left,dy=e.clientY-r.top;
+  C.classList.add('dragging');$('#cl-head').setPointerCapture(e.pointerId);
+  const move=ev=>{pipAt=placePip(ev.clientX-dx,ev.clientY-dy)};
+  const up=()=>{C.classList.remove('dragging');$('#cl-head').removeEventListener('pointermove',move);try{localStorage.setItem('wvm.callPip',JSON.stringify(pipAt))}catch(_){}};
+  $('#cl-head').addEventListener('pointermove',move);
+  $('#cl-head').addEventListener('pointerup',up,{once:true});$('#cl-head').addEventListener('pointercancel',up,{once:true});
+});
+/* back to the call: open the chat on the DM with them, where the call docks */
+function openCallChat(){if(!call)return;if(!chatShown())openChat();dcSend({type:'dm.open',name:call.peer})}
+
+/* "Call connected" above your name in the chat, like Discord's voice panel */
+function callbar(){
+  const bar=$('#dc-callbar'),st=C.dataset.state;
+  bar.hidden=!call||st==='off'||st==='incoming';
+  if(bar.hidden)return;
+  bar.classList.toggle('ringing',st==='outgoing');
+  $('#dc-callbar-state').textContent=st==='outgoing'?'Calling…':call.relay?'Call connected · relay':'Call connected';
+  $('#dc-callbar-who').textContent=nameOf(call.peer);
+}
+$('#dc-callbar-who').onclick=()=>{click();openCallChat()};
+$('#dc-callbar-end').onclick=()=>{click();hangup()};
+
+/* ---- who's talking: a green ring on their tile ----
+   Levels come from an analyser on each voice (direct calls), or from the voice
+   frames themselves (the relay). */
+let levelI=null,lvlCtx=null;
+function analyser(track){
+  try{
+    lvlCtx||=new AudioContext();lvlCtx.resume().catch(()=>{});
+    const a=lvlCtx.createAnalyser();a.fftSize=512;
+    lvlCtx.createMediaStreamSource(new MediaStream([track])).connect(a);
+    return a;
+  }catch(_){return null}
+}
+const rms=a=>{if(!a)return 0;const d=new Float32Array(a.fftSize);a.getFloatTimeDomainData(d);let s=0;for(const v of d)s+=v*v;return Math.sqrt(s/d.length)};
+function watchLevels(){
+  clearInterval(levelI);
+  levelI=setInterval(()=>{
+    if(!call){clearInterval(levelI);return}
+    const now=Date.now();
+    const me=!muted()&&!call.deaf&&rms(call.meterMe||(call.mic&&(call.meterMe=analyser(call.mic.getAudioTracks()[0]))))>.02;
+    const them=call.relay?now-(call.relay.loudAt||0)<250:rms(call.meterThem)>.02;
+    $('#cl-t-me').classList.toggle('speaking',me);
+    $('#cl-t-them').classList.toggle('speaking',them&&!call.theirs?.muted);
+  },120);
+}
+
+/* ---- mute and deafen, and telling the other side ---- */
+function tellState(){if(call)signal({state:{muted:muted(),deaf:!!call.deaf}})}
+function setDeaf(on){
+  if(!call)return;
+  call.deaf=on;
+  $$('#cl-audio audio').forEach(a=>{a.muted=on});
+  if(call.relay?.out)call.relay.out.gain.value=on?0:1;
+  // deafening mutes you too, and undeafening puts your mic back how it was
+  const t=call.mic?.getAudioTracks()[0];
+  if(t){if(on){call.mutedBeforeDeaf=!t.enabled;t.enabled=false}else t.enabled=!call.mutedBeforeDeaf}
+  ui(C.dataset.state);tellState();
 }
 function startTimer(){
   const t0=Date.now();clearInterval(timerI);
   const tick=()=>{const s=Math.floor((Date.now()-t0)/1000);$('#cl-status').textContent=`${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`+(call?.relay?' · via our server':'')};
+  watchLevels();tellState();
   tick();timerI=setInterval(tick,1000);
 }
 function reset(){
@@ -91,8 +230,14 @@ function reset(){
   call=null;
   $('#cl-remote-video').srcObject=null;$('#cl-remote-cam').srcObject=null;$('#cl-self').srcObject=null;
   $$('#cl-audio audio').forEach(a=>{a.srcObject=null;a.remove()});
-  C.classList.remove('has-video','has-screen','has-cam','self-video','big','relay');
+  clearInterval(levelI);
+  $('#cl-self-screen').srcObject=null;
+  $$('#call .cl-tile').forEach(t=>t.classList.remove('speaking','muted','deaf'));
+  C.classList.remove('has-video','has-screen','has-cam','self-cam','self-screen','big','relay');
+  focus='';focusPicked=false;paintFocus();
+  if(document.fullscreenElement&&C.contains(document.fullscreenElement))document.exitFullscreen().catch(()=>{});
   C.dataset.state='off';
+  callbar();layout();
 }
 function finish(msg,type){
   const peer=call?.peer;reset();
@@ -130,8 +275,10 @@ async function makePeer(){
   pc.ontrack=({track,streams})=>{
     if(track.kind==='audio'){
       // one element per track: their voice and their shared tab's sound both play
-      const a=document.createElement('audio');a.autoplay=true;a.srcObject=new MediaStream([track]);
+      const a=document.createElement('audio');a.autoplay=true;a.srcObject=new MediaStream([track]);a.muted=!!call.deaf;
       $('#cl-audio').appendChild(a);a.play().catch(()=>{});
+      // their voice (not their shared tab's sound) drives the speaking ring
+      if(call.remoteKinds?.[streams[0]?.id]!=='screen'&&!call.meterThem)call.meterThem=analyser(track);
       track.onended=()=>a.remove();
       return;
     }
@@ -152,8 +299,9 @@ async function makePeer(){
 }
 /* one message at a time: a candidate must not race the offer it belongs to */
 function queueSignal(data){const c=call;if(!c)return;c.sig=(c.sig||Promise.resolve()).then(()=>call===c&&onSignal(data))}
-async function onSignal({description,candidate,media}){
+async function onSignal({description,candidate,media,state}){
   if(media&&typeof media==='object'&&call){call.remoteKinds={...call.remoteKinds,...media};return} // {streamId: 'cam'|'screen'}
+  if(state&&typeof state==='object'&&call){call.theirs={muted:!!state.muted,deaf:!!state.deaf};ui(C.dataset.state);return}
   const pc=call?.pc;if(!pc)return;
   try{
     if(description){
@@ -162,8 +310,10 @@ async function onSignal({description,candidate,media}){
       if(call.ignoreOffer)return;
       await pc.setRemoteDescription(description);
       if(description.type==='offer'){
-        // the callee adds its mic once the first offer arrives, so it rides the answer
-        if(!call.gotOffer){call.gotOffer=true;call.mic.getTracks().forEach(t=>pc.addTrack(t,call.mic))}
+        // the callee adds its mic once the first offer arrives, so it rides the answer. The
+        // caller's mic is already on: adding it again throws, and the offer (the callee
+        // turning on a camera or sharing) would never be answered
+        if(!call.gotOffer){call.gotOffer=true;const have=new Set(pc.getSenders().map(x=>x.track));call.mic.getTracks().forEach(t=>{if(!have.has(t))pc.addTrack(t,call.mic)})}
         await pc.setLocalDescription();
         signal({description:pc.localDescription.toJSON()});
       }
@@ -201,12 +351,13 @@ async function goRelay(why){
   c.pc=null;
   $$('#cl-audio audio').forEach(a=>{a.srcObject=null;a.remove()});
   $('#cl-remote-video').srcObject=null;$('#cl-remote-cam').srcObject=null;
-  C.classList.remove('has-video','has-screen','has-cam');C.classList.add('relay');
+  C.classList.remove('has-video','has-screen','has-cam');C.classList.add('relay');autoFocus();
   ui('active','Connecting through our server…');
   try{
     let ctx;
     try{ctx=new AudioContext({sampleRate:16000,latencyHint:'interactive'})}catch(_){ctx=new AudioContext({latencyHint:'interactive'})}
     c.relay.ctx=ctx;
+    c.relay.out=ctx.createGain();c.relay.out.gain.value=c.deaf?0:1;c.relay.out.connect(ctx.destination);
     await ctx.audioWorklet.addModule('/js/call-worklet.js');
     if(call!==c)return;
     const src=ctx.createMediaStreamSource(c.mic),node=new AudioWorkletNode(ctx,'wvm-mic'),silent=ctx.createGain();
@@ -222,7 +373,7 @@ function openRelay(c,tries){
   ws.onmessage=({data})=>{
     if(call!==c)return;
     if(typeof data==='string'){
-      if(data==='ready'){if(!c.started){c.started=true;stopRing();startTimer()}ui('active');if(c.screen)startFrames(c,'screen');if(c.cam)startFrames(c,'cam')}
+      if(data==='ready'){if(!c.started){c.started=true;stopRing();startTimer()}ui('active');tellState();if(c.screen)startFrames(c,'screen');if(c.cam)startFrames(c,'cam')}
       else if(data==='gone')ui('active','Reconnecting…');
       return;
     }
@@ -247,12 +398,14 @@ function relaySend(c,kind,bytes){
 function playVoice(c,bytes){
   const r=c.relay,ctx=r.ctx;if(!ctx||!bytes.length)return;
   const buf=ctx.createBuffer(1,bytes.length,16000),d=buf.getChannelData(0);
-  for(let i=0;i<bytes.length;i++){d[i]=ULAW[bytes[i]];const a=Math.abs(d[i]);if(a>r.stats.peak)r.stats.peak=a}
+  let sum=0;
+  for(let i=0;i<bytes.length;i++){d[i]=ULAW[bytes[i]];const a=Math.abs(d[i]);sum+=d[i]*d[i];if(a>r.stats.peak)r.stats.peak=a}
+  if(Math.sqrt(sum/bytes.length)>.02)r.loudAt=Date.now();
   r.stats.got++;
   // 80 ms of slack against jitter; a backlog (a stall that caught up) is dropped
   const now=ctx.currentTime;
   if(r.playAt<now+.02||r.playAt>now+.5)r.playAt=now+.08;
-  const s=ctx.createBufferSource();s.buffer=buf;s.connect(ctx.destination);s.start(r.playAt);r.playAt+=buf.duration;
+  const s=ctx.createBufferSource();s.buffer=buf;s.connect(r.out||ctx.destination);s.start(r.playAt);r.playAt+=buf.duration;
 }
 async function showFrame(c,name,bytes){
   const gen=c.relay.shown[name];
@@ -284,7 +437,7 @@ function startFrames(c,name){
     if(blob&&call===c&&c.relay?.frames[name])relaySend(c,f.kind,new Uint8Array(await blob.arrayBuffer()));
   },f.every);
 }
-function stopFrames(c,name){if(!c.relay)return;clearInterval(c.relay.frames[name]);delete c.relay.frames[name];relaySend(c,FRAMES[name].end,new Uint8Array(0))}
+function stopFrames(c,name,quiet){if(!c.relay)return;clearInterval(c.relay.frames[name]);delete c.relay.frames[name];if(!quiet)relaySend(c,FRAMES[name].end,new Uint8Array(0))}
 
 /* ---- starting and answering ---- */
 async function start(peer){
@@ -329,23 +482,93 @@ function hangup(){
 /* ---- in-call controls ---- */
 function toggleMute(){
   const t=call?.mic?.getAudioTracks()[0];if(!t)return;
-  t.enabled=!t.enabled;ui(C.dataset.state);
+  if(call.deaf){setDeaf(false);return} // like Discord: unmuting while deafened undeafens
+  t.enabled=!t.enabled;ui(C.dataset.state);tellState();
   toast(t.enabled?'Mic on':'Mic muted');
+}
+/* ---- screen share quality ----
+   Discord-style presets, picked from the arrow next to the share button and kept
+   between calls. Each sets the capture size and frame rate, the encoder's hint
+   (motion keeps the frame rate when the network struggles, detail and text keep
+   the resolution), and a bitrate ceiling well above WebRTC's default, which is what
+   made shared text blurry. Through the relay they pick the picture size, JPEG
+   quality and pictures a second instead. */
+const SHARE_Q={
+  smooth:{w:1920,h:1080,fps:60,hint:'motion',bitrate:6e6,pref:'maintain-framerate',relay:{w:960,h:540,every:150,q:.55}},
+  balanced:{w:1920,h:1080,fps:30,hint:'detail',bitrate:4e6,pref:'balanced',relay:{w:1280,h:720,every:250,q:.6}},
+  sharp:{w:2560,h:1440,fps:15,hint:'text',bitrate:8e6,pref:'maintain-resolution',relay:{w:1600,h:900,every:400,q:.75}},
+};
+const lsGet=(k,d)=>{try{return localStorage.getItem(k)??d}catch(_){return d}};
+const lsSet=(k,v)=>{try{localStorage.setItem(k,v)}catch(_){}};
+let shareQ=SHARE_Q[lsGet('wvm.shareQuality','balanced')]?lsGet('wvm.shareQuality','balanced'):'balanced';
+let shareSound=lsGet('wvm.shareSound','1')!=='0';
+function relayScreen(){Object.assign(FRAMES.screen,SHARE_Q[shareQ].relay)}
+/* the encoder settings only exist once the track has been negotiated, so keep trying briefly */
+let tuneGen=0;
+function tuneSender(c){const gen=++tuneGen;tuneTry(c,gen,0)} // a newer pick cancels an older one still retrying
+async function tuneTry(c,gen,tries){
+  const sender=(c.screenSenders||[]).find(x=>x.track?.kind==='video');
+  if(!sender||call!==c||gen!==tuneGen)return;
+  const again=()=>{if(tries<20)setTimeout(()=>tuneTry(c,gen,tries+1),300)};
+  try{
+    const p=sender.getParameters(),q=SHARE_Q[shareQ];
+    if(!p.encodings?.length)return again();
+    p.encodings[0].maxBitrate=q.bitrate;p.encodings[0].maxFramerate=q.fps;
+    p.degradationPreference=q.pref;
+    await sender.setParameters(p);
+  }catch(_){again()}
+}
+async function applyQuality(){
+  const c=call,t=c?.screen?.getVideoTracks()[0];if(!t)return;
+  const q=SHARE_Q[shareQ];
+  try{t.contentHint=q.hint}catch(_){}
+  // the encoder first: changing the capture can take a while, and doesn't need to hold it up
+  if(c.relay){stopFrames(c,'screen',true);relayScreen();startFrames(c,'screen')}
+  else tuneSender(c);
+  try{await t.applyConstraints({width:{max:q.w},height:{max:q.h},frameRate:{ideal:q.fps,max:q.fps}})}catch(_){}
 }
 async function toggleShare(){
   if(!call?.pc&&!call?.relay)return;
   if(call.screen)return stopShare();
+  const q=SHARE_Q[shareQ];
   let stream;
-  try{stream=await navigator.mediaDevices.getDisplayMedia({video:{frameRate:{ideal:30}},audio:!call.relay})}
+  try{stream=await navigator.mediaDevices.getDisplayMedia({
+    video:{width:{max:q.w},height:{max:q.h},frameRate:{ideal:q.fps,max:q.fps}},
+    // your tab's or screen's sound, as it is: voice processing would mangle music and games
+    audio:shareSound&&!call.relay?{echoCancellation:false,noiseSuppression:false,autoGainControl:false}:false,
+    systemAudio:shareSound?'include':'exclude',surfaceSwitching:'include',selfBrowserSurface:'exclude'})}
   catch(e){if(e.name!=='NotAllowedError')toast("Couldn't share the screen.",'err');return}
   if(!call?.pc&&!call?.relay){stream.getTracks().forEach(t=>t.stop());return}
   call.screen=stream;
-  if(call.relay)startFrames(call,'screen'); // through our server: a picture a third of a second, no sound
-  else{signal({media:{[stream.id]:'screen'}});call.screenSenders=stream.getTracks().map(t=>call.pc.addTrack(t,stream))}
+  try{stream.getVideoTracks()[0].contentHint=q.hint}catch(_){}
+  if(call.relay){relayScreen();startFrames(call,'screen')} // through our server: pictures, no sound
+  else{signal({media:{[stream.id]:'screen'}});call.screenSenders=stream.getTracks().map(t=>call.pc.addTrack(t,stream));tuneSender(call)}
   stream.getVideoTracks()[0].onended=stopShare; // the browser's own "Stop sharing" button
   selfPreview();
-  ui('active');toast('Sharing your screen','ok');
+  ui('active');toast(`You're live · ${shareQ[0].toUpperCase()+shareQ.slice(1)}`,'ok');
 }
+/* the quality menu */
+function paintMenu(){
+  $$('#cl-q-menu [data-q]').forEach(b=>b.setAttribute('aria-checked',String(b.dataset.q===shareQ)));
+  $('#cl-share-sound').checked=shareSound;
+}
+function closeMenu(){$('#cl-q-menu').hidden=true}
+/* the menu opens next to its button, above it unless there's no room there */
+function placeMenu(){
+  const m=$('#cl-q-menu'),r=$('#cl-share-q').getBoundingClientRect(),w=m.offsetWidth,h=m.offsetHeight;
+  const left=Math.max(8,Math.min(r.left+r.width/2-w/2,innerWidth-w-8));
+  const top=r.top-h-10>=8?r.top-h-10:Math.min(r.bottom+10,innerHeight-h-8);
+  Object.assign(m.style,{left:left+'px',top:top+'px'});
+}
+$('#cl-share-q').onclick=e=>{e.stopPropagation();click();paintMenu();const m=$('#cl-q-menu');m.hidden=!m.hidden;if(!m.hidden)placeMenu()};
+$('#cl-q-menu').addEventListener('click',e=>{
+  e.stopPropagation();
+  const b=e.target.closest('[data-q]');if(!b)return;
+  click();shareQ=b.dataset.q;lsSet('wvm.shareQuality',shareQ);paintMenu();closeMenu();
+  if(call?.screen){applyQuality();toast(`Stream quality: ${b.querySelector('b').textContent}`)}
+});
+$('#cl-share-sound').onchange=e=>{shareSound=e.target.checked;lsSet('wvm.shareSound',shareSound?'1':'0');if(call?.screen)toast('Takes effect the next time you share')};
+document.addEventListener('pointerdown',e=>{if(!e.target.closest('#cl-q-menu,#cl-share-q'))closeMenu()});
 function stopShare(){
   if(!call?.screen)return;
   if(call.relay)stopFrames(call,'screen');
@@ -359,7 +582,7 @@ async function toggleCam(){
   if(!call?.pc&&!call?.relay)return;
   if(call.cam)return stopCam();
   let stream;
-  try{stream=await navigator.mediaDevices.getUserMedia({video:{width:{ideal:640},height:{ideal:480},frameRate:{ideal:24}},audio:false})}
+  try{stream=await navigator.mediaDevices.getUserMedia({video:{width:{ideal:1280},height:{ideal:720},frameRate:{ideal:30}},audio:false})}
   catch(e){toast(e.name==='NotAllowedError'?'Camera blocked. Allow it in the browser to turn it on.':e.name==='NotFoundError'?'No camera found.':"Couldn't start the camera.",'err');return}
   if(!call?.pc&&!call?.relay||call.cam){stream.getTracks().forEach(t=>t.stop());return}
   call.cam=stream;
@@ -417,16 +640,29 @@ $('#cl-end').onclick=()=>{click();hangup()};
 $('#cl-mute').onclick=()=>{click();toggleMute()};
 $('#cl-share').onclick=()=>{click();toggleShare()};
 $('#cl-cam').onclick=()=>{click();toggleCam()};
-$('#cl-size').onclick=()=>{click();C.classList.toggle('big')};
-$('#cl-fs').onclick=async()=>{try{document.fullscreenElement?await document.exitFullscreen():await $('#cl-video').requestFullscreen()}catch(_){}};
+$('#cl-deaf').onclick=()=>{click();setDeaf(!call?.deaf)};
+$('#cl-size').onclick=()=>{click();C.classList.toggle('big');layout()};
+// fullscreen: the tile in focus, else the whole call
+$('#cl-fs').onclick=async()=>{try{document.fullscreenElement?await document.exitFullscreen():await ($(TILES[focus]||'')||$('#cl-tiles')).requestFullscreen()}catch(_){}};
+// Discord's shortcuts: Ctrl+Shift+M mutes, Ctrl+Shift+D deafens
+document.addEventListener('keydown',e=>{
+  if(!call||C.dataset.state!=='active'||!e.ctrlKey||!e.shiftKey||e.altKey)return;
+  const k=e.key.toLowerCase();
+  if(k==='m'){e.preventDefault();toggleMute()}else if(k==='d'){e.preventDefault();setDeaf(!call.deaf)}
+});
 $('#dc-call').onclick=()=>{click();start($('#dc-call').dataset.to)};
 window.addEventListener('beforeunload',()=>{if(call)dcSend({type:call.dir==='in'&&!call.pc&&!call.relay?'call.decline':'call.end',callId:call.id})});
 
 window.calls={start,onMessage,hangup,get active(){return !!call},
+  /* for the tests: WebRTC's own numbers (what's being sent and received) */
+  async rtc(){const pc=call?.pc;if(!pc)return null;const out=[];(await pc.getStats()).forEach(r=>{if(/^(in|out)bound-rtp$/.test(r.type)&&r.kind==='video')out.push({type:r.type,bytes:r.bytesSent??r.bytesReceived,frames:r.framesEncoded??r.framesDecoded,w:r.frameWidth,h:r.frameHeight,fps:r.framesPerSecond,limit:r.qualityLimitationReason})});return{sig:pc.signalingState,conn:pc.connectionState,tx:pc.getTransceivers().map(t=>(t.receiver.track?.kind||"?")+":"+t.currentDirection),out,senders:pc.getSenders().filter(x=>x.track?.kind==='video').map(x=>{const p=x.getParameters();return{hint:x.track.contentHint,maxBitrate:p.encodings?.[0]?.maxBitrate,maxFramerate:p.encodings?.[0]?.maxFramerate,pref:p.degradationPreference}})}},
   /* how the call is going: direct, or through our server with what's been sent and received */
   stats(){
     if(!call)return null;
     const video={cam:C.classList.contains('has-cam'),screen:C.classList.contains('has-screen')};
-    return call.relay?{id:call.id,mode:'relay',video,...call.relay.stats}:{id:call.id,mode:call.pc?'direct':'none',state:call.pc?.connectionState,video};
+    const extra={layout:C.dataset.mode,focus,muted:muted(),deaf:!!call.deaf,theirs:call.theirs||null,quality:shareQ,
+      speaking:{me:$('#cl-t-me').classList.contains('speaking'),them:$('#cl-t-them').classList.contains('speaking')}};
+    const v=call.screen?.getVideoTracks()[0];if(v)extra.sharing={...v.getSettings(),hint:v.contentHint};
+    return call.relay?{id:call.id,mode:'relay',video,...extra,...call.relay.stats}:{id:call.id,mode:call.pc?'direct':'none',state:call.pc?.connectionState,video,...extra};
   }};
 })();

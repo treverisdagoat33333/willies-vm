@@ -123,54 +123,7 @@ html[data-account="on"] .guest-only{display:none}
 /* the chat header/sidebar buttons set display:grid, which beat the hidden attribute */
 .dc-top button[hidden],.dc-cat button[hidden],.dc-me button[hidden]{display:none}
 
-/* ── voice calls ───────────────────────────── */
-#call{position:fixed;z-index:9600;display:none;flex-direction:column;gap:12px;padding:14px;border-radius:var(--r-xl);
-  background:var(--glass);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);border:1px solid var(--border-2);box-shadow:var(--shadow);color:var(--text)}
-#call:not([data-state="off"]){display:flex}
-#call[data-state="incoming"],#call[data-state="outgoing"]{top:18px;left:50%;translate:-50% 0;width:min(340px,calc(100vw - 32px));animation:rise .35s var(--spring)}
-#call[data-state="active"]{left:16px;bottom:calc(var(--tb-h) + 12px);width:min(300px,calc(100vw - 32px))}
-html[data-tbside="top"] #call[data-state="active"],html[data-tbhide="on"] #call[data-state="active"]{bottom:16px}
-#call.big.has-video[data-state="active"]{left:50%;top:50%;bottom:auto;translate:-50% -50%;width:min(1000px,calc(100vw - 32px))}
-#call[data-state="incoming"]{border-color:rgba(34,197,94,.55);box-shadow:var(--shadow),0 0 0 6px rgba(34,197,94,.12)}
-.cl-row{display:flex;align-items:center;gap:12px;min-width:0}
-.cl-av{width:46px;height:46px;border-radius:50%;flex:0 0 auto;display:grid;place-items:center;font-weight:800;font-size:1.1rem;color:#fff;text-transform:uppercase}
-#call[data-state="incoming"] .cl-av,#call[data-state="outgoing"] .cl-av{animation:clPulse 1.6s ease-out infinite}
-@keyframes clPulse{0%{box-shadow:0 0 0 0 rgba(34,197,94,.55)}100%{box-shadow:0 0 0 16px rgba(34,197,94,0)}}
-.cl-t{flex:1;min-width:0}
-.cl-t b{display:block;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.cl-t small{display:block;margin-top:2px;font-size:.8em;color:var(--text-2);font-variant-numeric:tabular-nums}
-.cl-btns{display:flex;justify-content:center;gap:10px}
-.cl-b{display:none;place-items:center;width:44px;height:44px;border-radius:50%;background:var(--glass-3);color:var(--text);transition:background .15s,transform .25s var(--springy)}
-.cl-b:hover{background:rgba(255,255,255,.16)}
-.cl-b:active{transform:scale(.9)}
-.cl-b .i{width:20px;height:20px}
-.cl-b.ok{background:#22c55e;color:#fff}.cl-b.ok:hover{background:#16a34a}
-.cl-b.bad{background:#ef4444;color:#fff}.cl-b.bad:hover{background:#dc2626}
-.cl-b.bad .i{rotate:135deg}
-.cl-b.on{background:var(--text);color:var(--bg0)}
-#cl-mute .x{display:none}#cl-mute.on .x{display:inline}
-#call[data-state="incoming"] #cl-accept,#call[data-state="incoming"] #cl-decline,
-#call[data-state="outgoing"] #cl-end,
-#call[data-state="active"] #cl-mute,#call[data-state="active"] #cl-share:not([hidden]),#call[data-state="active"] #cl-cam:not([hidden]),#call[data-state="active"] #cl-end,
-#call[data-state="active"].has-video #cl-size{display:grid}
-#call[data-state="incoming"] .cl-b{width:52px;height:52px}
-.cl-video{display:none;position:relative;border-radius:var(--r-lg);overflow:hidden;background:#000;aspect-ratio:16/9}
-#call.has-video .cl-video{display:block}
-.cl-video video{width:100%;height:100%;object-fit:contain;display:block}
-/* their screen fills the panel; their camera does too when it's on its own, else it sits in a corner */
-#cl-remote-canvas,#cl-remote-cam-canvas,#cl-remote-cam{display:none;width:100%;height:100%;object-fit:contain}
-#call.has-cam #cl-remote-cam{display:block}
-#call.has-cam:not(.has-screen) #cl-remote-video{display:none}
-#call.relay #cl-remote-video,#call.relay #cl-remote-cam{display:none}
-#call.relay.has-screen #cl-remote-canvas,#call.relay.has-cam #cl-remote-cam-canvas{display:block}
-#call.has-cam.has-screen #cl-remote-cam,#call.has-cam.has-screen #cl-remote-cam-canvas{position:absolute;right:10px;bottom:10px;width:26%;height:auto;aspect-ratio:4/3;object-fit:cover;border-radius:10px;box-shadow:0 4px 18px rgba(0,0,0,.5)}
-#cl-self.mirror{transform:scaleX(-1)}
-.cl-fs{position:absolute;top:8px;right:8px;width:32px;height:32px;display:grid;place-items:center;border-radius:8px;background:rgba(0,0,0,.55);color:#fff;opacity:0;transition:opacity .15s}
-.cl-video:hover .cl-fs{opacity:1}
-.cl-fs .i{width:16px;height:16px}
-#cl-self{display:none;width:84px;aspect-ratio:16/9;border-radius:6px;background:#000;object-fit:cover;flex:0 0 auto}
-#call.self-video #cl-self{display:block}
-.dc-top #dc-call{color:#22c55e}
+/* voice calls: css/calls.css */
 
 /* ── remote PC: files + sound ─────────────── */
 #remote-toolbar .btn.on{background:rgba(var(--accent-rgb),.22);border-color:rgba(var(--accent-rgb),.6)}
