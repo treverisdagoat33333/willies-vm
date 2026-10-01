@@ -149,6 +149,10 @@ async function readStream(body, onText, signal) {
 export function aiRouter({ requireSession, limiter, userLimiter }) {
   const router = express.Router();
 
+  // the same instructions for models that run in the visitor's own browser (js/local-ai.js);
+  // nothing secret in them, and the page adds its own "what's on screen" note the same way
+  router.get("/system", (_req, res) => res.set("Cache-Control", "public, max-age=600").json({ system: SYSTEM, actions: ACTIONS }));
+
   router.get("/status", requireSession, async (req, res) => {
     const { key, base } = config();
     if (!key || !base) return res.json({ ready: false, models: [], model: "" });

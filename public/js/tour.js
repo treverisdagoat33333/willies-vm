@@ -14,6 +14,9 @@
   const NEWS_KEY = 'wvm.news.seen';
   /* add new entries at the top; the id only has to grow */
   const NEWS = [
+    { id: 8, date: 'Oct 2026', items: [
+      ['🧠', 'AI on your own device', 'Pick a model under "On this device" in the AI app: free, private, and it works offline after the first download.'],
+    ] },
     { id: 7, date: 'Oct 2026', items: [
       ['🕹️', 'The Arcade', '1,700+ games that play right here, each in its own window. Search, categories, favourites, and your progress is saved.'],
     ] },

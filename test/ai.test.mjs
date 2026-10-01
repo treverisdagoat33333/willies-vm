@@ -28,7 +28,7 @@ await page.waitForSelector("#ai-window.show");
 await page.waitForFunction(() => document.querySelector("#ai-log h2")?.textContent === "What can I help with?", null, { timeout: 10000 }).catch(() => {});
 ok(await page.textContent("#ai-log h2") === "What can I help with?", "the AI button opens the chat window");
 await page.waitForFunction(() => document.querySelectorAll("#ai-model option").length > 0, null, { timeout: 10000 }).catch(() => {});
-ok(await page.$eval("#ai-model", (s) => s.value) === "gpt-4o-mini" && await page.$$eval("#ai-model option", (o) => o.length) === 3, "…with the API's models, a sensible one picked", await page.$eval("#ai-model", (s) => s.value));
+ok(await page.$eval("#ai-model", (s) => s.value) === "gpt-4o-mini" && await page.$$eval('#ai-model optgroup[label="Online"] option', (o) => o.length) === 3, "…with the API's models, a sensible one picked", await page.$eval("#ai-model", (s) => s.value));
 ok(!(await page.content()).includes("test-ai-key") && !(await page.evaluate(async () => JSON.stringify(await (await fetch("/api/ai/status")).json()))).includes("test-ai-key"), "the API key never reaches the browser");
 
 // a message, answered as it streams
@@ -143,7 +143,7 @@ await p2.click("#guest-button");
 await p2.waitForSelector("#auth-wrap.hidden", { state: "attached" });
 await p2.evaluate(() => window.ai.open());
 await p2.waitForFunction(() => /set up/.test(document.querySelector("#ai-log h2")?.textContent || ""), null, { timeout: 10000 }).catch(() => {});
-ok(/isn't set up yet/.test(await p2.textContent("#ai-log h2").catch(() => "")), "without AI_API_KEY, the window says the AI isn't set up");
+ok(/isn't set up/.test(await p2.textContent("#ai-log h2").catch(() => "")), "without AI_API_KEY, the window says the AI isn't set up");
 await ctx2.close();
 
 console.log(`\n${pass} passed, ${fail} failed`);
