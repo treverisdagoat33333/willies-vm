@@ -76,7 +76,7 @@ async function join(slug){
       if(peak>TALK)me.myAt=performance.now();
       if(me.ws?.readyState===1){me.ws.send(b);me.sent++}
     };
-    ctx.resume().catch(()=>{});
+    resumeSound(ctx);
   }catch(e){console.warn('voice audio',e);leave(true);toast("Couldn't start voice's sound.",'err');return}
   connect(me);
 }
@@ -285,7 +285,7 @@ async function watch(i){
   };
   pc.onconnectionstatechange=()=>{if(pc.connectionState==='connected')clearTimeout(w.t);else if(pc.connectionState==='failed')fallback()};
   pc.ontrack=({track})=>{
-    if(track.kind==='audio'){const a=document.createElement('audio');a.autoplay=true;a.srcObject=new MediaStream([track]);a.muted=me.deaf;a.className='vs-sound';a.dataset.i=i;ST.appendChild(a);track.onended=()=>a.remove();return}
+    if(track.kind==='audio'){const a=document.createElement('audio');a.autoplay=true;a.srcObject=new MediaStream([track]);a.muted=me.deaf;a.className='vs-sound';a.dataset.i=i;ST.appendChild(a);playSound(a);track.onended=()=>a.remove();return}
     w.stream=new MediaStream([track]);render();
   };
   // the track itself shows up during the handshake, before any picture can flow, so wait for the connection

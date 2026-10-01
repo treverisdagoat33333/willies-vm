@@ -550,6 +550,22 @@ function reportError(kind,msg,place=''){try{msg=String(msg||'').slice(0,240);con
 const ownScript=f=>!f||(f.startsWith(location.origin+'/')&&!f.includes('/~/'));
 addEventListener('error',e=>{if(e.message&&ownScript(e.filename))reportError('js',e.message,`${(e.filename||'').replace(location.origin,'')}:${e.lineno||0}`)});
 addEventListener('unhandledrejection',e=>{const r=e.reason;if(r?.name==='AbortError')return;const st=String(r?.stack||'');if(st&&!ownScript((st.match(/https?:\/\/[^\s)]+/)||[''])[0]))return;reportError('js',r?.message||String(r),(st.split('\n')[1]||'').trim().replace(location.origin,''))});
+/* Browsers can refuse to play sound until the page gets a click (Safari and iPhones
+   especially, and a call that moved to our relay with no click since). Calls and
+   voice channels hand their blocked play() or suspended AudioContext here: the next
+   click or key press, anywhere, starts them, and a toast says so. */
+const soundWaiting=new Set();
+function soundUnlock(start){
+  soundWaiting.add(start);
+  if(soundWaiting.size>1)return;
+  toast('Click anywhere to turn the sound on','err');
+  const go=()=>{removeEventListener('pointerdown',go,true);removeEventListener('keydown',go,true);const l=[...soundWaiting];soundWaiting.clear();for(const f of l){try{f()}catch(_){}}};
+  addEventListener('pointerdown',go,true);addEventListener('keydown',go,true);
+}
+/* play an <audio>, or have the next click do it */
+function playSound(el){const p=el.play();if(p)p.catch(e=>{if(e?.name==='NotAllowedError')soundUnlock(()=>el.play().catch(()=>{}))})}
+/* start an AudioContext, or have the next click do it */
+function resumeSound(ctx){ctx.resume().catch(()=>{}).finally(()=>{if(ctx.state==='suspended')soundUnlock(()=>ctx.resume().catch(()=>{}))})}
 function track(kind,name=''){try{fetch('/api/stats/event',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({kind,name}),keepalive:true}).catch(()=>{})}catch(_){}}
 $$('.tile').forEach(t=>t.addEventListener('pointermove',e=>{const r=t.getBoundingClientRect();t.style.setProperty('--mx',(e.clientX-r.left)+'px');t.style.setProperty('--my',(e.clientY-r.top)+'px')}));
 

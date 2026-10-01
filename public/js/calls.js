@@ -276,7 +276,7 @@ async function makePeer(){
     if(track.kind==='audio'){
       // one element per track: their voice and their shared tab's sound both play
       const a=document.createElement('audio');a.autoplay=true;a.srcObject=new MediaStream([track]);a.muted=!!call.deaf;
-      $('#cl-audio').appendChild(a);a.play().catch(()=>{});
+      $('#cl-audio').appendChild(a);playSound(a);
       // their voice (not their shared tab's sound) drives the speaking ring
       if(call.remoteKinds?.[streams[0]?.id]!=='screen'&&!call.meterThem)call.meterThem=analyser(track);
       track.onended=()=>a.remove();
@@ -363,7 +363,7 @@ async function goRelay(why){
     const src=ctx.createMediaStreamSource(c.mic),node=new AudioWorkletNode(ctx,'wvm-mic'),silent=ctx.createGain();
     silent.gain.value=0;src.connect(node).connect(silent).connect(ctx.destination); // it only runs while connected to the output
     node.port.onmessage=({data})=>{if(c.mic.getAudioTracks()[0]?.enabled)relaySend(c,KIND.voice,new Uint8Array(data))};
-    ctx.resume().catch(()=>{});
+    resumeSound(ctx);
   }catch(e){console.warn('call relay audio',e);if(call===c){dcSend({type:'call.end',callId:c.id});finish("Couldn't start the call's sound.",'err')}return}
   openRelay(c,0);
 }
