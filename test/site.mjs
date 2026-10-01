@@ -36,6 +36,17 @@ try{const ws=new WebSocket("ws://"+location.host+"/ws");ws.onopen=()=>ws.send("p
   if (u.pathname.startsWith("/bench/")) return bench(u, res);
   if (u.pathname.startsWith("/t/c/")) return chunk(u, res);
   if (u.pathname.startsWith("/v1/")) return aiMock(req, res, u);
+  // a pretend game collection for the Arcade (served as text/plain, like jsDelivr does)
+  if (u.pathname.startsWith("/ugs/")) {
+    if (!u.pathname.endsWith("/cl2048.html")) { res.writeHead(404); return res.end(); }
+    res.writeHead(200, { "content-type": "text/plain; charset=utf-8", "access-control-allow-origin": "*" });
+    return res.end(`<!doctype html><html><head><title>2048</title></head><body><p id=n></p><script>
+const n = +(localStorage.getItem("plays") || 0) + 1; localStorage.setItem("plays", n);
+document.getElementById("n").textContent = "plays " + n;
+let ours = "blocked"; try { ours = parent.document.title; } catch (e) {}
+window.report = { plays: n, origin: self.origin, parentReadable: ours !== "blocked", cookie: document.cookie };
+</script></body></html>`);
+  }
   if (/^\/(sc\/|sc-|dz\/|au\/|au-node\/)/.test(u.pathname)) return musicMock(req, res, u);
   switch (u.pathname) {
     case "/t/iframe": return page("iframe", `<iframe id="f" src="/t/child"></iframe><iframe id="b"></iframe><script>

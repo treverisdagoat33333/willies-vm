@@ -577,5 +577,5 @@
 
   addEventListener('keydown', (e) => { if (e.altKey && !e.ctrlKey && e.key.toLowerCase() === 'p') { e.preventDefault(); launcher(); } });
 
-  window.apps = { games: loadGames, play: openGame, open: launcher, tool: (id) => { const t = T.find((x) => x.id === id); if (t) openTool(t); }, web: (id) => { const a = WEB.find((x) => x.id === id); if (a) openWeb(a); }, close, list: () => ({ web: WEB.map((a) => a.id), tools: T.map((t) => t.id) }), windows: () => [...wins.keys()] };
+  window.apps = { win: (o) => openWin(o), addTool: (t) => { if (!T.some((x) => x.id === t.id)) T.unshift({ ...t, glyph: t.glyph || GLYPH[t.id] }); }, games: loadGames, play: openGame, open: launcher, tool: (id) => { const t = T.find((x) => x.id === id); if (t) openTool(t); }, web: (id) => { const a = WEB.find((x) => x.id === id); if (a) openWeb(a); }, close, list: () => ({ web: WEB.map((a) => a.id), tools: T.map((t) => t.id) }), windows: () => [...wins.keys()] };
 })();

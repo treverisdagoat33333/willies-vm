@@ -72,6 +72,7 @@ try {
     SOUNDCLOUD_API: `http://127.0.0.1:${sitePort}/sc`,
     SOUNDCLOUD_CLIENT_ID: "test-client-id",
     DEEZER_API: `http://127.0.0.1:${sitePort}/dz`,
+    ARCADE_UPSTREAM: `http://127.0.0.1:${sitePort}/ugs/`,
     AUDIUS_API: `http://127.0.0.1:${sitePort}/au`,
     OWNER_USERNAME: "testowner",
     OWNER_PASSWORD: "test-owner-pass",

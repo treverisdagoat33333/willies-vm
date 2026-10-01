@@ -101,7 +101,7 @@ export function clearErrors() {
 export const KINDS = ["visit", "app", "song", "movie", "vm", "ai", "chat", "call", "voice", "signup"];
 // what the page may report about itself; the rest only the server records
 const PAGE_KINDS = ["visit", "app", "song", "movie"];
-export const APP_NAMES = ["browser", "games", "vm", "vm1", "vm2", "links", "remote", "cloud", "movies", "music", "ai", "chat", "settings", "admin", "apps"];
+export const APP_NAMES = ["browser", "games", "vm", "vm1", "vm2", "links", "remote", "cloud", "movies", "music", "ai", "chat", "settings", "admin", "apps", "arcade"];
 const KEEP_DAYS = 120;
 const SALT = crypto.randomBytes(16);
 

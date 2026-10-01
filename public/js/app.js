@@ -488,7 +488,8 @@ let ssT;$('#settings-search').addEventListener('input',e=>{clearTimeout(ssT);con
 $('#settings-search').addEventListener('keydown',e=>{if(e.key==='Escape'){e.stopPropagation();e.target.value='';searchSettings('')}});
 
 /* panels */
-function openPanel(id){const p=$('#'+id);p.classList.remove('closing');p.classList.add('show');$('#start').classList.remove('show')}
+function openPanel(id){const p=$('#'+id);p.classList.remove('closing');p.classList.add('show');p.style.zIndex=Math.max(65,...[...document.querySelectorAll('.aw')].map(w=>(+w.style.zIndex||0)+1)); // above any app window
+$('#start').classList.remove('show')}
 /* Run `done` when the closing animation finishes.
    animationend alone is not enough: Performance mode kills animations
    outright (so it never fires), a background tab can stall them, and the
@@ -519,7 +520,7 @@ function closeAllPanels(){['links-panel','games-panel','settings-panel','history
 const APPS={
   browser:()=>openBrowser(),games:()=>openGames(),links:()=>openLinks(),chat:()=>toggleChat(),settings:()=>openSettings(),cloud:()=>toggleCloud(),remote:()=>toggleRemote(),
   vm1:()=>launchE2BVM(),vm2:()=>launchGPUVM(),vm:()=>(S.defaultVM==='gpu'?launchGPUVM():launchE2BVM()),
-  admin:()=>openAdmin(),music:()=>window.music?.toggle(),ai:()=>window.ai?.toggle(),movies:()=>window.movies?.toggle(),apps:()=>window.apps?.open()
+  admin:()=>openAdmin(),music:()=>window.music?.toggle(),ai:()=>window.ai?.toggle(),movies:()=>window.movies?.toggle(),apps:()=>window.apps?.open(),arcade:()=>{closeAllPanels();window.arcade?.open()}
 };
 /* Minimize: hides an app as it is (tabs, the VM, what's playing, the chat) and
    its taskbar button brings it back. Each app's own Close still closes it. */

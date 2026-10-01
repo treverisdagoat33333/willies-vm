@@ -15,6 +15,7 @@ import zlib from "node:zlib";
 import { compressedStatic } from "./static.js";
 import { backupRouter } from "./backup.js";
 import { gamesRouter } from "./games.js";
+import { arcadeRouter, ARCADE_CATALOG } from "./arcade.js";
 import cookieParser from "cookie-parser";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
@@ -489,6 +490,9 @@ app.get("/cloud/app/:file?", async (req, res) => {
   }
 });
 
+// the Arcade: ~1,800 HTML games, served sandboxed with a storage shim (arcade.js)
+const arcadeLimiter = createLimiter({ windowMs: 60_000, max: 120 });
+app.use(arcadeRouter({ catalog: ARCADE_CATALOG(publicDir), limiter: limitByIp(arcadeLimiter, "Too many games opened. Wait a minute.") }));
 // your own HTML games in public/games/ (games.js)
 app.use(gamesRouter(path.join(publicDir, "games")));
 app.use(compressedStatic(publicDir), express.static(publicDir));
