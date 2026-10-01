@@ -83,7 +83,7 @@ async function join(slug){
 function send(me,o){if(me?.ws?.readyState===1)me.ws.send(JSON.stringify(o))}
 function connect(me){
   const ws=new WebSocket(`${location.protocol==='https:'?'wss':'ws'}://${location.host}/voice/?channel=${encodeURIComponent(me.slug)}`);
-  ws.binaryType='arraybuffer';me.ws=ws;
+  ws.binaryType='arraybuffer';me.ws=ws;keepAlive(ws,'{"t":"ping"}');
   ws.onopen=()=>{
     me.opened=true;me.tries=0;
     if(me.muted)send(me,{t:'mute',on:true});
@@ -227,7 +227,7 @@ async function onRtc(me,from,data){
     closePeer(me,from);
     const pc=new RTCPeerConnection(blocked()?{iceServers:[],iceTransportPolicy:'relay'}:{iceServers:await iceServers()});
     if(v!==me||!me.live){pc.close();return}
-    me.peers.set(from,{pc});
+    me.peers.set(from,{pc,adapt:adaptVideo(pc)}); // a viewer on a weak connection gets smaller, smoother video (app.js)
     pc.onicecandidate=({candidate})=>{if(candidate)send(me,{t:'rtc',to:from,data:{candidate:candidate.toJSON()}})};
     me.live.getTracks().forEach(t=>pc.addTrack(t,me.live));
     await pc.setLocalDescription();

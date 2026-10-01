@@ -19,10 +19,16 @@ const DEFAULTS={
   cloak:'none',cloakTitle:'',cloakIcon:'',cloakAuto:false,cloakRandom:false,
   panic:false,panicKey:'`',panicUrl:'https://classroom.google.com',panicAction:'redirect',panicWipe:false,
   blurunfocus:false,blurAmt:24,lock:false,lockMins:'5',
-  perf:false,motion:false,bouncy:true,wallimg:true,preload:false,sound:false,soundpack:'soft',volume:0.5,chatsound:true,fps:false,notify:false,sync:true,
+  perf:false,autoPerf:true,motion:false,bouncy:true,wallimg:true,preload:false,sound:false,soundpack:'soft',volume:0.5,chatsound:true,fps:false,notify:false,sync:true,
   proxy:'wj',wjFast:true,wjAds:true,saveLogins:true,confirmLeave:true,
   wClock:true,wWeather:false,wMusic:true,wTodo:false // desktop widgets (js/desk.js)
 };
+/* the light look for slow devices (ADAPTIVE QUALITY, below) */
+const autoLite=(()=>{let v=null;try{v=JSON.parse(localStorage.getItem('wvm.autoLite'))}catch(_){}
+  // test browsers keep the full look (headless frame rates mean nothing) unless a test asks
+  if(navigator.webdriver&&!localStorage.getItem('wvm.autoLite.test'))return{on:false,why:'',off:true};
+  const weak=(navigator.deviceMemory&&navigator.deviceMemory<=2)||(navigator.hardwareConcurrency&&navigator.hardwareConcurrency<=2);
+  return{on:!!(weak||(v&&Date.now()-v.at<7*864e5)),why:weak?'weak hardware':v?'slow frames':''};})();
 const KEY='wvm.settings.v1';
 // whether this browser had been here before this visit (the welcome tour asks)
 const RETURNING=(()=>{try{return !!localStorage.getItem(KEY)}catch(_){return false}})();
@@ -45,7 +51,7 @@ let S=(()=>{
 try{if(!localStorage.getItem('wvm.defaults.v2')){if(S.proxy==='sj2')S.proxy='wj';if(S.wjFast===false)S.wjFast=true;localStorage.setItem(KEY,JSON.stringify(S));localStorage.setItem('wvm.defaults.v2','1')}}catch(_){}
 let quietLeave=false; // our own reload or the panic key is leaving: don't ask "Leave site?" (see askBeforeLeaving)
 /* settings sync state; the logic lives in SETTINGS SYNC further down */
-const SYNC_LOCAL_ONLY=['perf','wallimg','preload','fps','sync','proxy','wjFast','wjAds']; // speed and engine settings belong to the device
+const SYNC_LOCAL_ONLY=['perf','autoPerf','wallimg','preload','fps','sync','proxy','wjFast','wjAds']; // speed and engine settings belong to the device
 const SYNC_KEYS=['bookmarks','favGames','music','desk']; // localStorage keys that travel with the account
 let syncOn=false,syncApplying=false,syncT=null,syncPulledAt=0;
 let syncMeta=(()=>{try{return JSON.parse(localStorage.getItem('wvm.sync')||'null')}catch(_){return null}})()||{user:'',server:0,dirty:false};
@@ -107,7 +113,7 @@ const root=document.documentElement;
 function effectiveTheme(){return S.autotheme?((new Date().getHours()>=7&&new Date().getHours()<19)?'light':'dark'):S.theme}
 function applyAll(){
   const th=effectiveTheme();
-  root.dataset.theme=th;root.dataset.blur=S.blur?'on':'off';root.dataset.perf=S.perf?'on':'off';root.dataset.motion=S.motion?'off':'on';root.dataset.bouncy=S.bouncy?'on':'off';
+  root.dataset.theme=th;root.dataset.blur=S.blur?'on':'off';root.dataset.perf=S.perf||(S.autoPerf&&autoLite.on)?'on':'off';{const n=document.getElementById('autolite-note');if(n)n.textContent=S.autoPerf&&autoLite.on&&!S.perf?`On for this device right now (${autoLite.why}), so blur and animations are off. Turn this off to bring them back.`:'Turns effects down by itself when this device struggles to keep up.'}root.dataset.motion=S.motion?'off':'on';root.dataset.bouncy=S.bouncy?'on':'off';
   root.dataset.tbpos=S.tbpos;root.dataset.tbside=S.tbside;root.dataset.tbhide=S.tbhide?'on':'off';root.dataset.icons=S.icons?'on':'off';root.dataset.bgtext=S.bgtext?'on':'off';
   root.dataset.gsize=S.gsize;root.dataset.bmbar=S.bmbar?'on':'off';
   root.dataset.font=S.font;root.dataset.radius=S.radius;root.dataset.density=S.density;root.dataset.glow=S.glow?'on':'off';
@@ -566,6 +572,58 @@ function soundUnlock(start){
 function playSound(el){const p=el.play();if(p)p.catch(e=>{if(e?.name==='NotAllowedError')soundUnlock(()=>el.play().catch(()=>{}))})}
 /* start an AudioContext, or have the next click do it */
 function resumeSound(ctx){ctx.resume().catch(()=>{}).finally(()=>{if(ctx.state==='suspended')soundUnlock(()=>ctx.resume().catch(()=>{}))})}
+/* ═══ adaptive quality ═══
+   The device: a slow one gets the light look (performance mode's CSS) without anyone
+   asking. Weak hardware starts light; otherwise the desktop's own frame rate is
+   measured while nothing heavy (a game, a site, a video) is open, and a choppy
+   desktop turns light for a week, then gets measured again. Performance mode set by
+   hand always wins, and Settings can turn this off (S.autoPerf). */
+const busyApp=()=>!!document.querySelector('.aw:not([hidden])')||['#browser-wrap','#vm-wrap','#cloud-wrap','#remote-wrap','#movies-wrap'].some(s=>{const e=$(s);return e&&getComputedStyle(e).display!=='none'&&!e.classList.contains('minimized')});
+function measureFrames(){
+  if(autoLite.on||autoLite.off||!S.autoPerf||S.perf||document.hidden||busyApp())return;
+  let n=0,slow=0,last=performance.now();const t0=last;
+  const step=now=>{n++;if(now-last>50)slow++;last=now;if(now-t0<3000)requestAnimationFrame(step);else done(now-t0)};
+  const done=ms=>{
+    const fps=n*1000/ms;
+    if(document.hidden||busyApp())return; // the measurement saw something else
+    if(fps<35||slow>n*0.25){measureFrames.bad=(measureFrames.bad||0)+1}else measureFrames.bad=0;
+    if(measureFrames.bad>=2){autoLite.on=true;autoLite.why='slow frames';try{localStorage.setItem('wvm.autoLite',JSON.stringify({at:Date.now(),fps:Math.round(fps)}))}catch(_){}applyAll()}
+  };
+  requestAnimationFrame(step);
+}
+setTimeout(()=>{measureFrames();setInterval(measureFrames,45000)},8000);
+window.autoLite=autoLite;
+
+/* The network: a shared screen or camera held back by bandwidth or the CPU gives up
+   resolution for motion (instead of freezing at a frame a second), then climbs back
+   once the connection has been fine for a while. Watches one RTCPeerConnection's
+   video senders every 3 s; returns a stop function. */
+function adaptVideo(pc){
+  const st=new Map(); // sender -> {bad, good, scale}
+  const tick=async()=>{
+    if(pc.connectionState==='closed')return stop();
+    let stats;try{stats=await pc.getStats()}catch(_){return}
+    for(const s of pc.getSenders()){
+      if(s.track?.kind!=='video')continue;
+      let out=null;stats.forEach(r=>{if(r.type==='outbound-rtp'&&r.kind==='video'&&r.trackIdentifier===s.track.id)out=r});
+      if(!out)stats.forEach(r=>{if(!out&&r.type==='outbound-rtp'&&r.kind==='video')out=r});
+      if(!out)continue;
+      const x=st.get(s)||{bad:0,good:0,scale:1};st.set(s,x);
+      const limited=out.qualityLimitationReason==='bandwidth'||out.qualityLimitationReason==='cpu';
+      if(limited){x.bad++;x.good=0}else{x.good++;x.bad=0}
+      let scale=x.scale;
+      if(x.bad>=3&&scale<3){scale=Math.min(3,scale*1.5);x.bad=0}
+      else if(x.good>=6&&scale>1){scale=Math.max(1,scale/1.5);x.good=0}
+      if(scale!==x.scale){
+        try{const p=s.getParameters();if(!p.encodings?.length)continue;p.encodings[0].scaleResolutionDownBy=scale;if(scale>1)p.degradationPreference='balanced';await s.setParameters(p);x.scale=scale}catch(_){}
+      }
+    }
+  };
+  const iv=setInterval(tick,3000);
+  function stop(){clearInterval(iv)}
+  return Object.assign(stop,{state:()=>[...st.values()].map(x=>x.scale)});
+}
+
 function track(kind,name=''){try{fetch('/api/stats/event',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({kind,name}),keepalive:true}).catch(()=>{})}catch(_){}}
 $$('.tile').forEach(t=>t.addEventListener('pointermove',e=>{const r=t.getBoundingClientRect();t.style.setProperty('--mx',(e.clientX-r.left)+'px');t.style.setProperty('--my',(e.clientY-r.top)+'px')}));
 
@@ -1981,6 +2039,46 @@ $('#links-search').addEventListener('input',e=>renderLinks(e.target.value));
    ═══════════════════════════════════════════════════════════ */
 /* connection state ------------------------------------------- */
 let chatWS=null,chatReady=false,chatRetry=0,chatRetryT=null;
+/* ═══ auto-healing connections ═══
+   A socket can die without closing: a laptop wakes from sleep, the Wi-Fi changes, a
+   school proxy drops idle connections. Nothing fires, and chat, voice or a call just
+   goes quiet. Every socket registered here pings our server every 15 s; one that has
+   heard nothing back in 35 s is treated as closed, so its own reconnect runs at once.
+   Coming back online, or back to the tab, checks them all within 5 s. */
+const liveSockets=new Set();
+function keepAlive(ws,ping){
+  const s={ws,ping,last:Date.now()};
+  ws.addEventListener('open',()=>{s.last=Date.now()});
+  ws.addEventListener('message',()=>{s.last=Date.now()});
+  ws.addEventListener('close',()=>liveSockets.delete(s));
+  liveSockets.add(s);
+}
+function socketDead(s){
+  liveSockets.delete(s);
+  const ws=s.ws,closed=ws.onclose;ws.onclose=null; // a dead socket can take minutes to say so: don't wait
+  try{ws.close(4000,'stalled')}catch(_){}
+  try{closed?.call(ws,{code:4000,reason:'stalled',wasClean:false})}catch(e){console.warn('reconnect',e)}
+}
+setInterval(()=>{
+  const now=Date.now(),limit=document.hidden?120000:35000; // background tabs run timers late: be patient there
+  for(const s of liveSockets){
+    if(s.ws.readyState!==1)continue;
+    if(now-s.last>limit){socketDead(s);continue}
+    if(now-s.last>14000)try{s.ws.send(s.ping)}catch(_){}
+  }
+},5000);
+function probeSockets(){
+  for(const s of liveSockets){
+    if(s.ws.readyState!==1)continue;
+    const at=Date.now();try{s.ws.send(s.ping)}catch(_){}
+    setTimeout(()=>{if(liveSockets.has(s)&&s.last<at)socketDead(s)},5000);
+  }
+}
+addEventListener('online',()=>{probeSockets();if(!chatWS&&signedIn()){chatRetry=0;connectChat()}window.calls?.heal?.()});
+document.addEventListener('visibilitychange',()=>{if(!document.hidden){probeSockets();if(!chatWS&&signedIn()){chatRetry=0;connectChat()}}});
+const signedIn=()=>$('#auth-wrap')?.classList.contains('hidden');
+/* where you were in chat, and what you sent while the connection was down */
+let dcResumeTo=null,dcOutbox=[];
 let chatMe=null,chatMeAccount=false,chatMeRole='guest',chatOwner='william',chatRoles=['owner','admin','mod','member'];
 let dcChannels=[],dcDMs=[],dcMembers=[],dcProfiles=[];
 let dcActive='general',dcActiveIsDM=false,dcMessages=[],dcOldest=null;
@@ -2013,10 +2111,11 @@ function connectChat(){
   let ws;
   try{ws=new WebSocket((location.protocol==='https:'?'wss://':'ws://')+location.host+'/chat/')}
   catch(_){scheduleChatRetry();return}
-  chatWS=ws;
+  chatWS=ws;keepAlive(ws,'{"type":"ping"}');
   ws.onopen=()=>{chatReady=true;chatRetry=0;chatState('on');dcSyncCompose()};
   ws.onmessage=e=>{let d;try{d=JSON.parse(e.data)}catch(_){return}dcHandle(d)};
   ws.onclose=ev=>{
+    if(chatReady&&dcActive)dcResumeTo=dcActive;
     chatReady=false;chatWS=null;dcTypers.clear();dcRenderTyping();dcSyncCompose();
     if(ev.code===1008){chatState('err');return}
     if(ev.code===4003){chatState('err');dcSyncCompose();return} // banned: don't hammer the door
@@ -2048,6 +2147,10 @@ function dcHandle(d){
       dcSend({type:'directory'});
       dcRenderAll();dcScroll(true);
       window.voice?.setRooms(d.voice||{});
+      // back after a reconnect: the same channel or DM, and anything sent while away goes now
+      if(dcResumeTo&&dcResumeTo!==d.channel&&(dcResumeTo.startsWith('dm:')||dcChannels.some(c=>c.slug===dcResumeTo)))dcOpen(dcResumeTo);
+      dcResumeTo=null;
+      if(dcOutbox.length){const n=dcOutbox.length;for(const m of dcOutbox.splice(0))dcSend(m);toast(n===1?'Sent the message you wrote while offline':`Sent ${n} messages you wrote while offline`,'ok')}
       break;
     case 'directory': dcProfiles=d.profiles||[];dcRenderMembers();dcRenderMessages();break;
     case 'channels':
@@ -2768,10 +2871,13 @@ function dcSyncCompose(){
   const ch=dcChannels.find(c=>c.slug===dcActive);
   const locked=!dcActiveIsDM&&ch&&ch.locked&&rank(chatMeRole)<2;
   const input=$('#dc-input');
-  input.disabled=!chatReady||locked||!!dcBanned;
+  // reconnecting (you were in chat a moment ago): keep writing; it sends when the connection is back
+  const reconnecting=!chatReady&&!!chatMe;
+  input.disabled=(!chatReady&&!reconnecting)||locked||!!dcBanned;
   $('#dc-send').disabled=input.disabled||(!input.value.trim()&&!dcFile);
-  $('#dc-attach').hidden=!chatMeAccount;$('#dc-attach').disabled=input.disabled||!!dcEdit;
+  $('#dc-attach').hidden=!chatMeAccount;$('#dc-attach').disabled=input.disabled||!!dcEdit||!chatReady;
   $('#dc-hint').textContent=dcBanned?(dcBanned.until?`You're banned from chat until ${new Date(dcBanned.until).toLocaleString()}.`:"You're banned from chat.")
+    :reconnecting?(dcOutbox.length?`Reconnecting… ${dcOutbox.length} waiting to send`:"Reconnecting… you can keep typing, it'll send when you're back")
     :!chatReady?'Connecting…'
     :locked?'This channel is locked. Only moderators and above can post.'
     :dcEdit?'Enter to save · Esc to cancel'
@@ -2789,7 +2895,15 @@ function dcSignalTyping(on){
 function sendChat(){
   const i=$('#dc-input'),t=i.value.trim();
   if(!t&&!(dcFile&&!dcEdit))return;
-  if(!chatReady)return toast('Not connected yet.','err');
+  if(!chatReady){
+    // offline: keep it and send it when the connection is back (plain text; a file waits for the connection)
+    if(!t||dcEdit||dcFile)return toast('Not connected yet.','err');
+    if(dcOutbox.length>=20)return toast('Too many messages waiting. Wait for the connection to come back.','err');
+    dcOutbox.push({type:'msg',channel:dcActive,text:t,replyTo:dcReply?dcReply.id:undefined});
+    i.value='';dcGrow();dcSetMode(null);dcSyncCompose();
+    if(!chatWS){chatRetry=0;connectChat()}
+    return;
+  }
   if(dcEdit){
     if(!t)return;
     if(t!==dcEdit.text&&!dcSend({type:'edit',id:dcEdit.id,text:t}))return;

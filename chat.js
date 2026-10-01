@@ -274,6 +274,8 @@ wss.on("connection", (ws, _req, session, ip) => {
     } catch (_) {
       return;
     }
+    // the page's heartbeat: a reply proves the connection still works both ways
+    if (d?.type === "ping") return send(ws, { type: "pong" });
 
     switch (d.type) {
       /* ---- reading ---- */
@@ -754,7 +756,7 @@ relayWss.on("connection", (ws, _req, name, callId) => {
   ready();
   let tokens = RELAY_BURST, at = Date.now();
   ws.on("message", (data, isBinary) => {
-    if (!isBinary) return;
+    if (!isBinary) { if (String(data) === "ping" && ws.readyState === 1) ws.send("pong"); return; } // the page's heartbeat
     const now = Date.now();
     tokens = Math.min(RELAY_BURST, tokens + ((now - at) / 1000) * RELAY_RATE);
     at = now;
@@ -852,6 +854,7 @@ voiceWss.on("connection", (ws, _req, name, slug, ip) => {
     if (!isBinary) {
       let d;
       try { d = JSON.parse(String(data)); } catch (_) { return; }
+      if (d?.t === "ping") { if (ws.readyState === 1) ws.send('{"t":"pong"}'); return; } // the page's heartbeat
       if (d?.t === "mute" && typeof d.on === "boolean" && d.on !== me.muted) { me.muted = d.on; voiceChanged(slug); }
       else if (d?.t === "deaf" && typeof d.on === "boolean" && d.on !== me.deaf) { me.deaf = d.on; voiceChanged(slug); }
       else if (d?.t === "live" && typeof d.on === "boolean" && d.on !== me.live) {

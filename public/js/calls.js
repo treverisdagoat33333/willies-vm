@@ -264,7 +264,7 @@ async function makePeer(){
   const cfg=blocked?{iceServers:[],iceTransportPolicy:'relay'}:{iceServers:await iceServers()};
   if(!call||call.relay)return null; // switched to the relay meanwhile
   const pc=new RTCPeerConnection(cfg);
-  call.pc=pc;
+  call.pc=pc;call.adapt=adaptVideo(pc); // a struggling connection trades resolution for smooth motion (app.js)
   call.directT=setTimeout(()=>{if(call&&call.pc===pc&&pc.connectionState!=='connected')goRelay('slow')},RELAY_AFTER);
   pc.onicecandidate=({candidate})=>{if(candidate)signal({candidate:candidate.toJSON()})};
   pc.onnegotiationneeded=async()=>{
@@ -291,8 +291,8 @@ async function makePeer(){
   pc.onconnectionstatechange=()=>{
     if(!call||call.pc!==pc)return;
     const s=pc.connectionState;
-    if(s==='connected'){clearTimeout(call.directT);if(!call.started){call.started=true;stopRing();startTimer()}ui('active')}
-    else if(s==='disconnected')ui('active','Reconnecting…');
+    if(s==='connected'){clearTimeout(call.directT);clearTimeout(call.healT);call.healT=null;if(!call.started){call.started=true;stopRing();startTimer()}ui('active')}
+    else if(s==='disconnected'){ui('active','Reconnecting…');heal(pc)}
     else if(s==='failed')goRelay('failed'); // the network won't carry it directly
   };
   return pc;
@@ -339,6 +339,18 @@ const FRAMES={
 };
 const ULAW=new Float32Array(256).map((_,u)=>{u=~u&0xff;const e=(u>>4)&7;const x=((((u&15)<<3)+0x84)<<e)-0x84;return(u&0x80?-x:x)/32768});
 const relayFirst=()=>{try{return localStorage.getItem('wvm.callRelay')==='always'||Date.now()<+localStorage.getItem('wvm.callRelayUntil')}catch(_){return false}};
+/* A direct call that drops (Wi-Fi changed, a laptop woke up) gets 3 s to recover by
+   itself, then an ICE restart (new network paths, renegotiated through the chat
+   socket), then after 10 s more it moves to our server rather than waiting the half
+   minute the browser takes to give up. */
+function heal(pc){
+  if(!call||call.pc!==pc||call.relay||call.healT)return;
+  call.healT=setTimeout(()=>{
+    if(!call||call.pc!==pc||pc.connectionState==='connected'){if(call)call.healT=null;return}
+    try{pc.restartIce()}catch(_){}
+    call.healT=setTimeout(()=>{if(call)call.healT=null;if(call&&call.pc===pc&&!call.relay&&pc.connectionState!=='connected')goRelay('lost')},10000);
+  },3000);
+}
 async function goRelay(why){
   const c=call;
   if(!c||c.relay||!c.mic)return;
@@ -369,7 +381,7 @@ async function goRelay(why){
 }
 function openRelay(c,tries){
   const ws=new WebSocket(`${location.protocol==='https:'?'wss':'ws'}://${location.host}/call-relay/?id=${encodeURIComponent(c.id)}`);
-  ws.binaryType='arraybuffer';c.relay.ws=ws;
+  ws.binaryType='arraybuffer';c.relay.ws=ws;keepAlive(ws,'ping');
   ws.onmessage=({data})=>{
     if(call!==c)return;
     if(typeof data==='string'){
@@ -654,6 +666,8 @@ $('#dc-call').onclick=()=>{click();start($('#dc-call').dataset.to)};
 window.addEventListener('beforeunload',()=>{if(call)dcSend({type:call.dir==='in'&&!call.pc&&!call.relay?'call.decline':'call.end',callId:call.id})});
 
 window.calls={start,onMessage,hangup,get active(){return !!call},
+  // the network changed (app.js): a direct call looks for new paths at once
+  heal(){const pc=call?.pc;if(!pc||call.relay)return;try{pc.restartIce()}catch(_){}heal(pc)},
   /* the screen share presets, shared with Go Live in voice channels (js/voice.js) */
   share:{presets:SHARE_Q,get quality(){return shareQ},set quality(q){if(SHARE_Q[q]){shareQ=q;lsSet('wvm.shareQuality',q)}},get sound(){return shareSound},set sound(on){shareSound=!!on;lsSet('wvm.shareSound',on?'1':'0')}},
   /* for the tests: WebRTC's own numbers (what's being sent and received) */
