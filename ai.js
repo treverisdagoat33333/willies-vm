@@ -24,7 +24,8 @@ import { record } from "./analytics.js";
 |        (a user message may carry `images`: up to 4 picture data: URLs, for
 |        models that can see; sent on as OpenAI image_url parts)
 |   POST /api/ai/image   {prompt} -> the picture (AI_IMAGE_MODEL on the same
-|        API if set, else Pollinations, which is free and needs no key)
+|        API if set, else Pollinations, which is free and needs no key;
+|        POLLINATIONS_TOKEN, from a free account there, drops its watermark)
 |        -> a stream of JSON lines: {t: "text", v} ... then {t: "done"},
 |           or {t: "error", error} if it fails midway
 |
@@ -173,10 +174,12 @@ async function makeImage(prompt, signal) {
   }
   const api = (process.env.IMAGE_API || "https://image.pollinations.ai").replace(/\/+$/, "");
   const seed = Math.floor(Math.random() * 1e9);
-  return fetchImage(`${api}/prompt/${encodeURIComponent(prompt)}?width=1024&height=1024&nologo=true&private=true&seed=${seed}`, signal);
+  // anonymous requests get Pollinations' watermark; with a (free) account's token, nologo is honoured
+  const token = process.env.POLLINATIONS_TOKEN || "";
+  return fetchImage(`${api}/prompt/${encodeURIComponent(prompt)}?width=1024&height=1024&nologo=true&private=true&seed=${seed}`, signal, token ? { authorization: `Bearer ${token}` } : {});
 }
-async function fetchImage(url, signal) {
-  const r = await fetch(url, { signal });
+async function fetchImage(url, signal, headers = {}) {
+  const r = await fetch(url, { signal, headers });
   const type = (r.headers.get("content-type") || "").split(";")[0].trim();
   if (!r.ok) throw new Error(r.status === 429 ? "The picture maker is busy. Try again in a moment." : `The picture maker answered HTTP ${r.status}.`);
   if (!/^image\/(png|jpeg|webp|gif)$/.test(type)) throw new Error("The picture maker sent back something that isn't a picture.");
