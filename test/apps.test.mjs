@@ -6,9 +6,22 @@
 // The Apps launcher (js/apps.js): its windows, every built-in tool, and websites
 // opening through the proxy in a window of their own.
 import { chromium } from "playwright";
+import fs from "node:fs";
+import path from "node:path";
 const BASE = process.env.BASE;
 let pass = 0, fail = 0;
 const ok = (c, l, x = "") => { c ? pass++ : fail++; console.log(`${c ? "PASS" : "FAIL"} ${l}${c ? "" : "  -> " + x}`); };
+// two pretend games in public/games/: a folder with a cover and game.json, and a single file
+const GDIR = path.join(path.dirname(new URL(import.meta.url).pathname), "..", "public", "games");
+const made = [path.join(GDIR, "zz-test-folder"), path.join(GDIR, "zz-test-single.html")];
+fs.mkdirSync(made[0], { recursive: true });
+fs.writeFileSync(path.join(made[0], "index.html"), "<!doctype html><title>Ignored title</title><canvas id=c></canvas><script>window.ready=1</script>");
+fs.writeFileSync(path.join(made[0], "game.json"), JSON.stringify({ title: "Test Racer", description: "Vroom" }));
+fs.writeFileSync(path.join(made[0], "cover.png"), Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=", "base64"));
+fs.writeFileSync(made[1], "<!doctype html><title>Single File Game</title><p>hi</p>");
+process.on("exit", () => made.forEach((f) => fs.rmSync(f, { recursive: true, force: true })));
+const glist = (await (await fetch(BASE + "/api/games/local")).json()).games;
+const racer = glist.find((g) => g.id === "zz-test-folder"), single = glist.find((g) => g.id === "zz-test-single.html");
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined });
 const p = await (await browser.newContext({ baseURL: BASE, viewport: { width: 1366, height: 860 } })).newPage();
 const errors = [];
@@ -93,6 +106,20 @@ await p.evaluate(() => showLauncher());
 await p.$eval("#btn-close", (b) => b.click());
 await p.waitForTimeout(500);
 ok(await p.$eval("#main-window", (e) => getComputedStyle(e).display === "none"), "…and its close button closes it");
+
+// your own games
+ok(racer?.title === "Test Racer" && racer.cover === "/games/zz-test-folder/cover.png" && racer.url === "/games/zz-test-folder/index.html", "a game folder is found, titled from game.json, with its cover", JSON.stringify(racer));
+ok(single?.title === "Single File Game" && !glist.some((g) => g.id === "README.md"), "a single-file game is titled from its <title>, and other files are skipped", JSON.stringify(single));
+ok((await fetch(BASE + racer.url)).headers.get("cross-origin-embedder-policy") === "credentialless", "games may load files from other sites");
+await p.evaluate(() => closeAllPanels?.());
+await p.click("#tb-games");
+await p.waitForSelector("#my-games .my-game", { timeout: 5000 }).catch(() => {});
+ok(await p.$$eval("#my-games .my-game", (c) => c.map((x) => x.textContent)).then((t) => t.some((x) => x.includes("Test Racer")) && t.some((x) => x.includes("Single File Game"))), "the Games panel lists them under My games");
+await p.click('#my-games .my-game[data-game="zz-test-folder"]');
+await p.waitForSelector('.aw[data-app="game:zz-test-folder"] iframe');
+await p.waitForFunction(() => document.querySelector('.aw[data-app="game:zz-test-folder"] iframe').contentWindow?.ready === 1, null, { timeout: 5000 }).catch(() => {});
+ok(await p.$eval('.aw[data-app="game:zz-test-folder"] iframe', (f) => f.contentWindow.ready === 1 && !f.src.includes("/~/")), "clicking one plays it in its own window, not through the browser");
+ok(await p.$eval('.aw[data-app="game:zz-test-folder"] .aw-ic img', (i) => i.src.endsWith("/cover.png")), "…with its cover as the window's icon");
 
 ok(!errors.length, "no page errors", errors.join("\n"));
 console.log(`\n${pass} passed, ${fail} failed`);

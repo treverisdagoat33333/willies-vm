@@ -44,9 +44,9 @@
 
   /* a site's real logo on a white tile (icons/apps/, saved from each site, so
      they load from our origin under COEP); its letter tile if the file is missing */
-  const iconHtml = (a) => (a.logo ? `<img src="${a.logo}" alt="" draggable="false" data-fallback="${esc(a.icon)}">` : a.glyph ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${a.glyph.svg}</svg>` : a.icon);
-  const tileStyle = (a) => (a.logo ? 'background:#fff' : a.glyph ? `background:linear-gradient(160deg,${a.glyph.from},${a.glyph.to})` : `background:${a.color}`);
-  const tileClass = (a) => (a.logo ? ' has-logo' : a.glyph ? ' has-glyph' : '');
+  const iconHtml = (a) => (a.cover ? `<img src="${a.cover}" alt="" draggable="false">` : a.logo ? `<img src="${a.logo}" alt="" draggable="false" data-fallback="${esc(a.icon)}">` : a.glyph ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${a.glyph.svg}</svg>` : a.icon);
+  const tileStyle = (a) => (a.cover ? `background:${a.color}` : a.logo ? 'background:#fff' : a.glyph ? `background:linear-gradient(160deg,${a.glyph.from},${a.glyph.to})` : `background:${a.color}`);
+  const tileClass = (a) => (a.cover ? ' has-cover' : a.logo ? ' has-logo' : a.glyph ? ' has-glyph' : '');
   document.addEventListener('error', (e) => {
     const img = e.target;
     if (img.tagName !== 'IMG' || !img.dataset.fallback) return;
@@ -145,6 +145,38 @@
     } catch (e) {
       $('.aw-load', win.body).textContent = `Couldn't start the proxy: ${e.message}`;
     }
+  }
+
+  /* ---------- your own HTML games (public/games/, games.js) ---------- */
+  let myGames = null;
+  async function loadGames(force) {
+    if (myGames && !force) return myGames;
+    try { myGames = (await (await fetch('/api/games/local', { cache: 'no-cache' })).json()).games || []; } catch (_) { myGames = myGames || []; }
+    return myGames;
+  }
+  const HUES = ['#4f8cff', '#a855f7', '#ff375f', '#30d158', '#ff9f0a', '#0a84ff', '#bf5af2', '#ff453a'];
+  const hueOf = (s) => HUES[[...s].reduce((a, c) => a + c.charCodeAt(0), 0) % HUES.length];
+  const gameApp = (g) => ({ id: `game:${g.id}`, name: g.title, desc: g.description || 'Your game', icon: esc(g.title[0] || '?'), color: hueOf(g.title), cover: g.cover, game: g });
+  function openGame(g) {
+    const a = gameApp(g);
+    openWin({ id: a.id, title: g.title, app: a, w: 960, h: 640, build: (win) => {
+      win.body.classList.add('aw-web');
+      win.extra.innerHTML = '<button title="Restart">⟳</button><button title="Fullscreen">⛶</button>';
+      const f = document.createElement('iframe');
+      f.className = 'aw-frame';
+      f.src = g.url;
+      f.allow = 'fullscreen; autoplay; gamepad; clipboard-write';
+      // no top navigation: a game can't send the whole site somewhere else
+      f.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-pointer-lock allow-forms allow-popups allow-modals allow-downloads');
+      win.body.appendChild(f);
+      const [again, full] = win.extra.querySelectorAll('button');
+      again.onclick = () => { f.src = g.url; };
+      full.onclick = () => (document.fullscreenElement ? document.exitFullscreen() : win.el.requestFullscreen()).catch?.(() => {});
+      win.el.addEventListener('pointerdown', () => setTimeout(() => f.focus(), 0));
+      setTimeout(() => f.focus(), 300);
+      win.cleanup.push(() => { f.src = 'about:blank'; });
+    } });
+    try { track('app', 'games'); } catch (_) {}
   }
 
   /* ---------- the tools ---------- */
@@ -521,12 +553,14 @@
       const card = (a) => `<div class="al-app" data-id="${a.id}" data-web="${a.web ? 1 : ''}" role="button" tabindex="0" title="${esc(a.desc || a.url)}"><span class="al-ic${tileClass(a)}" style="${tileStyle(a)}">${iconHtml(a)}</span><b>${esc(a.name)}</b><button class="al-fav${favs().includes(a.id) ? ' on' : ''}" title="Favourite">★</button></div>`;
       const draw = () => {
         const s = q.value.trim().toLowerCase(), m = (a) => !s || a.name.toLowerCase().includes(s);
-        const all = [...WEB, ...T], fav = favs().map((f) => all.find((a) => a.id === f)).filter((a) => a && m(a));
+        const G = (myGames || []).map(gameApp);
+        const all = [...WEB, ...T, ...G], fav = favs().map((f) => all.find((a) => a.id === f)).filter((a) => a && m(a));
         list.innerHTML = (fav.length ? `<h4>Favourites</h4><div class="al-grid">${fav.map(card).join('')}</div>` : '')
           + `<h4>Websites <small>open in their own window</small></h4><div class="al-grid">${WEB.filter(m).map(card).join('') || '<small>None</small>'}</div>`
-          + `<h4>Tools <small>built in, work offline</small></h4><div class="al-grid">${T.filter(m).map(card).join('') || '<small>None</small>'}</div>`;
+          + `<h4>Tools <small>built in, work offline</small></h4><div class="al-grid">${T.filter(m).map(card).join('') || '<small>None</small>'}</div>`
+          + (G.length ? `<h4>Games <small>yours, from the games folder</small></h4><div class="al-grid">${G.filter(m).map(card).join('') || '<small>None</small>'}</div>` : '');
       };
-      const launch = (el) => { const a = [...WEB, ...T].find((x) => x.id === el.dataset.id); if (!a) return; try { click(); } catch (_) {} a.web ? openWeb(a) : openTool(a); };
+      const launch = (el) => { const a = [...WEB, ...T, ...(myGames || []).map(gameApp)].find((x) => x.id === el.dataset.id); if (!a) return; try { click(); } catch (_) {} a.web ? openWeb(a) : a.game ? openGame(a.game) : openTool(a); };
       list.onclick = (e) => {
         const f = e.target.closest('.al-fav'), el = e.target.closest('.al-app');
         if (f) { const id = el.dataset.id, l = favs(); data.favs = l.includes(id) ? l.filter((x) => x !== id) : [...l, id]; save(); draw(); return; }
@@ -536,11 +570,12 @@
       q.oninput = draw;
       q.onkeydown = (e) => { if (e.key === 'Enter') { const el = list.querySelector('.al-app'); if (el) launch(el); } };
       draw();
+      loadGames(true).then(draw);
       setTimeout(() => q.focus(), 50);
     } });
   }
 
   addEventListener('keydown', (e) => { if (e.altKey && !e.ctrlKey && e.key.toLowerCase() === 'p') { e.preventDefault(); launcher(); } });
 
-  window.apps = { open: launcher, tool: (id) => { const t = T.find((x) => x.id === id); if (t) openTool(t); }, web: (id) => { const a = WEB.find((x) => x.id === id); if (a) openWeb(a); }, close, list: () => ({ web: WEB.map((a) => a.id), tools: T.map((t) => t.id) }), windows: () => [...wins.keys()] };
+  window.apps = { games: loadGames, play: openGame, open: launcher, tool: (id) => { const t = T.find((x) => x.id === id); if (t) openTool(t); }, web: (id) => { const a = WEB.find((x) => x.id === id); if (a) openWeb(a); }, close, list: () => ({ web: WEB.map((a) => a.id), tools: T.map((t) => t.id) }), windows: () => [...wins.keys()] };
 })();

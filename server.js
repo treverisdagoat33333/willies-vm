@@ -14,6 +14,7 @@ import express from "express";
 import zlib from "node:zlib";
 import { compressedStatic } from "./static.js";
 import { backupRouter } from "./backup.js";
+import { gamesRouter } from "./games.js";
 import cookieParser from "cookie-parser";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
@@ -488,6 +489,8 @@ app.get("/cloud/app/:file?", async (req, res) => {
   }
 });
 
+// your own HTML games in public/games/ (games.js)
+app.use(gamesRouter(path.join(publicDir, "games")));
 app.use(compressedStatic(publicDir), express.static(publicDir));
 
 const e2bSandboxes = new Map(); // sandboxId -> { sandbox, owner, who, startedAt, expiresAt }

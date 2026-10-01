@@ -189,3 +189,11 @@ html[data-motion="off"] .aw,html[data-perf="on"] .aw{animation:none}
 .tb-chip{width:34px;height:34px;border-radius:9px;border:0;background:var(--glass-2);display:grid;place-items:center;cursor:pointer;padding:0}
 .tb-chip:hover{background:var(--glass-3)}
 .tb-chip .aw-ic{width:22px;height:22px}
+/* your games' cover pictures fill the tile */
+.al-ic.has-cover,.aw-ic.has-cover{overflow:hidden;padding:0}
+.al-ic.has-cover img,.aw-ic.has-cover img{object-fit:cover;border-radius:0}
+/* "My games" in the Games panel */
+#my-games-sec[hidden]{display:none}
+#my-games-sec h3 .mg-sub{font-weight:400;font-size:.8em;color:var(--text-3);margin-left:8px;text-transform:none;letter-spacing:0}
+.my-game .mg-ph{display:grid;place-items:center;font-size:2.4em;font-weight:800;color:#fff;background:linear-gradient(135deg,var(--accent),var(--accent2))}
+.my-game .im img{width:100%;height:100%;object-fit:cover}

@@ -1908,6 +1908,7 @@ const TAGN={nowgg:'Cloud',gnmath:'Hub',html5:'HTML5'};
 $('#games-count').textContent=GAMES.length+' games';
 let gameTag='all',gameQ='';
 function renderGames(){
+  renderMyGames();
   let list=GAMES;if(gameTag==='fav')list=list.filter(g=>favGames.includes(g.name));else if(gameTag!=='all')list=list.filter(g=>g.tag===gameTag);
   if(gameQ)list=list.filter(g=>g.name.toLowerCase().includes(gameQ));
   if(S.gsort==='az')list=[...list].sort((a,b)=>a.name.localeCompare(b.name));
@@ -1925,7 +1926,16 @@ $('#games-grid').addEventListener('click',e=>{const c=e.target.closest('.gcard')
 function toggleFav(g){const i=favGames.indexOf(g.name);if(i<0){favGames.push(g.name);toast(`${g.name} added to favorites`,'ok')}else{favGames.splice(i,1);toast(`Removed ${g.name} from favorites`)}put('favGames',favGames);renderGames()}
 $('#game-tags').addEventListener('click',e=>{const b=e.target.closest('.chip');if(!b)return;click();gameTag=b.dataset.tag;$$('#game-tags .chip').forEach(c=>c.classList.toggle('active',c===b));renderGames()});
 let gq;$('#games-search').addEventListener('input',e=>{clearTimeout(gq);gq=setTimeout(()=>{gameQ=e.target.value.toLowerCase().trim();renderGames()},80)});
-function openGames(){openPanel('games-panel');renderGames();renderRecent();$('#tb-games').classList.add('active')}
+/* your own games from public/games/ (games.js), at the top of the panel */
+async function renderMyGames(force){
+  const list=await window.apps?.games(force)||[],q=gameQ,sec=$('#my-games-sec');
+  const shown=list.filter(g=>!q||g.title.toLowerCase().includes(q));
+  sec.hidden=!shown.length||(gameTag!=='all'&&gameTag!=='mine');
+  $('#my-games').replaceChildren(...shown.map((g,i)=>{const c=document.createElement('button');c.className='gcard my-game';c.style.setProperty('--i',Math.min(i,24));c.dataset.game=g.id;
+    c.innerHTML=`<div class="im">${g.cover?`<img src="${esc(g.cover)}" alt="" loading="lazy" decoding="async">`:`<div class="ph mg-ph">${esc((g.title[0]||'?').toUpperCase())}</div>`}</div><div class="nm"><span></span><span class="t">Play here</span></div>`;
+    c.querySelector('.nm span').textContent=g.title;c.title=g.description||g.title;c.onclick=()=>{click();window.apps.play(g)};return c}));
+}
+function openGames(){openPanel('games-panel');renderGames();renderRecent();renderMyGames(true);$('#tb-games').classList.add('active')}
 function launchGame(g){closePanel('games-panel');if(S.recent)addRecent(g);const b=$('#browser-wrap');b.style.display='flex';b.classList.remove('closing');$('#vm-wrap').style.display='none';$('#tb-browser').classList.add('active');renderBookmarks();if(S.gopen==='current'&&tabs.length)navigate(g.url);else newTab(g.url)}
 function addRecent(g){recentGames=recentGames.filter(x=>x.name!==g.name);recentGames.unshift({name:g.name,img:g.img,url:g.url});if(recentGames.length>10)recentGames.length=10;put('recentGames',recentGames)}
 function renderRecent(){const sec=$('#recent-sec'),row=$('#recent-row');if(!S.recent||!recentGames.length){sec.style.display='none';return}sec.style.display='';const frag=document.createDocumentFragment();recentGames.forEach(g=>{const el=document.createElement('button');el.className='ritem';el.innerHTML=`<img src="${esc(g.img)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'"><span></span>`;el.lastChild.textContent=g.name;el.onclick=()=>{click();launchGame(g)};frag.appendChild(el)});row.replaceChildren(frag)}
