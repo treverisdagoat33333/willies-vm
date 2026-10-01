@@ -262,6 +262,7 @@
           <div class="row"><div class="lab"><b>Weather</b><small>Where you are, from Open-Meteo. Pick your city on the widget.</small></div><div class="ctl"><button class="switch" role="switch" data-setting="wWeather"></button></div></div>
           <div class="row"><div class="lab"><b>Now playing</b><small>What Music is playing, with play, next and back. Hides when nothing is.</small></div><div class="ctl"><button class="switch" role="switch" data-setting="wMusic"></button></div></div>
           <div class="row"><div class="lab"><b>To-do list</b><small>Quick tasks. Synced with your account.</small></div><div class="ctl"><button class="switch" role="switch" data-setting="wTodo"></button></div></div>
+          <div class="row"><div class="lab"><b>Welcome tour</b><small>The quick look around new visitors get, and what changed lately.</small></div><div class="ctl"><button class="btn sm" id="tour-again" type="button">Show the tour</button> <button class="btn sm" id="news-again" type="button">What's new</button></div></div>
           <div class="row"><div class="lab"><b>Layout</b><small>Put the widgets and icons back where they started.</small></div><div class="ctl"><button class="btn sm" id="desk-reset">Reset layout</button></div></div>
         </div>
         <div class="card">
@@ -470,6 +471,20 @@ https://discord.com/</textarea><div class="ctl"><button class="btn sm" id="st-ru
       <div class="an-tip" id="an-tip" role="tooltip" hidden></div>
     </section>
     <div class="ad-grid">
+      <section class="ad-card ad-wide" id="ad-errors-card">
+        <h3>Problems visitors hit <b id="ad-errors-n"></b><span class="sp"></span><button class="btn sm" id="ad-errors-clear" type="button">Clear</button></h3>
+        <p class="ad-note">Script errors, songs and movies that wouldn't play, sites the browser couldn't open, VMs that didn't start. Counted, never who.</p>
+        <div class="ad-errors" id="ad-errors"></div>
+      </section>
+      <section class="ad-card ad-wide">
+        <h3>Backup</h3>
+        <p class="ad-note">Render's free plan wipes the database on every deploy. Download a backup before you deploy, then restore it after: accounts, channels, messages, roles, bans, everyone's synced settings and analytics. Pictures and files in chat aren't included.</p>
+        <div class="ad-backup">
+          <a class="btn sm primary" id="ad-backup-dl" href="/api/admin/backup" download>Download backup</a>
+          <button class="btn sm" id="ad-backup-up" type="button">Restore from a backup…</button>
+          <input type="file" id="ad-backup-file" accept=".json,application/json" hidden>
+        </div>
+      </section>
       <section class="ad-card ad-wide">
         <h3>Announcement</h3>
         <form class="ad-announce" id="ad-announce">
@@ -516,6 +531,9 @@ https://discord.com/</textarea><div class="ctl"><button class="btn sm" id="st-ru
       <span class="topic" id="dc-top-topic"></span>
       <button id="dc-voice" title="Join voice" hidden><svg class="i i-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1v-6h3zM3 19a2 2 0 0 0 2 2h1v-6H3z"/></svg><span class="n"></span></button>
       <button id="dc-call" title="Voice call" hidden><svg class="i i-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z"/></svg></button>
+      <button id="dc-pins" title="Pinned messages"><svg class="i i-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 17v5"/><path d="M9 10.8V5h6v5.8l2.6 2.6c.6.6.2 1.6-.7 1.6H7.1c-.9 0-1.3-1-.7-1.6z"/><path d="M8 2h8"/></svg></button>
+      <button id="dc-mute" title="Mute this channel"><svg class="i i-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/><path class="slash" d="m2 2 20 20"/></svg></button>
+      <button id="dc-find-btn" title="Search messages (Ctrl+F)"><svg class="i i-sm" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg></button>
       <button id="dc-edit-channel" title="Edit channel" hidden><svg class="i i-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></button>
       <button id="dc-del-channel" title="Delete channel" hidden><svg class="i i-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg></button>
       <button id="dc-toggle-members" title="Members"><svg class="i i-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></button>
@@ -524,6 +542,18 @@ https://discord.com/</textarea><div class="ctl"><button class="btn sm" id="st-ru
 
     <div class="dc-callslot" id="dc-callslot" aria-hidden="true"></div>
     <div class="dc-msgs" id="dc-msgs"></div>
+    <aside class="dc-find" id="dc-find" hidden aria-label="Search and pins">
+      <div class="dc-find-head">
+        <form id="dc-find-form" role="search"><input class="field" id="dc-find-q" type="search" placeholder="Search messages" maxlength="100" autocomplete="off"></form>
+        <b id="dc-find-title" hidden>Pinned messages</b>
+        <button class="dc-find-x" id="dc-find-close" title="Close" type="button">✕</button>
+      </div>
+      <div class="dc-find-opts" id="dc-find-opts">
+        <label><input type="checkbox" id="dc-find-here"> Only this channel</label>
+        <span class="tip">Tip: <code>from:name</code> to find what someone said</span>
+      </div>
+      <div class="dc-find-list" id="dc-find-list"></div>
+    </aside>
     <div class="dc-typing" id="dc-typing"><span class="cdots"><i></i><i></i><i></i></span><span id="dc-typing-text"></span></div>
 
     <div class="dc-compose">
@@ -933,5 +963,6 @@ https://discord.com/</textarea><div class="ctl"><button class="btn sm" id="st-ru
 <script src="/js/calls.js"></script>
 <script src="/js/voice.js"></script>
 <script src="/js/remote-extra.js"></script>
+<script src="/js/tour.js"></script>
 </body>
 </html>

@@ -25,6 +25,10 @@ import {
   dmChannel,
   dmMembers,
   dmsFor,
+  setPinned,
+  messagesSince,
+  pinnedMessages,
+  searchMessages,
   profileOf,
   allProfiles,
   setRole,
@@ -276,11 +280,15 @@ wss.on("connection", (ws, _req, session, ip) => {
       case "open": {
         const ch = String(d.channel || "");
         if (!mayRead(st, ch)) return fail(ws, "You can't open that channel.");
+        // opened from a search result or a pin: load back far enough to show it
+        const around = Number(d.around) || 0;
+        const limit = around ? Math.min(500, Math.max(60, messagesSince(ch, around) + 20)) : 60;
         send(ws, {
           type: "history",
           channel: ch,
-          messages: channelMessages(ch, 60),
+          messages: channelMessages(ch, limit),
           reset: true,
+          around: around || undefined,
         });
         return;
       }
@@ -290,6 +298,37 @@ wss.on("connection", (ws, _req, session, ip) => {
         const before = Number(d.before) || 0;
         if (!mayRead(st, ch) || !before) return;
         send(ws, { type: "history", channel: ch, messages: olderMessages(ch, before, 40) });
+        return;
+      }
+
+      /* ---- search and pins ---- */
+      case "search": {
+        const text = String(d.q || "").slice(0, 100);
+        const from = String(d.from || "").slice(0, 40);
+        // everything you can read: the open channels, and your own DMs
+        let chans = d.channel ? [String(d.channel)] : [...listChannels().map((c) => c.slug), ...(st.account ? dmsFor(st.name).map((x) => x.channel) : [])];
+        chans = chans.filter((c) => mayRead(st, c));
+        send(ws, { type: "search", q: text, from, channel: d.channel || null, results: searchMessages(chans, text, { from }) });
+        return;
+      }
+
+      case "pins": {
+        const ch = String(d.channel || "");
+        if (!mayRead(st, ch)) return;
+        send(ws, { type: "pins", channel: ch, messages: pinnedMessages(ch) });
+        return;
+      }
+
+      case "pin": {
+        const m = getMessage(Number(d.id));
+        if (!m) return;
+        // mods pin in channels; in a DM either of you can
+        const dm = m.channel.startsWith("dm:");
+        if (dm ? !mayRead(st, m.channel) : !can(st, "moderate")) return fail(ws, "You can't pin messages here.");
+        const on = Boolean(d.on);
+        if (on && pinnedMessages(m.channel).length >= 50) return fail(ws, "This channel already has 50 pins. Unpin one first.");
+        const msg = setPinned(m.id, on, st.name);
+        broadcast({ type: "pinned", id: m.id, channel: m.channel, on, by: st.name, message: msg }, m.channel);
         return;
       }
 
@@ -650,6 +689,14 @@ export function announce(text, by) {
   if (!t) return false;
   broadcast({ type: "announce", text: t, by, at: Date.now() });
   return true;
+}
+
+/* After a backup is restored every account, channel and message may be
+   different: everyone reconnects (4005 makes the page reload). */
+export function resetChat() {
+  for (const ws of clients.keys()) {
+    try { ws.close(4005, "restored"); } catch (_) {}
+  }
 }
 
 /* Roles or profiles changed outside the socket (admin dashboard). */

@@ -17,7 +17,6 @@
  * line, for WebSockets and cookie writes).
  */
 import * as SJ from "/scramjet/scramjet.mjs";
-import LibcurlClient from "/libcurl/index.mjs";
 import { CachingTransport, RewriteCache } from "/wj/cache.mjs";
 import { FastTransport } from "/wj/fast.mjs";
 import { isAdHost, blockedResponse } from "/wj/adblock.mjs";
@@ -130,23 +129,63 @@ const client=new S.ScramjetClient(globalThis,{context:{config:${JSON.stringify(s
 
 /* ---------- start up ---------- */
 
+/* libcurl is 2 MB to download and compile. With fast mode on, a page's GETs go
+   to /wj-net and don't need it, so it loads in the background instead of
+   holding up the first page; anything that does need it (a form, a WebSocket,
+   a fallback) waits for it. With fast mode off it's awaited at start. */
+class LazyCurl {
+  constructor(wisp) {
+    this.wisp = wisp;
+    this.ready = true;
+    this.client = null;
+    this.loading = null;
+  }
+  load() {
+    return (this.loading ||= import("/libcurl/index.mjs").then(async ({ default: Curl }) => {
+      const c = new Curl({ wisp: this.wisp });
+      await c.init();
+      return (this.client = c);
+    }).catch((e) => { this.loading = null; throw e; }));
+  }
+  init() { return this.load(); }
+  meta() {}
+  async request(...args) { return (this.client || (await this.load())).request(...args); }
+  connect(url, protocols, headers, onopen, onmessage, onclose, onerror) {
+    if (this.client) return this.client.connect(url, protocols, headers, onopen, onmessage, onclose, onerror);
+    let real = null;
+    let closed = null;
+    const queue = [];
+    this.load().then((c) => {
+      if (closed) return onclose(closed[0] ?? 1000, closed[1] ?? "");
+      real = c.connect(url, protocols, headers, onopen, onmessage, onclose, onerror);
+      for (const d of queue.splice(0)) real[0](d);
+    }, (e) => onerror(String(e?.message || e)));
+    return [(d) => (real ? real[0](d) : queue.push(d)), (code, reason) => (real ? real[1](code, reason) : (closed = [code, reason]))];
+  }
+}
+
 async function init({ page: p, wisp, cache, fast: fastOn, fastSkip, ads: adsOn, adsSkip, preload: preloadAtStart = true }) {
   page = p;
   preloadOn = !!preloadAtStart;
   ads.on = !!adsOn;
   ads.skip = new Set(adsSkip || []);
   prefix = `/~/wj/${page}/`;
-  SJ.setWasm(await (await fetch(WASM)).arrayBuffer());
+  // the rewriter, the cookies and the preload lists, all at once
+  const [wasmBytes, saved, learned] = await Promise.all([
+    fetch(WASM).then((r) => r.arrayBuffer()),
+    kvGet("cookies").catch(() => null),
+    cache ? kvGet("preload").catch(() => null) : null,
+  ]);
+  SJ.setWasm(wasmBytes);
 
   jar = new SJ.CookieJar();
-  const saved = await kvGet("cookies").catch(() => null);
   if (typeof saved === "string") jar.load(saved);
-  if (cache) {
-    const learned = await kvGet("preload").catch(() => null);
-    if (Array.isArray(learned)) manifests = new Map(learned);
-  }
+  if (Array.isArray(learned)) manifests = new Map(learned);
 
-  fast = new FastTransport(new LibcurlClient({ wisp }), !!fastOn, fastSkip || [], (origin) => self.postMessage({ t: "fastBlocked", origin }));
+  const curl = new LazyCurl(wisp);
+  if (fastOn) curl.load().catch(() => {});
+  else await curl.load();
+  fast = new FastTransport(curl, !!fastOn, fastSkip || [], (origin) => self.postMessage({ t: "fastBlocked", origin }));
   httpCache = cache ? new CachingTransport(fast) : null;
   transport = httpCache || fast;
   if (!transport.ready) await transport.init();

@@ -164,6 +164,7 @@ function watch(p,ms){phase=p;clearTimeout(dog);dog=setTimeout(stalled,ms)}
 function unwatch(){phase='';clearTimeout(dog)}
 function stalled(){
   if(!current)return;
+  reportError('movie',phase==='load'?`vidsrc player didn't load (${MIRRORS[mirror]})`:"Player didn't start after play",current.name||current.id||'');
   // the poster page never answered: nothing to lose by quietly trying the next mirror
   if(phase==='load'&&tries<MIRRORS.length-1){
     tries++;mirror=(mirror+1)%MIRRORS.length;

@@ -167,7 +167,7 @@ async function ask(canAct){
     if(!answerOf(reply.content).trim())reply.error='The AI sent back an empty answer.';
     else if(canAct)more=await runActions(reply);
   }catch(e){
-    if(!ctl.signal.aborted)reply.error=String(e?.message||e);
+    if(!ctl.signal.aborted){reply.error=String(e?.message||e);reportError('ai',reply.error)}
     else if(!reply.content)reply.error='Stopped.';
   }finally{
     reply.done=true;busy=null;setBusy(false);cur.at=Date.now();saveChats();render();

@@ -44,6 +44,60 @@ db.exec(`
   );
 `);
 
+/* What broke for visitors (a script error, a song or movie that wouldn't play,
+   a site the proxy couldn't open), counted by kind and message so the owner
+   sees what's actually failing. No names or addresses are kept. */
+db.exec(`
+  CREATE TABLE IF NOT EXISTS errors (
+    kind   TEXT NOT NULL,
+    msg    TEXT NOT NULL,
+    place  TEXT NOT NULL DEFAULT '',
+    n      INTEGER NOT NULL DEFAULT 0,
+    people INTEGER NOT NULL DEFAULT 0,
+    first  INTEGER NOT NULL,
+    last   INTEGER NOT NULL,
+    PRIMARY KEY (kind, msg)
+  );
+  CREATE TABLE IF NOT EXISTS errors_seen (
+    kind TEXT NOT NULL, msg TEXT NOT NULL, who TEXT NOT NULL,
+    PRIMARY KEY (kind, msg, who)
+  );
+`);
+export const ERROR_KINDS = ["js", "proxy", "song", "movie", "vm", "ai", "call"];
+const MAX_ERRORS = 500;
+const qe = {
+  bump: db.prepare("INSERT INTO errors (kind, msg, place, n, people, first, last) VALUES (?, ?, ?, 1, 0, ?, ?) ON CONFLICT(kind, msg) DO UPDATE SET n = n + 1, last = excluded.last, place = excluded.place"),
+  seen: db.prepare("INSERT OR IGNORE INTO errors_seen (kind, msg, who) VALUES (?, ?, ?)"),
+  person: db.prepare("UPDATE errors SET people = people + 1 WHERE kind = ? AND msg = ?"),
+  list: db.prepare("SELECT kind, msg, place, n, people, first, last FROM errors ORDER BY last DESC LIMIT 200"),
+  count: db.prepare("SELECT COUNT(*) AS n FROM errors"),
+  trim: db.prepare("DELETE FROM errors WHERE rowid IN (SELECT rowid FROM errors ORDER BY last ASC LIMIT ?)"),
+  orphans: db.prepare("DELETE FROM errors_seen WHERE NOT EXISTS (SELECT 1 FROM errors e WHERE e.kind = errors_seen.kind AND e.msg = errors_seen.msg)"),
+  clear: db.prepare("DELETE FROM errors"),
+  clearSeen: db.prepare("DELETE FROM errors_seen"),
+};
+const cleanText = (v, max) => String(v ?? "").replace(/[\u0000-\u001f\u007f]+/g, " ").replace(/\s+/g, " ").trim().slice(0, max);
+
+export function recordError(kind, msg, place = "", who = "") {
+  kind = String(kind);
+  msg = cleanText(msg, 240);
+  if (!ERROR_KINDS.includes(kind) || !msg) return false;
+  const now = Date.now();
+  qe.bump.run(kind, msg, cleanText(place, 160), now, now);
+  if (who && qe.seen.run(kind, msg, crypto.createHmac("sha256", SALT).update(who).digest("hex").slice(0, 16)).changes) qe.person.run(kind, msg);
+  const { n } = qe.count.get();
+  if (n > MAX_ERRORS) {
+    qe.trim.run(n - MAX_ERRORS);
+    qe.orphans.run();
+  }
+  return true;
+}
+export const errorList = () => qe.list.all();
+export function clearErrors() {
+  qe.clear.run();
+  qe.clearSeen.run();
+}
+
 export const KINDS = ["visit", "app", "song", "movie", "vm", "ai", "chat", "call", "voice", "signup"];
 // what the page may report about itself; the rest only the server records
 const PAGE_KINDS = ["visit", "app", "song", "movie"];
@@ -141,6 +195,14 @@ export function analyticsRouter({ requireSession, requireOwner, limiter, session
     record(kind, name);
     res.status(204).end();
   });
+
+  // something broke on a visitor's page
+  r.post("/error", requireSession, limiter, (req, res) => {
+    if (!recordError(req.body?.kind, req.body?.msg, req.body?.place, sessionLabel(req.vmSession))) return res.status(400).json({ error: "Unknown error report." });
+    res.status(204).end();
+  });
+  r.get("/errors", requireOwner, (_req, res) => res.set("Cache-Control", "no-store").json({ errors: errorList() }));
+  r.delete("/errors", requireOwner, (_req, res) => { clearErrors(); res.status(204).end(); });
 
   r.get("/report", requireOwner, (req, res) => {
     const days = [7, 30, 90].includes(Number(req.query.days)) ? Number(req.query.days) : 30;

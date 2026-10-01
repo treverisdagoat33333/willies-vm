@@ -29,7 +29,7 @@ node willies-agent.mjs --url ws://localhost:3000 --key $REMOTE_KEY --name "My PC
 ## Architecture
 
 ### One HTTP server, three WebSocket endpoints
-Other server modules: `music.js` (the `/api/music` router), `movies.js` (the `/api/movies` router), `ai.js` (the `/api/ai` router), `files.js` (the `/api/chat/files` router), `security.js` (rate limiters, `clientIp`, `safeEqual`).
+Other server modules: `static.js` (compressed static files), `backup.js` (owner backups, `/api/admin/backup`), `music.js` (the `/api/music` router), `movies.js` (the `/api/movies` router), `ai.js` (the `/api/ai` router), `files.js` (the `/api/chat/files` router), `security.js` (rate limiters, `clientIp`, `safeEqual`).
 
 `server.js` owns the Express app and a single `http.Server`. Its `upgrade` handler dispatches by path:
 - `/wisp/`: the Wisp transport every proxy engine uses.
@@ -63,6 +63,7 @@ Each WS module creates `WebSocketServer({ noServer: true })` and exports a `hand
     - It also holds `RewriteCache`: the core's rewritten scripts and styles (`wj-rewrite-v1`), tied to the download version they came from (`meta.version`).
     - The rewrite cache is keyed with the tab id replaced by `/~/wj/_/`, so it still matches in the next session. Within one session, Chrome's own memory cache usually answers first. The rewrite cache pays off after a browser restart.
     - Incognito turns both caches off.
+  - **Lazy libcurl (`LazyCurl` in `worker.mjs`):** with fast mode on, libcurl (2 MB) is imported in the background instead of before the first page, since GETs go to `/wj-net`; a form, a WebSocket (`connect` queues until it loads) or a fallback waits for it. With fast mode off it's awaited at start. The rewriter, cookies and preload lists load in parallel.
   - `fast.mjs`: fast mode, on by default (`S.wjFast`, this device only). GET and HEAD requests go to `/wj-net` (`fastnet.js`) instead of libcurl. Anything with a body (sign-ins, forms, uploads) and WebSockets always stay on the end-to-end encrypted `/wisp/` path, so passwords never reach our server readable. It falls back to libcurl on 401, 404 or 429.
     - Some sites (Cloudflare bot protection especially) answer our server's own connections with a challenge (403, 429 or 503 plus `cf-mitigated`). That reply is retried on libcurl, and the origin skips fast mode for the rest of the session (`fastBlocked`, which triggers a toast).
     - The engine badge menu can switch fast mode off for one site. Those sites are stored in `wvm.siteNoFast` and passed to the worker as `fastSkip`.
@@ -124,6 +125,8 @@ Each WS module creates `WebSocketServer({ noServer: true })` and exports a `hand
 - **Fallback:** if their API won't answer our origin, or the CloudMoon site button is clicked, the frame loads their CDN portal (`<version>.svg`) as-is. It uses a `credentialless` frame because of COEP, so sign-ins there don't outlive the tab.
 - **Reading their code:** it's obfuscated. Clone the repo and replace the string-table lookups with their decoded strings.
 
+**Static files (`static.js`):** `compressedStatic(dirs, {maxAge})` sits in front of each `express.static` mount. Text, JSON, SVG and wasm files over 1 KB are compressed once (Brotli, gzip as a fallback), kept in memory (64 MB, keyed by size and modified time) and sent with a weak ETag, so a repeat visit is a 304. Package files (`/scramjet/`, `/libcurl/`, `/sj1/`, …) get an hour of `max-age`; the site's own files are `no-cache`. Range requests and anything else fall through to `express.static`. `/wj/wasm.js` keeps its own Brotli copy. The first load went from about 3.9 MB to 1.3 MB (libcurl 2.1 MB → 800 KB).
+
 Every response carries COOP `same-origin` and COEP `require-corp`, because the proxy engines need `SharedArrayBuffer`. Their service-worker responses set COEP on proxied documents themselves. Anything third-party embedded in the page must send CORP or be re-served from our origin. A cross-origin frame whose site sends no COEP/CORP (E2B's noVNC stream, XENV, vidsrc, the CloudMoon portal) is blocked, and Chrome words that as "<host> refused to connect"; such frames get the `credentialless` attribute (`openVM` sets it on `#vm-frame` for any address off our origin), and browsers without it get a new tab instead (`openTab`, which cuts `opener` by hand because `noopener` makes `window.open` return null). That is why `/api/cloud/icon` proxies box art (host-locked to `myqcloud.com`), and why `/cloud/app/` re-serves the CloudMoon client from jsDelivr with COEP overridden to `credentialless`.
 
 ### Sessions and roles
@@ -162,7 +165,9 @@ Client to server:
 | `dm.open`, `dm.list` | direct messages |
 | `directory` | all profiles |
 
-Server to client: `ready`, `history`, `msg`, `edited`, `reactions`, `deleted`, `presence`, `members`, `channels`, `typing`, `announce`, `banned`, `system`, `error`, plus `dm.opened`, `dms`, `profile`, `profile.view`, `directory`.
+Also `search {q, from?, channel?}` (every public channel plus your own DMs, at most 40, newest first; `from:name` in the search box), `pins {channel}`, `pin {id, on}` (mods and up in channels, either person in a DM, 50 per channel; pinned messages survive trimming), and `open {channel, around}`, which loads back far enough to show that message.
+
+Server to client: `ready`, `history`, `search`, `pins`, `pinned`, `msg`, `edited`, `reactions`, `deleted`, `presence`, `members`, `channels`, `typing`, `announce`, `banned`, `system`, `error`, plus `dm.opened`, `dms`, `profile`, `profile.view`, `directory`.
 
 Voice calls ride the same socket (`chat.js` relays; audio and screen go peer to peer over WebRTC, `public/js/calls.js`):
 - client: `call.invite {callId,to}`, `call.accept`, `call.decline`, `call.end`, `call.signal {callId,data}`
@@ -192,6 +197,10 @@ Voice calls ride the same socket (`chat.js` relays; audio and screen go peer to 
 - **Go Live:** `{t:'live',on}` announces a stream (`live` in the roster and the `voice` broadcast). A viewer sends `{t:'watch',who,on,relay}`; the streamer gets `{t:'watchers'}` and opens one RTCPeerConnection per direct viewer, signalled through the server as `{t:'rtc',to,data}` → `{t:'rtc',from,data}`. It reuses the call's quality presets (`window.calls.share`). If a viewer isn't connected in 9 s (or `wvm.callRelayUntil` says the network blocks it), they watch through the server instead: the streamer sends `WVS1`+JPEG, the server forwards `WVS1`+[streamer index]+JPEG only to relay watchers, within `STREAM_RATE`/`STREAM_BURST`.
 - `test/voice.test.mjs` covers three people talking, the badge, a guest refused, mute, leave, calls, the stage, deafen, and Go Live watched directly and through the relay.
 
+**Error log (`analytics.js`, Admin panel > "Problems visitors hit"):** `reportError(kind, msg, place)` in `app.js` posts to `/api/stats/error` (kinds in `ERROR_KINDS`: js, proxy, song, movie, vm, ai, call), each problem once per page load and at most 25. It's called on our own scripts' uncaught errors and rejections (not proxied frames or extensions), WillieJet failures, blank-page fallbacks, VM start failures, songs that won't play, dead vidsrc players and AI errors. Rows are counted by kind and message (`errors`, 500 kept), with how many different people hit it (salted hashes in `errors_seen`). `GET`/`DELETE /api/stats/errors` are owner-only.
+
+**Backups (`backup.js`, Admin panel > Backup):** `GET /api/admin/backup` downloads users, channels, messages (not deleted ones; attachments dropped), reactions, sanctions, user settings and analytics as JSON. `POST` (sent as `text/plain`, up to 60 MB, because the site-wide JSON parser stops at 100 KB) replaces those tables in one transaction, writing only columns the current schema has, then `resetChat()` closes every chat socket with 4005 so pages reload. Uploaded files aren't included.
+
 **Analytics (`analytics.js`, `js/stats.js`, `css/stats.css`, owner only):** Admin panel > Analytics.
 - Counts only, per UTC day and hour, in tables `stats` and `stats_seen`: visits, app launches, songs, movies, VM starts, AI replies, chat messages, calls, voice joins, sign-ups. Daily visitors are salted HMAC hashes (the salt lives in memory), pruned after 120 days.
 - The page reports through `track(kind,name)` → `POST /api/stats/event` (only `visit`, `app`, `song`, `movie`; apps from `APP_NAMES`); the rest are recorded on the server with `record()`. `GET /api/stats/report?days=7|30|90` is owner-only.
@@ -204,6 +213,8 @@ Voice calls ride the same socket (`chat.js` relays; audio and screen go peer to 
 - `GET /api/chat/files/<id>` checks each time (`no-cache`): whoever can read the channel (only the two people for a DM), while the message exists; an unsent upload only for its uploader.
 - Bytes live in `DATA_DIR/files/<id>` (table `files`, `messages.file_id`), wiped with the database on Render's free plan. A sweep each minute removes unsent uploads after 15 minutes and files whose message is gone, and the oldest once they pass 400 MB. Limits: 40 uploads per person per 10 minutes, 60 MB an hour.
 - `test/files.test.mjs` covers sharing, downloads, a fake picture, blocked and oversized files, guests, DMs, unsent uploads, deleting, and pasting.
+
+**Chat extras in the page:** the search and pins panel (`#dc-find`, `dcFindOpen('search'|'pins')`, Ctrl+F while chat is open), unread counts per channel (`dcUnread`, plus `dcMentioned`, which shows red with an @; DMs are always red), the taskbar badge (grey, red once a DM or mention is waiting, `bumpBadge(hot)`), the app icon badge (`navigator.setAppBadge`), and per-channel mute (the bell, localStorage `dcMuted`, this device only): no sound, toast, notification or count unless you're @mentioned.
 
 Close codes: `4003` banned, `4004` kicked, `4005` signed out.
 
@@ -296,6 +307,8 @@ No framework and no modules.
   - **Dragging:** widgets by any part that isn't a control; desktop icons too. The first icon drag turns `#icons` into free spots (`.free`), snapping to a 92×98 grid; dropping on another icon swaps them; the click that ends a drag doesn't launch. "Reset layout" (`#desk-reset`) forgets both.
   - Positions (fractions of the desktop for widgets, grid cells for icons), the to-dos (100) and the weather city live in localStorage `desk`, which settings sync carries (`SYNC_KEYS`; `window.desk.reload()` on a pull). `applyAll()` calls `window.desk?.apply()`.
   - `test/desk.test.mjs` covers presets, live wallpapers, widgets, the to-do list, dragging and reset.
+- **Welcome tour and What's new** (`js/tour.js` → `window.tour`, styles in `css/desk.css`): a first visit gets `STEPS`, a spotlight (`.tour-hole`, dimming with a huge `outline`, since a huge `box-shadow` didn't paint) on real taskbar buttons plus a card. Returning visitors (`RETURNING` in `app.js`: settings saved before this load, or an account over an hour old, `since` from `/api/auth/me`) get the `NEWS` card instead, for entries newer than `wvm.news.seen`. Add new entries at the top of `NEWS` with a bigger id. Settings > Desktop has "Show the tour" and "What's new". Browsers driven by tests (`navigator.webdriver`) skip both unless `wvm.tour.test` is set.
+- `test/extras.test.mjs` covers compression, the tour, chat search, pins, unread counts, mentions, muting, the error log and backups.
 - **Settings sync** (`SETTINGS SYNC` in `app.js`):
   - Stores `S`, `bookmarks`, `favGames`, `music` and `desk` per account in the `user_settings` table.
   - `save()` and `put()` mark the local copy dirty; the newest copy wins.

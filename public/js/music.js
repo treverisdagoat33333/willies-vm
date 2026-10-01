@@ -303,6 +303,7 @@ function onPlaying(){
 function onPaused(){playing=false;updateBar();refreshRows()}
 function onFailed(msg){
   const seq=loadSeq;playing=false;updateBar();refreshRows();
+  reportError('song',msg||"Couldn't play",cur?`${srcOf(cur)} ${cur.title||''}`.trim():'');
   if(++failures>=3){failures=0;setStatus('');toast("Music isn't loading right now. Try again in a bit.",'err');return}
   toast(msg||"Couldn't play that one. Skipping.",'err');
   setTimeout(()=>{if(seq===loadSeq)next(true)},900);

@@ -11,6 +11,9 @@ import { createRequire } from "node:module";
 import path from "node:path";
 import crypto from "node:crypto";
 import express from "express";
+import zlib from "node:zlib";
+import { compressedStatic } from "./static.js";
+import { backupRouter } from "./backup.js";
 import cookieParser from "cookie-parser";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
@@ -52,6 +55,7 @@ import {
   banUser,
   announce,
   refreshMembers,
+  resetChat,
 } from "./chat.js";
 import {
   handleRemoteUpgrade,
@@ -193,11 +197,14 @@ app.use(cookieParser());
 | /libcurl/    â†’ @mercuryworkshop/libcurl-transport
 |--------------------------------------------------------------------------
 */
-app.use("/scramjet/", express.static(scramjetPath));
-app.use("/scram/", express.static(scramjetPath));
-app.use("/controller/", express.static(dirOf("@mercuryworkshop/scramjet-controller")));
-app.use("/utils/", express.static(dirOf("@mercuryworkshop/scramjet-utils")));
-app.use("/libcurl/", express.static(dirOf("@mercuryworkshop/libcurl-transport")));
+/* Package files only change when a deploy installs new versions: an hour of
+   caching, then an ETag check. They're compressed once (static.js). */
+const pkgStatic = (...dirs) => [compressedStatic(dirs, { maxAge: 3600 }), ...dirs.map((d) => express.static(d, { maxAge: "1h" }))];
+app.use("/scramjet/", pkgStatic(scramjetPath));
+app.use("/scram/", pkgStatic(scramjetPath));
+app.use("/controller/", pkgStatic(dirOf("@mercuryworkshop/scramjet-controller")));
+app.use("/utils/", pkgStatic(dirOf("@mercuryworkshop/scramjet-utils")));
+app.use("/libcurl/", pkgStatic(dirOf("@mercuryworkshop/libcurl-transport")));
 
 /*
 |--------------------------------------------------------------------------
@@ -212,9 +219,9 @@ app.use("/libcurl/", express.static(dirOf("@mercuryworkshop/libcurl-transport"))
 | /uv/uv.config.js is ours (public/uv/), not the stock one in the package.
 |--------------------------------------------------------------------------
 */
-app.use("/sj1/", express.static(scramjetV1Path));
-app.use("/uv/", express.static(path.join(path.dirname(new URL(import.meta.url).pathname), "public", "uv")), express.static(uvPath));
-app.use("/baremux/", express.static(baremuxPath));
+app.use("/sj1/", pkgStatic(scramjetV1Path));
+app.use("/uv/", compressedStatic([path.join(path.dirname(new URL(import.meta.url).pathname), "public", "uv"), uvPath]), express.static(path.join(path.dirname(new URL(import.meta.url).pathname), "public", "uv")), express.static(uvPath));
+app.use("/baremux/", pkgStatic(baremuxPath));
 
 /*
 | WillieJet (public/wj/): our own engine on the Scramjet v2 core above.
@@ -222,9 +229,14 @@ app.use("/baremux/", express.static(baremuxPath));
 | it once, cacheable, instead of through the proxy on every start.
 */
 let wjWasmJs = null;
-app.get("/wj/wasm.js", (_req, res) => {
+let wjWasmBr = null;
+app.get("/wj/wasm.js", (req, res) => {
   wjWasmJs ||= `self.WASM=${JSON.stringify(fs.readFileSync(path.join(scramjetPath, "scramjet.wasm")).toString("base64"))};`;
-  res.type("application/javascript").set("Cache-Control", "public, max-age=3600").send(wjWasmJs);
+  res.type("application/javascript").set({ "Cache-Control": "public, max-age=3600", Vary: "Accept-Encoding" });
+  if (!/\bbr\b/.test(req.headers["accept-encoding"] || "")) return res.send(wjWasmJs);
+  // base64 of the rewriter is 800 KB; compressed it's a third of that
+  wjWasmBr ||= zlib.brotliCompressSync(Buffer.from(wjWasmJs), { params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 9 } });
+  res.set("Content-Encoding", "br").send(wjWasmBr);
 });
 
 /*
@@ -476,7 +488,7 @@ app.get("/cloud/app/:file?", async (req, res) => {
   }
 });
 
-app.use(express.static(publicDir));
+app.use(compressedStatic(publicDir), express.static(publicDir));
 
 const e2bSandboxes = new Map(); // sandboxId -> { sandbox, owner, who, startedAt, expiresAt }
 const xenvVMs = new Map(); // container id -> { owner, who, startedAt, expiresAt }
@@ -695,6 +707,7 @@ app.get("/api/auth/me", (req, res) => {
     username: account ? session.username : "Guest",
     role: account ? getUser(session.username)?.role || "member" : "guest",
     vmMinutes: account ? 60 : 30,
+    since: account ? getUser(session.username)?.created_at || null : null,
   });
 });
 
@@ -856,6 +869,9 @@ app.use(
     limiter: limitByIp(statsLimiter, "Too many reports.", (req) => sessionLabel(req.vmSession)),
   })
 );
+
+/* Owner backups: download everything, load it back after a wipe (backup.js) */
+app.use("/api/admin/backup", backupRouter({ requireOwner, onRestored: () => { resetChat(); logEvent("backup", "Backup restored"); } }));
 
 /*
 |--------------------------------------------------------------------------

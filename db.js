@@ -101,6 +101,9 @@ addColumn("messages", "deleted", "INTEGER NOT NULL DEFAULT 0");
 addColumn("messages", "reply_to", "INTEGER");
 addColumn("messages", "edited_at", "INTEGER");
 addColumn("messages", "file_id", "TEXT");
+// pinned messages stay at the top of a channel's pin list and survive trimming
+addColumn("messages", "pinned", "INTEGER NOT NULL DEFAULT 0");
+addColumn("messages", "pinned_by", "TEXT");
 
 /* pictures and files posted in chat (files.js); the bytes live in DATA_DIR/files/<id> */
 db.exec(`
@@ -205,17 +208,17 @@ const q = {
   editMessage: db.prepare("UPDATE messages SET text = ?, edited_at = ? WHERE id = ?"),
   getMessage: db.prepare("SELECT * FROM messages WHERE id = ?"),
   channelMessages: db.prepare(
-    "SELECT id, username, account, text, created_at, channel, reply_to, edited_at, deleted, file_id FROM messages" +
+    "SELECT id, username, account, text, created_at, channel, reply_to, edited_at, deleted, file_id, pinned FROM messages" +
       " WHERE channel = ? AND deleted = 0 ORDER BY id DESC LIMIT ?"
   ),
   olderMessages: db.prepare(
-    "SELECT id, username, account, text, created_at, channel, reply_to, edited_at, deleted, file_id FROM messages" +
+    "SELECT id, username, account, text, created_at, channel, reply_to, edited_at, deleted, file_id, pinned FROM messages" +
       " WHERE channel = ? AND deleted = 0 AND id < ? ORDER BY id DESC LIMIT ?"
   ),
   softDelete: db.prepare("UPDATE messages SET deleted = 1 WHERE id = ?"),
   trimChannel: db.prepare(
     "DELETE FROM messages WHERE channel = ? AND id NOT IN" +
-      " (SELECT id FROM messages WHERE channel = ? ORDER BY id DESC LIMIT 400)"
+      " (SELECT id FROM messages WHERE channel = ? ORDER BY id DESC LIMIT 400) AND pinned = 0"
   ),
   purgeChannel: db.prepare("DELETE FROM messages WHERE channel = ?"),
   dmPartners: db.prepare(
@@ -548,7 +551,33 @@ const shape = (m) => ({
   replyTo: replyPreview(m.reply_to),
   reactions: reactionsOf(m.id),
   file: fileShape(m.file_id),
+  pinned: Boolean(m.pinned),
 });
+
+/* ---- pins and search ---- */
+export function setPinned(id, on, by) {
+  db.prepare("UPDATE messages SET pinned = ?, pinned_by = ? WHERE id = ?").run(on ? 1 : 0, on ? by : null, id);
+  return getMessage(id);
+}
+/* how many messages from this one to the newest, to open a channel scrolled back to it */
+export function messagesSince(channel, id) {
+  return db.prepare("SELECT COUNT(*) AS n FROM messages WHERE channel = ? AND deleted = 0 AND id >= ?").get(channel, id).n;
+}
+export function pinnedMessages(channel) {
+  return db.prepare("SELECT * FROM messages WHERE channel = ? AND pinned = 1 AND deleted = 0 ORDER BY id DESC LIMIT 50").all(channel).map(shape);
+}
+/* Words anywhere in the text, all of them, newest first, in the channels given.
+   `from` narrows it to one person. */
+export function searchMessages(channels, text, { from = "", limit = 40 } = {}) {
+  const words = String(text || "").toLowerCase().split(/\s+/).filter(Boolean).slice(0, 6);
+  if (!channels.length || (!words.length && !from)) return [];
+  const like = (w) => "%" + w.replace(/[\\%_]/g, (c) => "\\" + c) + "%";
+  const where = ["deleted = 0", `channel IN (${channels.map(() => "?").join(",")})`];
+  const args = [...channels];
+  for (const w of words) { where.push("LOWER(text) LIKE ? ESCAPE '\\'"); args.push(like(w)); }
+  if (from) { where.push("username = ?"); args.push(from); }
+  return db.prepare(`SELECT * FROM messages WHERE ${where.join(" AND ")} ORDER BY id DESC LIMIT ?`).all(...args, limit).map(shape);
+}
 
 export function channelMessages(channel, limit = 60) {
   return q.channelMessages.all(channel, limit).reverse().map(shape);

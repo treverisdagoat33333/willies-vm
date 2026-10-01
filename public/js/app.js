@@ -24,6 +24,8 @@ const DEFAULTS={
   wClock:true,wWeather:false,wMusic:true,wTodo:false // desktop widgets (js/desk.js)
 };
 const KEY='wvm.settings.v1';
+// whether this browser had been here before this visit (the welcome tour asks)
+const RETURNING=(()=>{try{return !!localStorage.getItem(KEY)}catch(_){return false}})();
 let S=(()=>{
   try{const s=JSON.parse(localStorage.getItem(KEY)||'{}');if(Object.keys(s).length)return{...DEFAULTS,...s}}catch(_){}
   // migrate legacy keys from the old page
@@ -521,6 +523,13 @@ const APPS={
 };
 document.addEventListener('click',e=>{const b=e.target.closest('[data-app]');if(!b)return;click();const fn=APPS[b.dataset.app];if(fn){fn();track('app',b.dataset.app)}});
 /* counts for the owner's analytics (analytics.js on the server): which app, song or movie, never who */
+/* What broke on this page, for the owner's error log (analytics.js): each problem once per visit, at most 25 */
+const reported=new Set();
+function reportError(kind,msg,place=''){try{msg=String(msg||'').slice(0,240);const k=kind+'|'+msg;if(!msg||reported.has(k)||reported.size>=25)return;reported.add(k);fetch('/api/stats/error',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({kind,msg,place:String(place).slice(0,160)}),keepalive:true}).catch(()=>{})}catch(_){}}
+// our own scripts only: proxied sites' errors happen in their frames, and browser extensions aren't ours
+const ownScript=f=>!f||(f.startsWith(location.origin+'/')&&!f.includes('/~/'));
+addEventListener('error',e=>{if(e.message&&ownScript(e.filename))reportError('js',e.message,`${(e.filename||'').replace(location.origin,'')}:${e.lineno||0}`)});
+addEventListener('unhandledrejection',e=>{const r=e.reason;if(r?.name==='AbortError')return;const st=String(r?.stack||'');if(st&&!ownScript((st.match(/https?:\/\/[^\s)]+/)||[''])[0]))return;reportError('js',r?.message||String(r),(st.split('\n')[1]||'').trim().replace(location.origin,''))});
 function track(kind,name=''){try{fetch('/api/stats/event',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({kind,name}),keepalive:true}).catch(()=>{})}catch(_){}}
 $$('.tile').forEach(t=>t.addEventListener('pointermove',e=>{const r=t.getBoundingClientRect();t.style.setProperty('--mx',(e.clientX-r.left)+'px');t.style.setProperty('--my',(e.clientY-r.top)+'px')}));
 
@@ -1191,7 +1200,7 @@ function acceptAuth(d,fresh){
   root.dataset.owner=currentRole==='owner'?'on':'off';
   $('#auth-wrap').classList.add('hidden');setUser();connectChat();
   if(d.account)syncStart(currentUsername);
-  if(!acceptAuth.counted){acceptAuth.counted=true;track('visit')}
+  if(!acceptAuth.counted){acceptAuth.counted=true;track('visit');setTimeout(()=>window.tour?.greet(RETURNING||(d.account&&d.since&&Date.now()-d.since>3600000)),1200)}
   toast(`Welcome, ${currentUsername}! ${d.vmMinutes||30} min of VM time.`,'ok');
   if(fresh)window.motion?.celebrate();
 }
@@ -1334,8 +1343,8 @@ async function closeVM(force){
 $('#vm-close').onclick=()=>closeVM();
 $('#vm-newtab').onclick=()=>{click();if(vmUrl&&!openTab(vmUrl))toast('Your browser blocked the tab. Allow pop-ups for this site.','err')};
 $('#vm-fs').onclick=async()=>{try{if(!document.fullscreenElement)await $('#vm-wrap').requestFullscreen();else await document.exitFullscreen()}catch(e){toast('Fullscreen failed: '+e.message,'err')}};
-async function launchE2BVM(){if(containerId){$('#vm-wrap').style.display='flex';return}clearInterval(pollI);setLaunching(true);setStatus('Starting desktop sandbox…',true);try{const r=await fetch('/api/e2b/start',{method:'POST',headers:{'Content-Type':'application/json'}}),d=await r.json();if(!r.ok)throw new Error(d.error||d.message||`HTTP ${r.status}`);if(d.status&&d.status!=='success')throw new Error(d.error||d.message||'Sandbox did not start.');if(!d.sandboxId||!d.url)throw new Error('Sandbox returned no stream URL.');containerId=d.sandboxId;vmType='e2b';openVM(d.url,'VM #1 · Desktop')}catch(e){setStatus('Error: '+e.message);toast('VM #1 failed: '+e.message,'err');containerId=vmType=null;setLaunching(false)}}
-async function launchGPUVM(){if(containerId){$('#vm-wrap').style.display='flex';return}clearInterval(pollI);setLaunching(true);setStatus('Requesting GPU instance…',true);try{const r=await fetch('/api/launch?gpu=true'),d=await r.json();if(!r.ok)throw new Error(d.error||d.message||`HTTP ${r.status}`);if(d.status==='success'){containerId=d.container_id;vmType='gpu';openVM(d.url,'VM #2 · GPU');return}if(d.status==='queued'){setStatus(`Queued — position ${d.position??'?'}…`,true);pollQueue(d.token);return}throw new Error(d.error||d.message||'Unexpected response')}catch(e){setStatus('Error: '+e.message);toast('VM #2 failed: '+e.message,'err');setLaunching(false)}}
+async function launchE2BVM(){if(containerId){$('#vm-wrap').style.display='flex';return}clearInterval(pollI);setLaunching(true);setStatus('Starting desktop sandbox…',true);try{const r=await fetch('/api/e2b/start',{method:'POST',headers:{'Content-Type':'application/json'}}),d=await r.json();if(!r.ok)throw new Error(d.error||d.message||`HTTP ${r.status}`);if(d.status&&d.status!=='success')throw new Error(d.error||d.message||'Sandbox did not start.');if(!d.sandboxId||!d.url)throw new Error('Sandbox returned no stream URL.');containerId=d.sandboxId;vmType='e2b';openVM(d.url,'VM #1 · Desktop')}catch(e){setStatus('Error: '+e.message);toast('VM #1 failed: '+e.message,'err');reportError('vm',e.message,'VM #1');containerId=vmType=null;setLaunching(false)}}
+async function launchGPUVM(){if(containerId){$('#vm-wrap').style.display='flex';return}clearInterval(pollI);setLaunching(true);setStatus('Requesting GPU instance…',true);try{const r=await fetch('/api/launch?gpu=true'),d=await r.json();if(!r.ok)throw new Error(d.error||d.message||`HTTP ${r.status}`);if(d.status==='success'){containerId=d.container_id;vmType='gpu';openVM(d.url,'VM #2 · GPU');return}if(d.status==='queued'){setStatus(`Queued — position ${d.position??'?'}…`,true);pollQueue(d.token);return}throw new Error(d.error||d.message||'Unexpected response')}catch(e){setStatus('Error: '+e.message);toast('VM #2 failed: '+e.message,'err');reportError('vm',e.message,'VM #2');setLaunching(false)}}
 function pollQueue(token){clearInterval(pollI);if(!token){setLaunching(false);return}pollI=setInterval(async()=>{try{const r=await fetch(`/api/queue?token=${encodeURIComponent(token)}`),d=await r.json().catch(()=>({}));if(!r.ok){if([401,403,404].includes(r.status)){clearInterval(pollI);setStatus('Error: '+(d.error||`HTTP ${r.status}`));toast('VM #2 failed: '+(d.error||`HTTP ${r.status}`),'err');setLaunching(false)}return}if(d.status==='allocated'){clearInterval(pollI);containerId=d.container_id;vmType='gpu';openVM(d.url,'VM #2 · GPU');return}if(d.status==='failed'){clearInterval(pollI);setStatus('Failed: '+(d.reason||'unknown'));toast('Queue failed: '+(d.reason||'unknown'),'err');setLaunching(false);return}setStatus(d.position!==undefined?`Queued — position ${d.position}…`:'Waiting for GPU…',true)}catch(_){}},4000)}
 
 /* ═══════════════════════════════════════════════════════════
@@ -1538,7 +1547,7 @@ window.addEventListener('message',e=>{
   if(d.wj==='open'&&/^https?:/i.test(d.url)){navigate(d.url,t,true);return} // "Open anyway" on a site the ad blocker stopped
   if(hostOf(d.url)!==hostOf(t.url))return;
   if(d.wj==='switch'&&PROXIES[d.engine]){setSiteEngine(d.url,d.engine);toast(`${hostOf(d.url)} now opens with ${PROXIES[d.engine]}`,'ok');navigate(d.url,t,true)}
-  else if(d.wj==='failed'&&!d.network&&t.engine==='wj'&&t.retried!==d.url){t.retried=d.url;setSiteEngine(d.url,'uv');toast(`WillieJet couldn't load ${hostOf(d.url)}, trying Ultraviolet`);navigate(d.url,t,true)}
+  else if(d.wj==='failed'&&!d.network&&t.engine==='wj'&&t.retried!==d.url){reportError('proxy',`WillieJet: ${d.error||'failed'}`,hostOf(d.url));t.retried=d.url;setSiteEngine(d.url,'uv');toast(`WillieJet couldn't load ${hostOf(d.url)}, trying Ultraviolet`);navigate(d.url,t,true)}
 });
 /* ── the page inside a tab: its real address and title, and whether it looks broken ── */
 const CLIENT_KEY=Symbol.for('scramjet client global');
@@ -1590,7 +1599,7 @@ function checkHealth(t,url,engine,since){
   if(tried.size>1)return; // one automatic retry per page
   const next=[...FALLBACK_ORDER.slice(FALLBACK_ORDER.indexOf(engine)+1),...FALLBACK_ORDER].find(e=>!tried.has(e));
   if(!next)return;
-  tried.add(next);setSiteEngine(url,next);
+  tried.add(next);setSiteEngine(url,next);reportError('proxy',`Blank page on ${PROXIES[engine]}`,hostOf(url));
   toast(`${hostOf(url)} looked broken on ${PROXIES[engine]}, trying ${PROXIES[next]}`);
   navigate(url,t,true);
 }
@@ -1929,7 +1938,10 @@ let chatMe=null,chatMeAccount=false,chatMeRole='guest',chatOwner='william',chatR
 let dcChannels=[],dcDMs=[],dcMembers=[],dcProfiles=[];
 let dcActive='general',dcActiveIsDM=false,dcMessages=[],dcOldest=null;
 let dcTypers=new Map(),dcTypingSent=null,dcTypingT=null;
-let dcAtBottom=true,dcUnread={},dcLastSeen=store('dcLastSeen',{});
+let dcAtBottom=true,dcUnread={},dcMentioned={},dcLastSeen=store('dcLastSeen',{});
+// channels you muted (this device): no sound, toast or badge unless you're @mentioned
+let dcMuted=store('dcMuted',{});
+const dcIsMuted=ch=>!!dcMuted[ch];
 let dcReply=null,dcEdit=null,dcFresh=new Set(),dcBump=null,dcBanned=null;
 let dcFile=null; // a picture or file waiting to be sent: {file, id, pct, xhr, url, send, channel}
 const DC_EMOJI=['👍','❤️','😂','🔥','😮','😢','🎉','👀','💯','🙏','😎','🤯','👎','✅','❌','🤣','😭','🥳','🤔','💀','🫡','⚡','🍿','🐐'];
@@ -2008,7 +2020,7 @@ function dcHandle(d){
       break;
     case 'history':
       if(d.channel!==dcActive)return;
-      if(d.reset){dcMessages=d.messages||[];dcRenderMessages();dcScroll(true)}
+      if(d.reset){dcMessages=d.messages||[];dcRenderMessages();dcScroll(true);if(d.around)setTimeout(()=>dcJumpTo(d.around),60)}
       else if(d.messages&&d.messages.length){
         const box=$('#dc-msgs'),prev=box.scrollHeight;
         dcMessages=[...d.messages,...dcMessages];dcRenderMessages();
@@ -2042,6 +2054,14 @@ function dcHandle(d){
       break;
     }
     case 'announce': dcAnnounce(d);break;
+    case 'search': dcFindResults(d);break;
+    case 'pins': if(dcFindMode==='pins'&&d.channel===dcActive)dcFindRender(d.messages||[],'No pinned messages here yet. Hover a message and press the pin to keep it here.');break;
+    case 'pinned': {
+      const m=dcMessages.find(x=>x.id===d.id);if(m){m.pinned=d.on;if(d.channel===dcActive)dcRenderMessages()}
+      if(d.channel===dcActive&&dcFindMode==='pins')dcSend({type:'pins',channel:dcActive});
+      if(d.on&&d.by!==chatMe&&d.channel===dcActive)toast(`${nameOf(d.by)} pinned a message`);
+      break;
+    }
     case 'banned':
       dcBanned=d;
       toast(d.until?`You're banned from chat until ${new Date(d.until).toLocaleString()}.`:"You're banned from chat.",'err');
@@ -2071,6 +2091,8 @@ function dcMentionsMe(text){
 }
 function dcOnMessage(m){
   const mention=m.username!==chatMe&&dcMentionsMe(m.text);
+  const quiet=dcIsMuted(m.channel)&&!mention;
+  const looking=m.channel===dcActive&&$('#chat-window').classList.contains('show')&&!document.hidden;
   if(m.channel===dcActive){
     dcFresh.add(m.id);
     dcMessages.push(m);
@@ -2080,15 +2102,16 @@ function dcOnMessage(m){
     dcMarkSeen();
   }else{
     dcUnread[m.channel]=(dcUnread[m.channel]||0)+1;
+    if(mention)dcMentioned[m.channel]=(dcMentioned[m.channel]||0)+1;
     if(m.channel.startsWith('dm:')&&!dcDMs.some(x=>x.channel===m.channel)){
       dcDMs.push({channel:m.channel,with:m.username});
     }
     dcRenderChannels();
   }
-  if(m.username!==chatMe){
-    chatPing(mention);
+  if(m.username!==chatMe&&!quiet){
+    if(!looking)chatPing(mention);
     const open=$('#chat-window').classList.contains('show');
-    if(!open)bumpBadge();
+    if(!open)bumpBadge(mention||m.channel.startsWith('dm:'));
     const say=m.text||(m.file?(m.file.image?'📷 sent a picture':'📎 sent a file'):'');
     if(mention&&(!open||m.channel!==dcActive))toast(`${nameOf(m.username)} mentioned you: ${say.slice(0,80)}`,'ok');
     const dm=m.channel.startsWith('dm:');
@@ -2097,15 +2120,16 @@ function dcOnMessage(m){
 }
 
 /* channel + DM list ------------------------------------------- */
-function dcOpen(slug){
+function dcOpen(slug,around){
   if(!slug)return;
+  if(around&&slug===dcActive&&$(`#dc-msgs .dc-m[data-id="${around}"]`))return dcJumpTo(around);
   if(slug!==dcActive)dcUnstage(); // a staged file belongs to the channel it was uploaded into
   dcActive=slug;dcActiveIsDM=slug.startsWith('dm:');
   dcSetMode(null);
   dcTypers.clear();dcRenderTyping();
-  delete dcUnread[slug];
+  delete dcUnread[slug];delete dcMentioned[slug];dcAppBadge();
   dcMessages=[];
-  dcSend({type:'open',channel:slug});
+  dcSend({type:'open',channel:slug,around:around||undefined});
   dcMarkSeen();
   dcRenderChannels();dcRenderHeader();dcRenderMessages();dcSyncCompose();
   $('#chat-window').classList.remove('show-side');
@@ -2113,18 +2137,31 @@ function dcOpen(slug){
 }
 function dcMarkSeen(){dcLastSeen[dcActive]=Date.now();put('dcLastSeen',dcLastSeen)}
 
+/* the unread count next to a channel: red with @ when you were mentioned */
+function dcCountEl(ch){
+  const n=dcUnread[ch]||0,at=dcMentioned[ch]||0,dm=ch.startsWith('dm:'),e=document.createElement('span');
+  e.className='dot';
+  if(at||(dm&&n)){e.className='cnt hot';e.textContent=(at&&!dm?'@':'')+((at||n)>99?'99+':(at||n))}
+  else if(n&&!dcIsMuted(ch)){e.className='cnt';e.textContent=n>99?'99+':n}
+  return e;
+}
+/* the installed app's icon and the tab title show what's waiting for you */
+function dcAppBadge(){
+  const n=Object.entries(dcUnread).reduce((a,[ch,v])=>a+((dcMentioned[ch]||ch.startsWith('dm:'))?v:0),0);
+  try{n?navigator.setAppBadge?.(n):navigator.clearAppBadge?.()}catch(_){}
+}
 function dcRenderChannels(){
   const list=$('#dc-channels'),frag=document.createDocumentFragment();
   dcChannels.forEach(c=>{
     const b=document.createElement('button');
-    b.className='dc-ch'+(c.slug===dcActive?' active':'')+(dcUnread[c.slug]?' unread':'');
+    b.className='dc-ch'+(c.slug===dcActive?' active':'')+(dcUnread[c.slug]&&!dcIsMuted(c.slug)?' unread':'')+(dcIsMuted(c.slug)?' muted':'');
     b.innerHTML='<span class="hash">#</span><span class="nm"></span>';
     b.querySelector('.nm').textContent=c.name;
     if(c.locked){
       const l=document.createElement('span');l.className='lock';l.textContent='🔒';b.appendChild(l);
     }
     const vb=window.voice?.badge(c.slug);if(vb)b.appendChild(vb);
-    const dot=document.createElement('span');dot.className='dot';b.appendChild(dot);
+    b.appendChild(dcCountEl(c.slug));
     b.onclick=()=>{click();dcOpen(c.slug)};
     frag.appendChild(b);
   });
@@ -2136,7 +2173,7 @@ function dcRenderChannels(){
     b.className='dc-ch'+(d.channel===dcActive?' active':'')+(dcUnread[d.channel]?' unread':'');
     b.appendChild(avatar(d.with));
     const nm=document.createElement('span');nm.className='nm';nm.textContent=nameOf(d.with);b.appendChild(nm);
-    const dot=document.createElement('span');dot.className='dot';b.appendChild(dot);
+    b.appendChild(dcCountEl(d.channel));
     b.onclick=()=>{click();dcOpen(d.channel)};
     f2.appendChild(b);
   });
@@ -2163,6 +2200,9 @@ function dcRenderHeader(){
   const label=dm?'@'+nameOf(partner||''):'#'+(ch?ch.name:dcActive);
   $('#dc-input').placeholder='Message '+label;
   window.voice?.header();
+  const mu=$('#dc-mute');mu.classList.toggle('on',dcIsMuted(dcActive));mu.title=dcIsMuted(dcActive)?'Unmute this channel':'Mute this channel';
+  $('#dc-pins').classList.toggle('on',dcFindMode==='pins');
+  if(dcFindMode==='pins')dcSend({type:'pins',channel:dcActive});
 }
 
 /* messages ---------------------------------------------------- */
@@ -2205,12 +2245,64 @@ const ICON={
   react:'<svg class="i i-sm" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2M9 9h.01M15 9h.01"/></svg>',
   reply:'<svg class="i i-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 17 4 12l5-5"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>',
   edit:'<svg class="i i-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>',
-  del:'<svg class="i i-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>'
+  del:'<svg class="i i-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>',
+  pin:'<svg class="i i-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 17v5"/><path d="M9 10.8V5h6v5.8l2.6 2.6c.6.6.2 1.6-.7 1.6H7.1c-.9 0-1.3-1-.7-1.6z"/><path d="M8 2h8"/></svg>'
 };
 function dcTool(title,icon,fn,cls=''){
   const b=document.createElement('button');b.title=title;b.className=cls;b.innerHTML=icon;
   b.onclick=e=>{e.stopPropagation();fn(e.currentTarget)};return b;
 }
+/* pins: mods and up in channels, either person in a DM */
+function dcMayPin(){return chatMeAccount&&(dcActiveIsDM||rank(chatMeRole)>=2)}
+
+/* search and pins: a panel on the right of the messages ------------------ */
+let dcFindMode=null; // 'search' | 'pins' | null
+function dcFindOpen(mode){
+  dcFindMode=mode;const p=$('#dc-find');p.hidden=false;p.dataset.mode=mode;
+  $('#dc-find-form').hidden=mode!=='search';$('#dc-find-opts').hidden=mode!=='search';$('#dc-find-title').hidden=mode!=='pins';
+  $('#dc-pins').classList.toggle('on',mode==='pins');
+  if(mode==='pins'){$('#dc-find-list').innerHTML='<div class="dc-find-empty">Loading…</div>';dcSend({type:'pins',channel:dcActive})}
+  else{const q=$('#dc-find-q');q.focus();q.select();if(!q.value)$('#dc-find-list').innerHTML='<div class="dc-find-empty">Search every channel you can see, and your DMs.</div>'}
+}
+function dcFindClose(){dcFindMode=null;$('#dc-find').hidden=true;$('#dc-pins').classList.remove('on')}
+function dcFindRun(){
+  const raw=$('#dc-find-q').value.trim();
+  let from='';const q=raw.replace(/(^|\s)from:@?(\S+)/i,(_,s,n)=>{from=n;return s}).trim();
+  if(from){const p=dcProfiles.find(x=>x.username.toLowerCase()===from.toLowerCase()||(x.displayName||'').toLowerCase()===from.toLowerCase());if(p)from=p.username}
+  if(!q&&!from)return;
+  $('#dc-find-list').innerHTML='<div class="dc-find-empty">Searching…</div>';
+  dcSend({type:'search',q,from,channel:$('#dc-find-here').checked?dcActive:undefined});
+}
+function dcFindResults(d){
+  if(dcFindMode!=='search')return;
+  dcFindRender(d.results||[],`Nothing found${d.q?` for “${d.q}”`:''}${d.from?` from ${nameOf(d.from)}`:''}.`,d.q);
+}
+function dcChName(ch){if(ch.startsWith('dm:'))return'@'+nameOf((dcDMs.find(x=>x.channel===ch)||{}).with||'DM');const c=dcChannels.find(x=>x.slug===ch);return'#'+(c?c.name:ch)}
+function dcFindRender(list,empty,q=''){
+  const box=$('#dc-find-list');
+  if(!list.length){box.innerHTML=`<div class="dc-find-empty">${esc(empty)}</div>`;return}
+  const words=String(q).toLowerCase().split(/\s+/).filter(Boolean);
+  const mark=t=>{let h=esc(t);for(const w of words){const re=new RegExp(w.replace(/[.*+?^${}()|[\]\\]/g,'\\$&').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'),'gi');h=h.replace(re,x=>`<mark>${x}</mark>`)}return h};
+  box.innerHTML=`<div class="dc-find-n">${list.length===40?'40+':list.length} ${list.length===1?'result':'results'}</div>`;
+  for(const m of list){
+    const r=document.createElement('button');r.className='dc-hit';r.type='button';
+    r.innerHTML=`<div class="dc-hit-top"><span class="ch"></span><b></b><span class="when">${new Date(m.createdAt).toLocaleDateString([],{month:'short',day:'numeric'})} ${new Date(m.createdAt).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})}</span></div><div class="dc-hit-text">${mark(m.text||(m.file?'📎 '+(m.file.name||'file'):''))}</div>`;
+    r.prepend(avatar(m.username));
+    r.querySelector('.ch').textContent=dcFindMode==='pins'?'':dcChName(m.channel);
+    const who=r.querySelector('b');who.textContent=nameOf(m.username);who.style.color=colorOf(m.username);
+    r.onclick=()=>{click();if(m.channel!==dcActive||!$(`#dc-msgs .dc-m[data-id="${m.id}"]`)){dcOpen(m.channel,m.id);if(dcFindMode==='pins')dcFindOpen('pins')}else dcJumpTo(m.id);if(innerWidth<760)dcFindClose()};
+    box.appendChild(r);
+  }
+}
+$('#dc-find-btn').onclick=()=>{click();dcFindMode==='search'?dcFindClose():dcFindOpen('search')};
+$('#dc-pins').onclick=()=>{click();dcFindMode==='pins'?dcFindClose():dcFindOpen('pins')};
+$('#dc-find-close').onclick=()=>{click();dcFindClose()};
+$('#dc-find-form').onsubmit=e=>{e.preventDefault();dcFindRun()};
+let dcFindT;$('#dc-find-q').addEventListener('input',()=>{clearTimeout(dcFindT);if($('#dc-find-q').value.trim().length>=2)dcFindT=setTimeout(dcFindRun,350)});
+$('#dc-find-here').onchange=dcFindRun;
+$('#dc-mute').onclick=()=>{click();const ch=dcActive;if(dcMuted[ch])delete dcMuted[ch];else dcMuted[ch]=1;put('dcMuted',dcMuted);toast(dcMuted[ch]?`Muted ${dcChName(ch)}. You'll still hear @mentions.`:`Unmuted ${dcChName(ch)}`,'ok');dcRenderHeader();dcRenderChannels()};
+document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='f'&&$('#chat-window').classList.contains('show')){e.preventDefault();dcFindOpen('search')}else if(e.key==='Escape'&&dcFindMode&&$('#chat-window').classList.contains('show')&&!$('#dc-modal').classList.contains('show'))dcFindClose()});
+
 function dcCanPost(){
   const ch=dcChannels.find(c=>c.slug===dcActive);
   return chatReady&&!dcBanned&&!(!dcActiveIsDM&&ch&&ch.locked&&rank(chatMeRole)<2);
@@ -2246,7 +2338,8 @@ function dcRenderMessages(){
       +(!mine&&dcMentionsMe(m.text)?' mention':'')
       +(dcFresh.has(m.id)?' new':'')
       +(dcEdit&&dcEdit.id===m.id?' editing':'')
-      +(dcReply&&dcReply.id===m.id?' replying':'');
+      +(dcReply&&dcReply.id===m.id?' replying':'')
+      +(m.pinned?' pinned':'');
     row.dataset.id=m.id;
 
     const stamp=document.createElement('span');
@@ -2334,6 +2427,7 @@ function dcRenderMessages(){
       tools.appendChild(dcTool('Reply',ICON.reply,()=>dcSetMode('reply',m)));
     }
     if(mine&&canPost)tools.appendChild(dcTool('Edit',ICON.edit,()=>dcSetMode('edit',m)));
+    if(dcMayPin())tools.appendChild(dcTool(m.pinned?'Unpin':'Pin message',ICON.pin,()=>dcSend({type:'pin',id:m.id,on:!m.pinned}),m.pinned?'on':''));
     if(mine||rank(chatMeRole)>=2){
       tools.appendChild(dcTool('Delete message',ICON.del,()=>{if(confirm('Delete this message?'))dcSend({type:'delete',id:m.id})},'danger'));
     }
@@ -2834,12 +2928,14 @@ function dcRenderTyping(){
 }
 
 /* badge ------------------------------------------------------- */
-function bumpBadge(){
+function bumpBadge(hot){
   const b=$('#chat-badge');
   const n=(parseInt(b.textContent,10)||0)+1;
   b.textContent=n>99?'99+':n;b.classList.add('show');
+  if(hot)b.classList.add('hot');
+  dcAppBadge();
 }
-function clearBadge(){const b=$('#chat-badge');b.textContent='0';b.classList.remove('show')}
+function clearBadge(){const b=$('#chat-badge');b.textContent='0';b.classList.remove('show','hot');dcAppBadge()}
 
 /* window ------------------------------------------------------ */
 function toggleChat(){const w=$('#chat-window');if(w.classList.contains('show'))closeChat();else openChat()}
@@ -2874,10 +2970,32 @@ $('#dc-toggle-members').onclick=()=>$('#chat-window').classList.toggle('hide-mem
 let adData=null,adTimer=null,adFilter='';
 function openAdmin(){
   if(currentRole!=='owner')return toast('The admin dashboard is for the owner.','err');
-  openPanel('admin-panel');adRefresh();window.adStats?.load();
+  openPanel('admin-panel');adRefresh();window.adStats?.load();adErrors();
   clearInterval(adTimer);
   adTimer=setInterval(()=>{if($('#admin-panel').classList.contains('show')&&!document.hidden)adRefresh();else if(!$('#admin-panel').classList.contains('show'))clearInterval(adTimer)},5000);
 }
+/* errors visitors hit (analytics.js), newest first */
+const ERR_KIND={js:'Script',proxy:'Browser',song:'Music',movie:'Movies',vm:'VM',ai:'AI',call:'Calls'};
+async function adErrors(){
+  try{
+    const r=await fetch('/api/stats/errors',{cache:'no-store'});if(!r.ok)return;
+    const{errors}=await r.json();$('#ad-errors-n').textContent=errors.length?errors.length:'';
+    $('#ad-errors').innerHTML=errors.length?errors.map(e=>`<div class="ad-err"><span class="ad-err-k k-${esc(e.kind)}">${esc(ERR_KIND[e.kind]||e.kind)}</span><div class="ad-err-m"><b>${esc(e.msg)}</b>${e.place?`<small>${esc(e.place)}</small>`:''}</div><div class="ad-err-n"><b>${e.n}×</b><small>${e.people} ${e.people===1?'person':'people'} · ${adAgo(e.last)}</small></div></div>`).join(''):'<div class="ad-empty">Nothing has gone wrong. 🎉</div>';
+  }catch(_){}
+}
+$('#ad-errors-clear').onclick=async()=>{click();try{await fetch('/api/stats/errors',{method:'DELETE'});adErrors();toast('Cleared','ok')}catch(e){toast(e.message,'err')}};
+$('#ad-backup-up').onclick=()=>{click();$('#ad-backup-file').click()};
+$('#ad-backup-file').onchange=async e=>{
+  const f=e.target.files[0];e.target.value='';if(!f)return;
+  let data;try{data=JSON.parse(await f.text())}catch(_){return toast("That file isn't a backup.",'err')}
+  if(data?.app!=='willies-vm')return toast("That file isn't a william's vm backup.",'err');
+  const t=data.tables||{},when=data.at?new Date(data.at).toLocaleString():'an unknown date';
+  dcModal({title:'Restore this backup?',sub:`From ${when}: ${(t.users||[]).length} accounts, ${(t.channels||[]).length} channels, ${(t.messages||[]).length} messages. Everything in the database now is replaced, and everyone reconnects.`,okLabel:'Restore',danger:true,onOk:async()=>{
+    const r=await fetch('/api/admin/backup',{method:'POST',headers:{'content-type':'text/plain'},body:JSON.stringify(data)});
+    const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||'HTTP '+r.status);
+    toast('Backup restored. Reloading…','ok');setTimeout(()=>{leaveQuietly();location.reload()},1200);
+  }});
+};
 async function adRefresh(){
   const live=$('#ad-live');
   try{
@@ -2974,7 +3092,9 @@ function adBan(name){
     fields:[{key:'hours',label:'Hours (empty = permanent)',type:'number',placeholder:'permanent'},{key:'reason',label:'Reason (optional)',maxlength:200}],
     onOk:v=>postJSON(`/api/admin/users/${encodeURIComponent(name)}/ban`,{hours:v.hours.trim()?+v.hours:null,reason:v.reason}).then(()=>{toast(`${name} banned`,'ok');adRefresh()})});
 }
-$('#admin-refresh').onclick=()=>{adRefresh();window.adStats?.load();window.motion?.spin($('#admin-refresh'))};
+$('#tour-again').onclick=()=>{click();closeAllPanels();setTimeout(()=>window.tour?.start(),250)};
+$('#news-again').onclick=()=>{click();closeAllPanels();setTimeout(()=>window.tour?.news(),250)};
+$('#admin-refresh').onclick=()=>{adRefresh();adErrors();window.adStats?.load();window.motion?.spin($('#admin-refresh'))};
 $('#ad-user-filter').addEventListener('input',e=>{adFilter=e.target.value.trim().toLowerCase();adRender()});
 $('#ad-announce').addEventListener('submit',async e=>{
   e.preventDefault();const i=$('#ad-announce-text'),t=i.value.trim();if(!t)return;
