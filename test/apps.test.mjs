@@ -71,6 +71,29 @@ const src = await p.$eval('.aw[data-app="web-youtube"] iframe', (f) => f.src);
 ok(/\/~\/(wj|sj|sj1|uv)\//.test(src) && /youtube/.test(decodeURIComponent(src)), "YouTube opens through the proxy in its own window", src);
 ok(await p.$eval("#browser-wrap", (b) => getComputedStyle(b).display === "none"), "…not in the browser app");
 
+// minimize: a tool window waits on the taskbar
+await p.evaluate(() => window.apps.tool("notes"));
+await p.click('.aw[data-app="notes"] .aw-min');
+ok(await p.$eval('.aw[data-app="notes"]', (e) => e.hidden) && await p.$('#tb-min .tb-chip[data-win="notes"]'), "a window minimizes to the taskbar");
+await p.click('#tb-min .tb-chip[data-win="notes"]');
+ok(await p.$eval('.aw[data-app="notes"]', (e) => !e.hidden) && !(await p.$('#tb-min .tb-chip')), "…and comes back from it");
+// the big apps minimize too, and keep what they had
+await p.click("#tb-movies");
+await p.waitForTimeout(400);
+await p.click('#movies-wrap [data-minimize="movies"]');
+ok(await p.$eval("#movies-wrap", (e) => getComputedStyle(e).display === "none") && await p.$eval("#tb-movies", (b) => b.classList.contains("minimized")), "Movies minimizes, with a dot on its taskbar button");
+await p.click("#tb-movies");
+ok(await p.$eval("#movies-wrap", (e) => getComputedStyle(e).display !== "none"), "…and its button brings it back");
+ok(await p.$$eval("[data-minimize]", (b) => b.length) === 8, "every full-screen app has a minimize button");
+// the launcher's window buttons (a tool's class name once squashed them)
+await p.evaluate(() => window.apps.tool("clock"));
+const wc = await p.$eval("#main-window .wc", (e) => ({ dir: getComputedStyle(e).flexDirection, n: [...e.children].filter((b) => b.offsetWidth).length }));
+ok(wc.dir === "row" && wc.n === 3, "the launcher keeps its minimize, maximize and close buttons in a row", JSON.stringify(wc));
+await p.evaluate(() => showLauncher());
+await p.$eval("#btn-close", (b) => b.click());
+await p.waitForTimeout(500);
+ok(await p.$eval("#main-window", (e) => getComputedStyle(e).display === "none"), "…and its close button closes it");
+
 ok(!errors.length, "no page errors", errors.join("\n"));
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close();

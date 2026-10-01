@@ -521,7 +521,26 @@ const APPS={
   vm1:()=>launchE2BVM(),vm2:()=>launchGPUVM(),vm:()=>(S.defaultVM==='gpu'?launchGPUVM():launchE2BVM()),
   admin:()=>openAdmin(),music:()=>window.music?.toggle(),ai:()=>window.ai?.toggle(),movies:()=>window.movies?.toggle(),apps:()=>window.apps?.open()
 };
-document.addEventListener('click',e=>{const b=e.target.closest('[data-app]');if(!b)return;click();const fn=APPS[b.dataset.app];if(fn){fn();track('app',b.dataset.app)}});
+/* Minimize: hides an app as it is (tabs, the VM, what's playing, the chat) and
+   its taskbar button brings it back. Each app's own Close still closes it. */
+const MINIMIZE={browser:['#browser-wrap','#b-close'],vm:['#vm-wrap','#vm-close'],cloud:['#cloud-wrap','#cloud-close'],remote:['#remote-wrap','#remote-close'],movies:['#movies-wrap','#mv-close'],music:['#music-window','#mu-close'],ai:['#ai-window','#ai-close'],chat:['#chat-window','#dc-close']};
+const MIN_OF={vm1:'vm',vm2:'vm'};
+const MIN_ICON='<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/></svg>';
+function minimizeApp(k){const m=MINIMIZE[k];if(!m)return;$(m[0])?.classList.add('minimized');$('#tb-'+k)?.classList.add('minimized')}
+function restoreApp(k){const m=MINIMIZE[k];if(!m)return false;const w=$(m[0]);if(!w?.classList.contains('minimized'))return false;w.classList.remove('minimized');$('#tb-'+k)?.classList.remove('minimized');return true}
+for(const[k,[wrap,close]]of Object.entries(MINIMIZE)){
+  const c=$(close);if(!c)continue;
+  const b=document.createElement('button');b.type='button';b.title='Minimize';b.dataset.minimize=k;
+  // looks like its Close button: a text button in toolbars, an icon in the browser and chat
+  b.className=c.className.replace(/\b(danger|close)\b/g,'').trim()+' min-btn';
+  b.innerHTML=c.classList.contains('btn')?'Minimize':MIN_ICON;
+  b.onclick=e=>{e.stopPropagation();click();minimizeApp(k)};
+  c.before(b);
+  // closing for real, or opening it some other way, clears the minimized state
+  c.addEventListener('click',()=>restoreApp(k),true);
+}
+window.restoreApp=restoreApp;
+document.addEventListener('click',e=>{const b=e.target.closest('[data-app]');if(!b)return;click();const k=MIN_OF[b.dataset.app]||b.dataset.app;if(restoreApp(k))return;const fn=APPS[b.dataset.app];if(fn){fn();track('app',b.dataset.app)}});
 /* counts for the owner's analytics (analytics.js on the server): which app, song or movie, never who */
 /* What broke on this page, for the owner's error log (analytics.js): each problem once per visit, at most 25 */
 const reported=new Set();
@@ -1330,7 +1349,7 @@ function tickVM(){if(!vmStart)return;const e=Math.floor((Date.now()-vmStart)/100
 const crossOrigin=u=>{try{return new URL(u,location.href).origin!==location.origin}catch(_){return true}};
 // noopener makes window.open return null even when it worked, so the link back is cut by hand
 const openTab=u=>{const t=window.open(u,'_blank');if(t)try{t.opener=null}catch(_){}return !!t};
-function openVM(url,label){vmUrl=url;const f=$('#vm-frame'),w=$('#vm-wrap'),cross=crossOrigin(url);if(cross&&!('credentialless' in HTMLIFrameElement.prototype)){const tab=openTab(url);toast(!tab?'Your browser blocked the VM tab. Allow pop-ups for this site, then press Open in a new tab.':"Opened the VM in a new tab. This browser can't show it inside the desktop.",!tab?'err':'')}f.toggleAttribute('credentialless',cross);$('#vm-label').textContent=label||'Private VM';f.src='about:blank';w.style.display='flex';w.classList.remove('closing');warned={};vmStart=Date.now();clearInterval(vmTimerI);vmTimerI=setInterval(tickVM,1000);tickVM();setTimeout(()=>f.src=url,50);setStatus('VM connected.');setLaunching(false);toast('VM launched!','ok');$('#tb-vm').classList.add('active');closeAllPanels()}
+function openVM(url,label){window.restoreApp?.('vm');vmUrl=url;const f=$('#vm-frame'),w=$('#vm-wrap'),cross=crossOrigin(url);if(cross&&!('credentialless' in HTMLIFrameElement.prototype)){const tab=openTab(url);toast(!tab?'Your browser blocked the VM tab. Allow pop-ups for this site, then press Open in a new tab.':"Opened the VM in a new tab. This browser can't show it inside the desktop.",!tab?'err':'')}f.toggleAttribute('credentialless',cross);$('#vm-label').textContent=label||'Private VM';f.src='about:blank';w.style.display='flex';w.classList.remove('closing');warned={};vmStart=Date.now();clearInterval(vmTimerI);vmTimerI=setInterval(tickVM,1000);tickVM();setTimeout(()=>f.src=url,50);setStatus('VM connected.');setLaunching(false);toast('VM launched!','ok');$('#tb-vm').classList.add('active');closeAllPanels()}
 async function closeVM(force){
   if(!force&&S.vmconfirm&&!confirm('Close the VM? Your session will end.'))return;
   clearInterval(pollI);clearInterval(vmTimerI);vmStart=null;$('#vm-timer').textContent='00:00';$('#vm-timer').className='';
@@ -1825,7 +1844,7 @@ async function newTab(url){
   try{await tabProxy(tab);if(initial!=='about:blank')await navigate(initial,tab);else{$('#browser-address').focus()}}
   catch(err){proxyFailed(err)}
 }
-async function openBrowser(url){const b=$('#browser-wrap');b.style.display='flex';b.classList.remove('closing');$('#vm-wrap').style.display='none';$('#tb-browser').classList.add('active');closeAllPanels();renderBookmarks();if(!tabs.length)await newTab(url);else if(url)await navigate(url)}
+async function openBrowser(url){window.restoreApp?.('browser');const b=$('#browser-wrap');b.style.display='flex';b.classList.remove('closing');$('#vm-wrap').style.display='none';$('#tb-browser').classList.add('active');closeAllPanels();renderBookmarks();if(!tabs.length)await newTab(url);else if(url)await navigate(url)}
 function searchUrl(q){return(ENGINES[S.engine]||ENGINES.google)+encodeURIComponent(q)}
 function normalizeUrl(v){if(/^[a-z][a-z0-9+.-]*:\/\//i.test(v))return v;if(/^about:|^data:|^javascript:/i.test(v))return v;if(/^[^\s]+\.[^\s]{2,}(\/.*)?$/.test(v)&&!/\s/.test(v))return'https://'+v;if(/^localhost(:\d+)?/.test(v))return'http://'+v;return searchUrl(v)}
 async function navigate(value,tab,quiet){
@@ -2939,7 +2958,7 @@ function clearBadge(){const b=$('#chat-badge');b.textContent='0';b.classList.rem
 
 /* window ------------------------------------------------------ */
 function toggleChat(){const w=$('#chat-window');if(w.classList.contains('show'))closeChat();else openChat()}
-function openChat(){
+function openChat(){window.restoreApp?.('chat');
   const w=$('#chat-window');
   w.classList.remove('closing');w.classList.add('show');
   $('#tb-chat').classList.add('active');

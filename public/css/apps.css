@@ -151,12 +151,12 @@ html[data-motion="off"] .aw,html[data-perf="on"] .aw{animation:none}
 .sb button:active{background:var(--accent);color:#fff}
 
 /* world clock, words, colour */
-.wc{padding:12px;display:flex;flex-direction:column;gap:10px}
-.wc-row{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;background:var(--glass-2)}
-.wc-row div{flex:1}.wc-row small{display:block;color:var(--text-3);font-size:.75em}
-.wc-row span{font-size:1.5em;font-weight:700;font-variant-numeric:tabular-nums}
-.wc-row button{border:0;background:none;color:var(--text-3);cursor:pointer}
-.wc form{display:flex;gap:6px}.wc form select{flex:1;min-width:0}
+.wclk{padding:12px;display:flex;flex-direction:column;gap:10px}
+.wclk-row{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;background:var(--glass-2)}
+.wclk-row div{flex:1}.wclk-row small{display:block;color:var(--text-3);font-size:.75em}
+.wclk-row span{font-size:1.5em;font-weight:700;font-variant-numeric:tabular-nums}
+.wclk-row button{border:0;background:none;color:var(--text-3);cursor:pointer}
+.wclk form{display:flex;gap:6px}.wclk form select{flex:1;min-width:0}
 .wcnt{display:flex;flex-direction:column;gap:10px;padding:12px;height:100%}
 .wcnt textarea{flex:1;resize:none;border:1px solid var(--border);border-radius:10px;background:var(--glass-2);color:var(--text);padding:10px;font:inherit;outline:none}
 .wcnt-s{display:flex;gap:16px;flex-wrap:wrap;font-size:.76em;color:var(--text-3)}
@@ -184,3 +184,8 @@ html[data-motion="off"] .aw,html[data-perf="on"] .aw{animation:none}
 .al-ic.has-glyph svg{width:28px;height:28px;filter:drop-shadow(0 1px 1px rgba(0,0,0,.18))}
 .aw-ic.has-glyph{box-shadow:none}
 .aw-ic.has-glyph svg{width:15px;height:15px}
+#tb-min{display:flex;gap:4px;align-items:center;margin-left:6px;padding-left:8px;border-left:1px solid var(--border)}
+#tb-min:empty{display:none}
+.tb-chip{width:34px;height:34px;border-radius:9px;border:0;background:var(--glass-2);display:grid;place-items:center;cursor:pointer;padding:0}
+.tb-chip:hover{background:var(--glass-3)}
+.tb-chip .aw-ic{width:22px;height:22px}

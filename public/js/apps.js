@@ -61,7 +61,7 @@
   const wins = new Map(); // id -> {el, cleanup:[]}
   function focus(w) { w.el.style.zIndex = ++z; }
   function openWin({ id, title, app = null, icon, color, w = 420, h = 480, build }) {
-    if (wins.has(id)) { const o = wins.get(id); o.el.hidden = false; focus(o); return o; }
+    if (wins.has(id)) { const o = wins.get(id); restore(id); return o; }
     const el = document.createElement('div');
     el.className = 'aw';
     el.dataset.app = id;
@@ -69,13 +69,14 @@
     const W = Math.min(w, innerWidth - 16), H = Math.min(h, innerHeight - 90);
     Object.assign(el.style, { width: `${W}px`, height: `${H}px`, left: `${Math.max(8, (innerWidth - W) / 2 + n * 26 - 60)}px`, top: `${Math.max(8, (innerHeight - H) / 2 + n * 26 - 70)}px`, zIndex: ++z });
     const a = app || { icon, color };
-    el.innerHTML = `<div class="aw-bar"><span class="aw-ic${tileClass(a)}" style="${tileStyle(a)}">${iconHtml(a)}</span><b>${esc(title)}</b><span class="sp"></span><span class="aw-extra"></span><button class="aw-max" title="Maximize">▢</button><button class="aw-x" title="Close">✕</button></div><div class="aw-body"></div>`;
+    el.innerHTML = `<div class="aw-bar"><span class="aw-ic${tileClass(a)}" style="${tileStyle(a)}">${iconHtml(a)}</span><b>${esc(title)}</b><span class="sp"></span><span class="aw-extra"></span><button class="aw-min" title="Minimize">–</button><button class="aw-max" title="Maximize">▢</button><button class="aw-x" title="Close">✕</button></div><div class="aw-body"></div>`;
     document.body.appendChild(el);
     const win = { el, body: $('.aw-body', el), extra: $('.aw-extra', el), cleanup: [] };
     wins.set(id, win);
     el.addEventListener('pointerdown', () => focus(win), true);
     $('.aw-x', el).onclick = () => close(id);
     $('.aw-max', el).onclick = () => el.classList.toggle('max');
+    $('.aw-min', el).onclick = () => minimize(id);
     const bar = $('.aw-bar', el);
     bar.ondblclick = (e) => { if (!e.target.closest('button')) el.classList.toggle('max'); };
     bar.onpointerdown = (e) => {
@@ -89,7 +90,28 @@
     try { build(win); } catch (e) { win.body.textContent = `Couldn't open: ${e.message}`; }
     return win;
   }
+  /* minimized windows wait as chips on the taskbar */
+  function minimize(id) {
+    const w = wins.get(id);
+    if (!w) return;
+    w.el.hidden = true;
+    let tray = $('#tb-min');
+    if (!tray) { tray = document.createElement('div'); tray.id = 'tb-min'; $('#tb-center')?.appendChild(tray); }
+    const chip = document.createElement('button');
+    chip.className = 'tb-chip';
+    chip.dataset.win = id;
+    chip.title = `${$('.aw-bar b', w.el).textContent} (minimized)`;
+    chip.innerHTML = $('.aw-ic', w.el).outerHTML;
+    chip.onclick = () => restore(id);
+    tray.appendChild(chip);
+  }
+  function restore(id) {
+    const w = wins.get(id);
+    $(`#tb-min [data-win="${id}"]`)?.remove();
+    if (w) { w.el.hidden = false; focus(w); }
+  }
   function close(id) {
+    $(`#tb-min [data-win="${id}"]`)?.remove();
     const w = wins.get(id);
     if (!w) return;
     for (const f of w.cleanup) { try { f(); } catch (_) {} }
@@ -414,9 +436,9 @@
   tool('clock', 'World Clock', '🌍', '#32ade6', 'The time anywhere in the world', 380, 460, (win) => {
     data.zones ||= ['America/New_York', 'America/Los_Angeles', 'Europe/London', 'Asia/Tokyo'];
     const all = Intl.supportedValuesOf?.('timeZone') || data.zones;
-    win.body.innerHTML = `<div class="wc"><div class="wc-list"></div><form><select class="field">${all.map((z) => `<option>${z}</option>`).join('')}</select><button class="btn sm primary">Add</button></form></div>`;
-    const list = $('.wc-list', win.body);
-    const draw = () => { list.innerHTML = data.zones.map((z, i) => { const d = new Date(); return `<div class="wc-row"><div><b>${esc(z.split('/').pop().replace(/_/g, ' '))}</b><small>${d.toLocaleDateString([], { timeZone: z, weekday: 'short' })}</small></div><span>${d.toLocaleTimeString([], { timeZone: z, hour: 'numeric', minute: '2-digit' })}</span><button data-i="${i}">✕</button></div>`; }).join(''); };
+    win.body.innerHTML = `<div class="wclk"><div class="wclk-list"></div><form><select class="field">${all.map((z) => `<option>${z}</option>`).join('')}</select><button class="btn sm primary">Add</button></form></div>`;
+    const list = $('.wclk-list', win.body);
+    const draw = () => { list.innerHTML = data.zones.map((z, i) => { const d = new Date(); return `<div class="wclk-row"><div><b>${esc(z.split('/').pop().replace(/_/g, ' '))}</b><small>${d.toLocaleDateString([], { timeZone: z, weekday: 'short' })}</small></div><span>${d.toLocaleTimeString([], { timeZone: z, hour: 'numeric', minute: '2-digit' })}</span><button data-i="${i}">✕</button></div>`; }).join(''); };
     list.onclick = (e) => { const i = e.target.dataset.i; if (i) { data.zones.splice(+i, 1); save(); draw(); } };
     $('form', win.body).onsubmit = (e) => { e.preventDefault(); const z = $('select', win.body).value; if (!data.zones.includes(z)) { data.zones.push(z); save(); draw(); } };
     draw(); const iv = setInterval(draw, 15000); win.cleanup.push(() => clearInterval(iv));
