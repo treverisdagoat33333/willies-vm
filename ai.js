@@ -220,6 +220,13 @@ async function readStream(body, onText, signal, onThink = () => {}) {
 
 export function aiRouter({ requireSession, limiter, userLimiter }) {
   const router = express.Router();
+  // which models the API offers, and which look like picture makers, so the owner can pick
+  // AI_IMAGE_MODEL from the deploy logs without a way to call the API by hand
+  if (config().key && config().base) models().then((list) => {
+    const img = list.filter((m) => /image|dall|flux|sdxl|stable-?diffusion|imagen|kolors|seedream|cogview|hidream|midjourney|recraft|ideogram/i.test(m));
+    console.log(`[ai] ${list.length} models: ${list.join(", ")}`);
+    console.log(`[ai] picture models: ${img.join(", ") || "none"}${process.env.AI_IMAGE_MODEL ? ` (using ${process.env.AI_IMAGE_MODEL})` : " (using Pollinations)"}`);
+  });
 
   // the same instructions for models that run in the visitor's own browser (js/local-ai.js);
   // nothing secret in them, and the page adds its own "what's on screen" note the same way
