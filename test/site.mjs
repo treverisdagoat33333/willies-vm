@@ -36,6 +36,14 @@ try{const ws=new WebSocket("ws://"+location.host+"/ws");ws.onopen=()=>ws.send("p
   if (u.pathname.startsWith("/bench/")) return bench(u, res);
   if (u.pathname.startsWith("/t/c/")) return chunk(u, res);
   if (u.pathname.startsWith("/v1/")) return aiMock(req, res, u);
+  // a pretend Pollinations: a tiny PNG for any prompt, a 500 for "broken", and the last prompt at /img/_last
+  if (u.pathname === "/img/_last") { res.writeHead(200, { "content-type": "application/json" }); return res.end(JSON.stringify({ prompt: imgLast })); }
+  if (u.pathname.startsWith("/img/prompt/")) {
+    imgLast = decodeURIComponent(u.pathname.slice("/img/prompt/".length));
+    if (/broken/.test(imgLast)) { res.writeHead(500); return res.end("no"); }
+    res.writeHead(200, { "content-type": "image/png" });
+    return res.end(Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64"));
+  }
   // a pretend game collection for the Arcade (served as text/plain, like jsDelivr does)
   if (u.pathname.startsWith("/ugs/")) {
     if (!u.pathname.endsWith("/cl2048.html")) { res.writeHead(404); return res.end(); }
@@ -112,6 +120,7 @@ window.report = { plays: n, origin: self.origin, parentReadable: ours !== "block
    "Hello **there**" plus a code block and what you said; "fail" in your message
    gets a 500, "slow" streams slowly. /v1/_last shows the last request it got. */
 let aiLast = null;
+let imgLast = "";
 /* ---- a pretend SoundCloud (/sc/ API, /sc-cdn/ audio), Deezer (/dz/) and Audius (/au/ API,
    /au-node/ its content servers) for the music tests ---- */
 // 10 s of silent MP3 (MPEG-1 layer III, 128 kb/s, 44.1 kHz): 383 frames of 417 bytes
@@ -203,7 +212,9 @@ function aiMock(req, res, u) {
   req.on("end", () => {
     const b = JSON.parse(body || "{}");
     aiLast = { auth: req.headers.authorization, ...b };
-    const said = b.messages?.[b.messages.length - 1]?.content || "";
+    // a message with pictures comes as parts; its words are the text part
+    const raw = b.messages?.[b.messages.length - 1]?.content || "";
+    const said = typeof raw === "string" ? raw : raw.find?.((p) => p.type === "text")?.text || "";
     if (/fail/.test(said)) return json(500, { error: { message: "mock failure" } });
     res.writeHead(200, { "content-type": "text/event-stream" });
     // replies that act on the site (public/js/ai.js carries the actions out); the
@@ -212,6 +223,7 @@ function aiMock(req, res, u) {
     const ACTS = [
       [/play the test song/, ["On it.", act({ do: "music.play", query: "test song" })]],
       [/go synth/, ["Done!", act({ do: "theme.preset", id: "synth" }), act({ do: "todo.add", text: "water plants" }), act({ do: "nope.x" })]],
+      [/please draw/, ["Here you go.", act({ do: "image.make", prompt: "a red fox in snow" })]],
       [/catch me up/, ["Reading the chat.", act({ do: "chat.read" })]],
       [/think it over/, ["<think>They might like ", `ember${act({ do: "theme.preset", id: "ember" })}`, "\n</think>", "Thought about it."]],
       [/^\(From the site/, [`Summary of ${said.split("\n").length - 1} messages.`, act({ do: "theme.preset", id: "ember" })]],

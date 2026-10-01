@@ -21,6 +21,10 @@ import { record } from "./analytics.js";
 |
 |   GET  /api/ai/status  {ready, models, model}
 |   POST /api/ai/chat    {messages: [{role, content}], model, context, actions}
+|        (a user message may carry `images`: up to 4 picture data: URLs, for
+|        models that can see; sent on as OpenAI image_url parts)
+|   POST /api/ai/image   {prompt} -> the picture (AI_IMAGE_MODEL on the same
+|        API if set, else Pollinations, which is free and needs no key)
 |        -> a stream of JSON lines: {t: "text", v} ... then {t: "done"},
 |           or {t: "error", error} if it fails midway
 |
@@ -55,6 +59,7 @@ The user doesn't see these lines, only a note that it was done, so also say in a
 - theme.set {"accent"?: "#rrggbb", "mode"?: "dark"|"oled"|"light", "wallpaper"?: "aurora"|"sunset"|"ocean"|"forest"|"mono"|"candy"|"photo"|"photo2"|"photo3"|"live-aurora"|"live-flow"|"live-synth"|"live-lava"|"live-stars"|"live-sea"} (live- ones are animated)
 - widget.set {"widget": "clock"|"weather"|"music"|"todo", "on": true|false}
 - todo.add {"text": a task} (adds it to their to-do widget, and switches the widget on)
+- image.make {"prompt": a detailed description in English} draws a picture and shows it under your reply. Use it whenever they ask you to draw, make, generate or create an image, picture, logo, wallpaper or art.
 - chat.read {} reads the recent messages of the chat channel or DM they have open. Use it when asked to summarize or catch them up on chat; the messages come back to you in the next message, then answer from them (don't act again).`;
 const MAX_CUSTOM = 2000; // characters of the person's own instructions
 function cleanCustom(v) {
@@ -107,19 +112,77 @@ function defaultModel(list) {
   return list[0] || "";
 }
 
+/* pictures from the page: only real image data URLs, and not too many or too big
+   (the page shrinks them to 1280 px JPEGs first, so a few hundred KB each) */
+const MAX_IMAGES = 4; // per message
+const MAX_IMAGE_CHARS = 2_000_000; // per picture, as base64
+const MAX_IMAGE_TOTAL = 6; // across the conversation; older ones become "(a picture)"
+const IMAGE_URL = /^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/]+=*$/;
+function cleanImages(v) {
+  if (!Array.isArray(v)) return [];
+  return v.filter((u) => typeof u === "string" && u.length <= MAX_IMAGE_CHARS && IMAGE_URL.test(u)).slice(0, MAX_IMAGES);
+}
 function cleanMessages(input) {
   if (!Array.isArray(input)) return null;
   const out = [];
   for (const m of input.slice(-MAX_MESSAGES)) {
     if (!m || (m.role !== "user" && m.role !== "assistant") || typeof m.content !== "string") return null;
     const content = m.content.trim();
-    if (content) out.push({ role: m.role, content });
+    const images = m.role === "user" ? cleanImages(m.images) : [];
+    if (content || images.length) out.push({ role: m.role, content, images });
   }
-  // keep the newest messages within the size limit
+  // keep the newest messages within the size limit (pictures don't count against the text)
   let total = 0, start = out.length;
   while (start > 0 && total + out[start - 1].content.length <= MAX_CHARS) total += out[--start].content.length;
   const kept = out.slice(start);
-  return kept.length && kept[kept.length - 1].role === "user" ? kept : null;
+  if (!kept.length || kept[kept.length - 1].role !== "user") return null;
+  // only the newest pictures go along; the rest are mentioned, so the talk still makes sense
+  let budget = MAX_IMAGE_TOTAL;
+  for (let i = kept.length - 1; i >= 0; i--) {
+    const m = kept[i];
+    const send = m.images.slice(0, Math.max(0, budget));
+    budget -= send.length;
+    const note = m.images.length > send.length ? `${m.content ? "\n" : ""}(${m.images.length - send.length} earlier picture${m.images.length - send.length > 1 ? "s" : ""} not shown)` : "";
+    kept[i] = send.length
+      ? { role: m.role, content: [{ type: "text", text: (m.content || "What's in this picture?") + note }, ...send.map((url) => ({ type: "image_url", image_url: { url } }))] }
+      : { role: m.role, content: m.content + note };
+  }
+  return kept;
+}
+
+/* a picture from a prompt: the API's own image model when AI_IMAGE_MODEL is set,
+   otherwise Pollinations (free, no key). The bytes come back through us because
+   the page's COEP would block another site's image. */
+const MAX_PROMPT = 1000;
+async function makeImage(prompt, signal) {
+  const { key, base } = config();
+  const imgModel = process.env.AI_IMAGE_MODEL || "";
+  if (imgModel && key && base) {
+    const r = await fetch(`${base}/images/generations`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${key}`, "content-type": "application/json" },
+      body: JSON.stringify({ model: imgModel, prompt, n: 1, size: "1024x1024", response_format: "b64_json" }),
+      signal,
+    });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d?.error?.message || `HTTP ${r.status}`);
+    const item = d?.data?.[0] || {};
+    if (item.b64_json) return { type: "image/png", bytes: Buffer.from(item.b64_json, "base64") };
+    if (item.url) return fetchImage(item.url, signal);
+    throw new Error("The image API sent back no picture.");
+  }
+  const api = (process.env.IMAGE_API || "https://image.pollinations.ai").replace(/\/+$/, "");
+  const seed = Math.floor(Math.random() * 1e9);
+  return fetchImage(`${api}/prompt/${encodeURIComponent(prompt)}?width=1024&height=1024&nologo=true&private=true&seed=${seed}`, signal);
+}
+async function fetchImage(url, signal) {
+  const r = await fetch(url, { signal });
+  const type = (r.headers.get("content-type") || "").split(";")[0].trim();
+  if (!r.ok) throw new Error(r.status === 429 ? "The picture maker is busy. Try again in a moment." : `The picture maker answered HTTP ${r.status}.`);
+  if (!/^image\/(png|jpeg|webp|gif)$/.test(type)) throw new Error("The picture maker sent back something that isn't a picture.");
+  const bytes = Buffer.from(await r.arrayBuffer());
+  if (bytes.length > 12 * 1024 * 1024) throw new Error("That picture is too big.");
+  return { type, bytes };
 }
 
 /* Reads the API's server-sent events and calls onText for each piece of the reply. */
@@ -214,6 +277,21 @@ export function aiRouter({ requireSession, limiter, userLimiter }) {
       if (!abort.signal.aborted) send({ t: "error", error: String(e?.message || "The reply was cut off.").slice(0, 200) });
     }
     res.end();
+  });
+
+  router.post("/image", requireSession, limiter, userLimiter, async (req, res) => {
+    const prompt = typeof req.body?.prompt === "string" ? req.body.prompt.replace(/\s+/g, " ").trim().slice(0, MAX_PROMPT) : "";
+    if (!prompt) return res.status(400).json({ error: "Say what to draw." });
+    const abort = new AbortController();
+    res.on("close", () => abort.abort());
+    const timer = setTimeout(() => abort.abort(), 120_000);
+    try {
+      const { type, bytes } = await makeImage(prompt, abort.signal);
+      record("ai");
+      res.set({ "content-type": type, "cache-control": "no-store", "x-content-type-options": "nosniff" }).send(bytes);
+    } catch (e) {
+      if (!res.headersSent && !res.destroyed) res.status(502).json({ error: abort.signal.aborted ? "Making the picture took too long." : String(e?.message || "Couldn't make the picture.").slice(0, 200) });
+    } finally { clearTimeout(timer); }
   });
 
   return router;

@@ -14,6 +14,10 @@
   const NEWS_KEY = 'wvm.news.seen';
   /* add new entries at the top; the id only has to grow */
   const NEWS = [
+    { id: 10, date: 'Oct 2026', items: [
+      ['🖼️', 'Send pictures to the AI', 'Add, paste or drop a picture and ask about it.'],
+      ['🎨', 'The AI can draw', 'Type /image and what you want, or just ask it to draw something.'],
+    ] },
     { id: 9, date: 'Oct 2026', items: [
       ['✨', 'A smarter AI app', 'Newer models, answers that type out as they arrive, and "Thought for…" to see how thinking models reason.'],
       ['🎛️', 'Customize the AI', 'Tell it about you and how to answer. Plus / shortcuts, editing, read aloud, voice typing and chat search.'],

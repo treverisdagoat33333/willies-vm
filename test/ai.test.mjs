@@ -185,6 +185,56 @@ await page.waitForSelector("#ai-window:not(.show)", { state: "attached" });
 await page.evaluate(() => window.apps.close?.("snake"));
 await page.evaluate(() => window.ai.open());
 
+// pictures: attach one, and it goes to the model as an image part
+await page.click("#ai-new");
+const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64");
+await page.setInputFiles("#ai-file", { name: "dot.png", mimeType: "image/png", buffer: png });
+await page.waitForSelector("#ai-tray .ai-tray-it img[src^='blob:']", { timeout: 5000 }).catch(() => {});
+ok(await page.$$eval("#ai-tray .ai-tray-it", (t) => t.length) === 1, "a picture you add waits above the box");
+await ask("what is this", () => /You said/.test(document.querySelector("#ai-log .ai-msg.bot:last-child")?.textContent || ""));
+let pic = (await last()).messages.at(-1);
+ok(Array.isArray(pic.content) && pic.content[0].text === "what is this" && /^data:image\/png;base64,/.test(pic.content[1]?.image_url?.url), "…and is sent to the model with your message", JSON.stringify(pic).slice(0, 200));
+ok(await page.$$eval("#ai-log .ai-msg.me .ai-img img", (i) => i.length === 1 && i[0].src.startsWith("blob:")) && !(await page.isVisible("#ai-tray")), "…it shows in your message, and the tray empties");
+// a picture with no words, pasted
+await page.evaluate(async (b64) => {
+  const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+  const dt = new DataTransfer(); dt.items.add(new File([bytes], "p.png", { type: "image/png" }));
+  document.querySelector("#ai-input").dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true }));
+}, png.toString("base64"));
+await page.waitForSelector("#ai-tray .ai-tray-it", { timeout: 5000 }).catch(() => {});
+ok(await page.$$eval("#ai-tray .ai-tray-it", (t) => t.length) === 1, "pasting a picture adds it too");
+await page.click("#ai-send");
+await page.waitForFunction(() => !document.querySelector("#ai-window.busy") && document.querySelectorAll("#ai-log .ai-msg.bot").length === 2, null, { timeout: 10000 }).catch(() => {});
+pic = (await last()).messages;
+ok(pic.at(-1).content[0].text === "What's in this picture?" && pic.filter((m) => Array.isArray(m.content)).length === 2, "…and a picture alone is asked about, with the earlier one still along", JSON.stringify(pic.map((m) => typeof m.content)));
+// the server refuses things that aren't pictures
+const bad = await page.evaluate(async () => (await fetch("/api/ai/chat", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ messages: [{ role: "user", content: "x", images: ["data:text/html;base64,PHNjcmlwdD4=", "https://example.com/a.png"] }] }) })).text());
+ok(!Array.isArray((await last()).messages.at(-1).content) && /You said/.test(bad), "only real picture data is passed on");
+
+// making pictures: /image, straight to the picture maker
+await ask("/image a tiny blue robot", () => document.querySelector("#ai-log .ai-msg.bot:last-child .ai-imgs.made img[src^='blob:']") && !document.querySelector("#ai-window.busy"));
+ok((await (await fetch(SITE + "/img/_last")).json()).prompt === "a tiny blue robot" && await page.$$eval("#ai-log .ai-msg.bot:last-child .ai-imgs.made img", (i) => i.length === 1 && i[0].naturalWidth === 1), "/image makes a picture and shows it");
+ok(!!(await page.$("#ai-log .ai-msg.bot:last-child .ai-img-dl")), "…with a download button");
+// …or the AI decides to draw
+await ask("please draw a fox", () => document.querySelectorAll("#ai-log .ai-msg.bot:last-child .ai-act").length > 0 && !document.querySelector("#ai-window.busy"));
+lb = await lastBot();
+ok((await (await fetch(SITE + "/img/_last")).json()).prompt === "a red fox in snow" && /Made a picture/.test(lb.chips[0]?.t) && await page.$$eval("#ai-log .ai-msg.bot:last-child .ai-imgs.made img", (i) => i.length === 1), "the AI can draw when asked (image.make)", JSON.stringify(lb.chips));
+ok(/image\.make/.test((await last()).messages[0].content), "…it's told it can");
+await ask("/image something broken", () => !!document.querySelector("#ai-log .ai-msg.bot:last-child .ai-err"));
+ok(!!(await page.$("#ai-log .ai-msg.bot:last-child .ai-err")), "a picture that can't be made shows an error");
+// pictures outlive a reload (IndexedDB), and go with the chat when it's deleted
+await page.reload();
+await page.waitForFunction(() => typeof window.ai !== "undefined");
+await page.evaluate(() => window.ai.open());
+await page.click("#ai-chats .ai-chat .ai-open >> nth=0");
+await page.waitForFunction(() => document.querySelectorAll("#ai-log .ai-img img[src^='blob:']").length >= 4, null, { timeout: 5000 }).catch(() => {});
+ok(await page.$$eval("#ai-log .ai-img img[src^='blob:']", (i) => i.length) >= 4, "pictures are still there after a reload", await page.$$eval("#ai-log .ai-img img", (i) => i.length));
+const count = () => page.evaluate(() => new Promise((ok) => { const r = indexedDB.open("wvm-ai"); r.onsuccess = () => { const q = r.result.transaction("img").objectStore("img").count(); q.onsuccess = () => ok(q.result); }; }));
+const n0 = await count();
+await page.click("#ai-chats .ai-chat >> nth=0 >> .ai-del");
+await page.waitForTimeout(300);
+ok(n0 >= 4 && await count() === n0 - 4, "deleting a chat deletes its pictures", `${n0} -> ${await count()}`);
+
 // the per-person limit
 const statuses = await page.evaluate(async () => {
   const out = [];

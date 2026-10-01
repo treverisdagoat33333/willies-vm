@@ -186,6 +186,8 @@ app.use((_req, res, next) => {
   next();
 });
 
+// the AI may be sent pictures (shrunk by the page, a few hundred KB each); everything else stays at 100 KB
+app.use("/api/ai/chat", express.json({ limit: "10mb" }));
 app.use(express.json());
 app.use(cookieParser());
 

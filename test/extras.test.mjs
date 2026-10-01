@@ -58,7 +58,7 @@ ok(step2.t === "The browser" && !step2.center && step2.w > 20, "…which points 
 await bob.page.keyboard.press("Escape");
 ok(!(await bob.page.$(".tour-card")) && await bob.page.evaluate(() => localStorage.getItem("wvm.tour.v1")) === "1", "Escape skips it, and it doesn't come back");
 await bob.page.evaluate(() => { localStorage.setItem("wvm.news.seen", "1"); window.tour.greet(); });
-ok(await bob.page.$eval(".news-card", (n) => /AI on your own device/.test(n.textContent)).catch(() => false), "someone who's been before sees what's new instead");
+ok(await bob.page.$eval(".news-card", (n) => /Send pictures to the AI/.test(n.textContent)).catch(() => false), "someone who's been before sees what's new instead");
 await bob.page.click(".news-ok");
 ok(!(await bob.page.$(".news-card")), "…until they close it");
 ok(!(await ann.page.$(".tour-card")), "test browsers don't get the tour unless they ask for it");

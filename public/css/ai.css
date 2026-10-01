@@ -195,3 +195,27 @@ html[data-motion="off"] .ai-mp-pop,html[data-perf="on"] .ai-mp-pop{animation:non
 .ai-c-btns{display:flex;justify-content:flex-end;gap:8px}
 @media (max-width:720px){.ai-mp-btn{max-width:44vw}#ai-custom-btn{font-size:0;gap:0}.ai-edit{display:none}}
 #ai-window [hidden]{display:none!important}
+
+/* pictures: attached ones in your message, made ones under the AI's reply */
+.ai-imgs{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;white-space:normal}
+.ai-img{position:relative;margin:0;border-radius:12px;overflow:hidden;background:var(--glass-3);cursor:zoom-in}
+.ai-img img{display:block;max-width:220px;max-height:220px;object-fit:cover}
+.ai-imgs.made .ai-img img{max-width:min(420px,100%);max-height:420px}
+.ai-img.gone{display:none}
+.ai-img-dl{position:absolute;top:8px;right:8px;width:32px;height:32px;display:grid;place-items:center;border-radius:9px;background:rgba(0,0,0,.55);color:#fff;opacity:0;transition:opacity .15s}
+.ai-img:hover .ai-img-dl,.ai-img-dl:focus-visible{opacity:1}
+.ai-img-dl .i{width:16px;height:16px}
+.ai-making{margin-top:8px;width:min(320px,100%);aspect-ratio:1;border-radius:14px;display:grid;place-items:center;padding:16px;text-align:center;font-size:.85em;color:var(--text-2);
+  background:linear-gradient(110deg,var(--glass-2) 30%,var(--glass-3) 50%,var(--glass-2) 70%);background-size:300% 100%;animation:ai-shine 1.8s linear infinite}
+html[data-motion="off"] .ai-making,html[data-perf="on"] .ai-making{animation:none}
+@media (prefers-reduced-motion:reduce){.ai-making{animation:none}}
+.ai-tray{display:flex;gap:8px;max-width:780px;width:calc(100% - 32px);margin:0 auto 6px}
+.ai-tray-it{position:relative;width:64px;height:64px;border-radius:12px;overflow:hidden;border:1px solid var(--border-2);background:var(--glass-3)}
+.ai-tray-it img{width:100%;height:100%;object-fit:cover}
+.ai-tray-x{position:absolute;top:3px;right:3px;width:20px;height:20px;display:grid;place-items:center;border-radius:50%;background:rgba(0,0,0,.65);color:#fff}
+.ai-tray-x .i{width:11px;height:11px}
+.ai-attach{margin-left:-8px}
+.ai-attach+input+.ai-mic{margin-left:-6px}
+.ai-drop{position:absolute;inset:12px;z-index:9;display:grid;place-items:center;border:2px dashed rgba(var(--accent-rgb),.8);border-radius:20px;background:rgba(var(--accent-rgb),.12);font-weight:700;font-size:1.1em;pointer-events:none}
+.ai-lightbox{position:absolute;inset:0;z-index:11;display:grid;place-items:center;padding:24px;background:rgba(0,0,0,.8);cursor:zoom-out}
+.ai-lightbox img{max-width:100%;max-height:100%;border-radius:12px;box-shadow:var(--shadow)}

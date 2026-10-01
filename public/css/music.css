@@ -214,3 +214,6 @@ html[data-tbside="top"] #music-mini{bottom:16px}
 }
 
 html[data-perf="on"] #music-window,html[data-perf="on"] #music-mini{animation:none}
+/* over the AI window it would sit on the message box and its Send button: lift it above them */
+body:has(#ai-window.show:not(.minimized)) #music-mini{bottom:calc(var(--tb-h) + 128px)}
+html[data-tbhide="on"] body:has(#ai-window.show:not(.minimized)) #music-mini,html[data-tbside="top"] body:has(#ai-window.show:not(.minimized)) #music-mini{bottom:132px}

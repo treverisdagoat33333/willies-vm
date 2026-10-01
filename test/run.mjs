@@ -74,6 +74,7 @@ try {
     DEEZER_API: `http://127.0.0.1:${sitePort}/dz`,
     ARCADE_UPSTREAM: `http://127.0.0.1:${sitePort}/ugs/`,
     AUDIUS_API: `http://127.0.0.1:${sitePort}/au`,
+    IMAGE_API: `http://127.0.0.1:${sitePort}/img`,
     OWNER_USERNAME: "testowner",
     OWNER_PASSWORD: "test-owner-pass",
   });
