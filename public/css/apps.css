@@ -178,3 +178,9 @@ html[data-motion="off"] .aw,html[data-perf="on"] .aw{animation:none}
 .al-ic.has-logo,.aw-ic.has-logo{padding:9px;box-shadow:0 6px 16px rgba(0,0,0,.25),inset 0 0 0 1px rgba(0,0,0,.06)}
 .aw-ic.has-logo{padding:3px;box-shadow:none}
 .al-ic img,.aw-ic img{width:100%;height:100%;object-fit:contain;display:block;border-radius:4px;user-select:none}
+/* the tools' own icons: a white line drawing on a gradient, with a soft top shine */
+.al-ic.has-glyph,.aw-ic.has-glyph{color:#fff;position:relative;overflow:hidden;box-shadow:0 6px 16px rgba(0,0,0,.25),inset 0 1px 0 rgba(255,255,255,.35)}
+.al-ic.has-glyph::after{content:"";position:absolute;inset:0 0 50% 0;background:linear-gradient(rgba(255,255,255,.18),rgba(255,255,255,0));pointer-events:none}
+.al-ic.has-glyph svg{width:28px;height:28px;filter:drop-shadow(0 1px 1px rgba(0,0,0,.18))}
+.aw-ic.has-glyph{box-shadow:none}
+.aw-ic.has-glyph svg{width:15px;height:15px}

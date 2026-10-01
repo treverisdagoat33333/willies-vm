@@ -44,8 +44,9 @@
 
   /* a site's real logo on a white tile (icons/apps/, saved from each site, so
      they load from our origin under COEP); its letter tile if the file is missing */
-  const iconHtml = (a) => (a.logo ? `<img src="${a.logo}" alt="" draggable="false" data-fallback="${esc(a.icon)}">` : a.icon);
-  const tileStyle = (a) => (a.logo ? 'background:#fff' : `background:${a.color}`);
+  const iconHtml = (a) => (a.logo ? `<img src="${a.logo}" alt="" draggable="false" data-fallback="${esc(a.icon)}">` : a.glyph ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${a.glyph.svg}</svg>` : a.icon);
+  const tileStyle = (a) => (a.logo ? 'background:#fff' : a.glyph ? `background:linear-gradient(160deg,${a.glyph.from},${a.glyph.to})` : `background:${a.color}`);
+  const tileClass = (a) => (a.logo ? ' has-logo' : a.glyph ? ' has-glyph' : '');
   document.addEventListener('error', (e) => {
     const img = e.target;
     if (img.tagName !== 'IMG' || !img.dataset.fallback) return;
@@ -59,7 +60,7 @@
   let z = 61;
   const wins = new Map(); // id -> {el, cleanup:[]}
   function focus(w) { w.el.style.zIndex = ++z; }
-  function openWin({ id, title, icon, color, logo, w = 420, h = 480, build }) {
+  function openWin({ id, title, app = null, icon, color, w = 420, h = 480, build }) {
     if (wins.has(id)) { const o = wins.get(id); o.el.hidden = false; focus(o); return o; }
     const el = document.createElement('div');
     el.className = 'aw';
@@ -67,7 +68,8 @@
     const n = wins.size;
     const W = Math.min(w, innerWidth - 16), H = Math.min(h, innerHeight - 90);
     Object.assign(el.style, { width: `${W}px`, height: `${H}px`, left: `${Math.max(8, (innerWidth - W) / 2 + n * 26 - 60)}px`, top: `${Math.max(8, (innerHeight - H) / 2 + n * 26 - 70)}px`, zIndex: ++z });
-    el.innerHTML = `<div class="aw-bar"><span class="aw-ic${logo ? ' has-logo' : ''}" style="${logo ? 'background:#fff' : `background:${color}`}">${logo ? iconHtml({ logo, icon }) : icon}</span><b>${esc(title)}</b><span class="sp"></span><span class="aw-extra"></span><button class="aw-max" title="Maximize">▢</button><button class="aw-x" title="Close">✕</button></div><div class="aw-body"></div>`;
+    const a = app || { icon, color };
+    el.innerHTML = `<div class="aw-bar"><span class="aw-ic${tileClass(a)}" style="${tileStyle(a)}">${iconHtml(a)}</span><b>${esc(title)}</b><span class="sp"></span><span class="aw-extra"></span><button class="aw-max" title="Maximize">▢</button><button class="aw-x" title="Close">✕</button></div><div class="aw-body"></div>`;
     document.body.appendChild(el);
     const win = { el, body: $('.aw-body', el), extra: $('.aw-extra', el), cleanup: [] };
     wins.set(id, win);
@@ -98,7 +100,7 @@
   async function openWeb(app) {
     const id = `web-${app.id}`;
     if (wins.has(id)) return openWin({ id });
-    const win = openWin({ id, title: app.name, icon: app.icon, color: app.color, logo: app.logo, w: 1100, h: 720, build: (w) => {
+    const win = openWin({ id, title: app.name, app, w: 1100, h: 720, build: (w) => {
       w.body.classList.add('aw-web');
       w.body.innerHTML = '<div class="aw-load">Opening…</div>';
       w.extra.innerHTML = '<button title="Back">‹</button><button title="Reload">⟳</button><button title="Open in the browser">↗</button>';
@@ -125,7 +127,9 @@
 
   /* ---------- the tools ---------- */
   const T = [];
-  const tool = (id, name, icon, color, desc, w, h, build) => T.push({ id, name, icon, color, desc, w, h, build });
+  /* the tools' icons: a gradient tile and a white line drawing, like a phone's apps */
+  const GLYPH = {"calc": {"from": "#ffb340", "to": "#ff8a00", "svg": "<rect x=\"5\" y=\"3\" width=\"14\" height=\"18\" rx=\"2.5\"/><rect x=\"8\" y=\"6\" width=\"8\" height=\"3\" rx=\".6\" fill=\"currentColor\" stroke=\"none\"/><circle cx=\"8.6\" cy=\"13\" r=\".6\" fill=\"currentColor\"/><circle cx=\"12\" cy=\"13\" r=\".6\" fill=\"currentColor\"/><circle cx=\"15.4\" cy=\"13\" r=\".6\" fill=\"currentColor\"/><circle cx=\"8.6\" cy=\"17\" r=\".6\" fill=\"currentColor\"/><circle cx=\"12\" cy=\"17\" r=\".6\" fill=\"currentColor\"/><circle cx=\"15.4\" cy=\"17\" r=\".6\" fill=\"currentColor\"/>"}, "notes": {"from": "#ffe066", "to": "#f7b500", "svg": "<path d=\"M6 3h9l4 4v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z\"/><path d=\"M15 3v4h4\"/><path d=\"M8.5 11h7M8.5 14.5h7M8.5 18h4\"/>"}, "paint": {"from": "#ff6b8b", "to": "#e8265e", "svg": "<path d=\"M18.4 3.6a2 2 0 0 1 2.8 2.8l-8.5 8.5-3.4.6.6-3.4z\"/><path d=\"M8.2 15.1c-2.2 0-3.4 1.4-3.4 3.2 0 1.1-.6 1.9-1.6 2.2 4.3 1 7.6-.4 7.6-3.4\"/>"}, "code": {"from": "#3ddc84", "to": "#18a058", "svg": "<path d=\"m8 8-4 4 4 4M16 8l4 4-4 4M13.5 5l-3 14\"/>"}, "focus": {"from": "#ff7a6b", "to": "#e5342b", "svg": "<circle cx=\"12\" cy=\"13.5\" r=\"7.5\"/><path d=\"M12 9.5v4l2.5 2\"/><path d=\"M9.5 3h5M12 3v3\"/>"}, "stopwatch": {"from": "#5ad2ff", "to": "#1e90d6", "svg": "<circle cx=\"12\" cy=\"13.5\" r=\"7.5\"/><path d=\"M12 13.5 15 10.5\"/><path d=\"M10 2.5h4M12 2.5V6M18.5 6.5l1.5-1.5\"/>"}, "calendar": {"from": "#ff6b6b", "to": "#e0302b", "svg": "<rect x=\"3.5\" y=\"5\" width=\"17\" height=\"15.5\" rx=\"2.5\"/><path d=\"M3.5 10h17M8 3v4M16 3v4\"/><path d=\"M8 14h2M12 14h2M16 14h.01M8 17.5h2M12 17.5h2\" />"}, "convert": {"from": "#8a87ff", "to": "#4c49d8", "svg": "<path d=\"M4 8h13l-3.5-3.5M20 16H7l3.5 3.5\"/>"}, "password": {"from": "#4fd27a", "to": "#1f9e4f", "svg": "<rect x=\"4.5\" y=\"10.5\" width=\"15\" height=\"10\" rx=\"2.2\"/><path d=\"M8 10.5V7.5a4 4 0 0 1 8 0v3\"/><circle cx=\"12\" cy=\"15.5\" r=\"1.4\" fill=\"currentColor\"/>"}, "dictionary": {"from": "#c77dff", "to": "#8e3fd9", "svg": "<path d=\"M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5z\"/><path d=\"M4 20.5A2.5 2.5 0 0 0 6.5 23H20v-5\"/><path d=\"M9 8h7M9 11.5h5\"/>"}, "typing": {"from": "#4aa3ff", "to": "#1565d8", "svg": "<rect x=\"2.5\" y=\"6\" width=\"19\" height=\"12\" rx=\"2.2\"/><path d=\"M6 10h.01M9.5 10h.01M13 10h.01M16.5 10h.01M6 14h.01M18 14h.01M8.5 14h7\"/>"}, "camera": {"from": "#8e9aaf", "to": "#4b5568", "svg": "<path d=\"M4.5 7.5h3l1.8-2.5h5.4l1.8 2.5h3a1.5 1.5 0 0 1 1.5 1.5v9.5a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18.5V9a1.5 1.5 0 0 1 1.5-1.5z\"/><circle cx=\"12\" cy=\"13.5\" r=\"3.6\"/>"}, "recorder": {"from": "#ff5577", "to": "#d6123c", "svg": "<rect x=\"3\" y=\"4\" width=\"18\" height=\"13\" rx=\"2.2\"/><path d=\"M8 21h8M12 17v4\"/><circle cx=\"12\" cy=\"10.5\" r=\"2.8\" fill=\"currentColor\"/>"}, "soundboard": {"from": "#ffb340", "to": "#f06d00", "svg": "<path d=\"M11 5 6.5 9H3.5v6h3L11 19z\"/><path d=\"M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13\"/>"}, "clock": {"from": "#4cc9f0", "to": "#1a7fc1", "svg": "<circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M3 12h18M12 3c2.6 2.5 4 5.6 4 9s-1.4 6.5-4 9c-2.6-2.5-4-5.6-4-9s1.4-6.5 4-9z\"/>"}, "words": {"from": "#c9a46b", "to": "#8d6a35", "svg": "<path d=\"M4 7V5h16v2M12 5v14M9 19h6\"/>"}, "color": {"from": "#ff5fb0", "to": "#d6247b", "svg": "<path d=\"M12 3a9 9 0 0 0 0 18c1.1 0 1.8-.9 1.8-1.9 0-.5-.2-.9-.5-1.2-.3-.3-.5-.8-.5-1.2 0-1 .8-1.8 1.8-1.8H17a4 4 0 0 0 4-4c0-4.4-4-7.9-9-7.9z\"/><circle cx=\"7.5\" cy=\"11.5\" r=\"1.2\" fill=\"currentColor\"/><circle cx=\"10\" cy=\"7.3\" r=\"1.2\" fill=\"currentColor\"/><circle cx=\"14.6\" cy=\"7.3\" r=\"1.2\" fill=\"currentColor\"/><circle cx=\"17.2\" cy=\"11.2\" r=\"1.2\" fill=\"currentColor\"/>"}, "snake": {"from": "#3ddc84", "to": "#14873f", "svg": "<path d=\"M5 19h7a3 3 0 0 0 0-6H9a3 3 0 0 1 0-6h7\"/><circle cx=\"17.5\" cy=\"7\" r=\"1.6\" fill=\"currentColor\"/><path d=\"M19 7h2\"/>"}};
+  const tool = (id, name, icon, color, desc, w, h, build) => T.push({ id, name, icon, color, desc, w, h, build, glyph: GLYPH[id] });
 
   tool('calc', 'Calculator', '🧮', '#ff9f0a', 'Quick maths, with brackets and %', 320, 470, (win) => {
     win.body.innerHTML = `<div class="calc"><div class="calc-hist"></div><input class="calc-out" value="0" readonly><div class="calc-keys">${['C', '(', ')', '÷', '7', '8', '9', '×', '4', '5', '6', '−', '1', '2', '3', '+', '%', '0', '.', '='].map((k) => `<button data-k="${k}" class="${/[÷×−+=]/.test(k) ? 'op' : k === 'C' ? 'fn' : ''}">${k}</button>`).join('')}</div></div>`;
@@ -482,7 +486,7 @@
 
   function beep() { try { const a = new AudioContext(); [0, 0.25, 0.5].forEach((t) => { const o = a.createOscillator(), g = a.createGain(); o.frequency.value = 880; g.gain.setValueAtTime(0.3, a.currentTime + t); g.gain.exponentialRampToValueAtTime(0.001, a.currentTime + t + 0.2); o.connect(g).connect(a.destination); o.start(a.currentTime + t); o.stop(a.currentTime + t + 0.22); }); setTimeout(() => a.close(), 1200); } catch (_) {} }
 
-  function openTool(t) { openWin({ id: t.id, title: t.name, icon: t.icon, color: t.color, w: t.w, h: t.h, build: t.build }); }
+  function openTool(t) { openWin({ id: t.id, title: t.name, app: t, w: t.w, h: t.h, build: t.build }); }
 
   /* ---------- the launcher ---------- */
   const favs = () => (data.favs ||= ['youtube', 'calc', 'notes', 'discord']);
@@ -492,7 +496,7 @@
     openWin({ id, title: 'Apps', icon: '▦', color: 'linear-gradient(135deg,#4f8cff,#a855f7)', w: 820, h: 620, build: (win) => {
       win.body.innerHTML = '<div class="al"><input class="field al-q" placeholder="Search apps" autocomplete="off"><div class="al-list"></div></div>';
       const list = $('.al-list', win.body), q = $('.al-q', win.body);
-      const card = (a) => `<div class="al-app" data-id="${a.id}" data-web="${a.web ? 1 : ''}" role="button" tabindex="0" title="${esc(a.desc || a.url)}"><span class="al-ic${a.logo ? ' has-logo' : ''}" style="${tileStyle(a)}">${iconHtml(a)}</span><b>${esc(a.name)}</b><button class="al-fav${favs().includes(a.id) ? ' on' : ''}" title="Favourite">★</button></div>`;
+      const card = (a) => `<div class="al-app" data-id="${a.id}" data-web="${a.web ? 1 : ''}" role="button" tabindex="0" title="${esc(a.desc || a.url)}"><span class="al-ic${tileClass(a)}" style="${tileStyle(a)}">${iconHtml(a)}</span><b>${esc(a.name)}</b><button class="al-fav${favs().includes(a.id) ? ' on' : ''}" title="Favourite">★</button></div>`;
       const draw = () => {
         const s = q.value.trim().toLowerCase(), m = (a) => !s || a.name.toLowerCase().includes(s);
         const all = [...WEB, ...T], fav = favs().map((f) => all.find((a) => a.id === f)).filter((a) => a && m(a));
