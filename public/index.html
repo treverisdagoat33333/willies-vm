@@ -818,22 +818,46 @@ https://discord.com/</textarea><div class="ctl"><button class="btn sm" id="st-ru
   <aside class="ai-side">
     <div class="ai-brand"><div class="ic c9"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg></div><b>AI</b></div>
     <button type="button" class="btn sm primary ai-new" id="ai-new"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>New chat</button>
+    <input class="field ai-search" id="ai-search" type="search" placeholder="Search chats" autocomplete="off" aria-label="Search chats">
     <div class="ai-chats" id="ai-chats"></div>
   </aside>
   <main class="ai-main">
     <header class="ai-top">
       <button type="button" class="mu-iconbtn ai-menu-btn" id="ai-side-btn" aria-label="Chats"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M3 12h18M3 18h18"/></svg></button>
       <select class="field" id="ai-model" aria-label="Model" hidden></select>
+      <div class="ai-mp" id="ai-mp" hidden>
+        <button type="button" class="ai-mp-btn" id="ai-mp-btn" aria-haspopup="listbox" aria-expanded="false"><span class="ai-mp-ic"></span><span class="ai-mp-name">Choose a model</span><svg class="i ai-mp-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>
+        <div class="ai-mp-pop" id="ai-mp-pop" role="listbox" hidden>
+          <input class="field ai-mp-q" id="ai-mp-q" type="search" placeholder="Search models" autocomplete="off">
+          <div class="ai-mp-list" id="ai-mp-list"></div>
+        </div>
+      </div>
       <span class="sp"></span>
+      <button type="button" class="mu-iconbtn" id="ai-export" title="Download this chat" aria-label="Download this chat"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg></button>
+      <button type="button" class="btn sm" id="ai-custom-btn" title="Custom instructions"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></svg>Customize</button>
       <button type="button" class="btn sm" id="ai-close">Close</button>
     </header>
     <div class="ai-scroll" id="ai-scroll"><div class="ai-log" id="ai-log" aria-live="polite"></div></div>
+    <div class="ai-editbar" id="ai-editbar" hidden><span>Editing your message: sending replaces everything after it</span><button type="button" class="btn sm" id="ai-edit-x">Cancel</button></div>
+    <div class="ai-slash" id="ai-slash" role="listbox" hidden></div>
     <form class="ai-compose" id="ai-form">
-      <textarea id="ai-input" rows="1" placeholder="Ask anything" maxlength="8000" aria-label="Message"></textarea>
+      <button type="button" class="ai-mic" id="ai-mic" title="Talk instead of typing" aria-label="Talk instead of typing" hidden><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v4"/></svg></button>
+      <textarea id="ai-input" rows="1" placeholder="Ask anything, or type / for shortcuts" maxlength="8000" aria-label="Message"></textarea>
       <button class="ai-send" id="ai-send" type="submit" aria-label="Send" title="Send (Enter)"><svg class="i isd" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg><svg class="i ist" viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"/></svg></button>
     </form>
-    <p class="ai-note">AI can make mistakes. Your messages go to the AI service to be answered; chats are saved on this device only.</p>
+    <p class="ai-note">AI can make mistakes. Your messages go to the AI service to be answered (or stay on this device with a model from "On this device"); chats are saved on this device only.</p>
   </main>
+  <div class="ai-custom" id="ai-custom" hidden>
+    <form class="ai-custom-card" id="ai-custom-form">
+      <h3>Customize the AI</h3>
+      <label>What should it know about you?<textarea id="ai-c-about" maxlength="800" rows="3" placeholder="e.g. I'm in 9th grade, I love Minecraft, call me Will."></textarea></label>
+      <label>How should it answer?<textarea id="ai-c-style" maxlength="800" rows="3" placeholder="e.g. Use bullet points. Always give an example."></textarea></label>
+      <div class="ai-c-tags" id="ai-c-tags"></div>
+      <label class="ai-c-row"><span><b>Show thinking</b><small>See how thinking models reason before they answer.</small></span><input type="checkbox" id="ai-c-think"></label>
+      <label class="ai-c-row"><span><b>Read answers aloud</b><small>Speaks each answer when it's done.</small></span><input type="checkbox" id="ai-c-speak"></label>
+      <div class="ai-c-btns"><button type="button" class="btn sm" id="ai-c-cancel">Cancel</button><button type="submit" class="btn sm primary">Save</button></div>
+    </form>
+  </div>
 </div>
 
 <div id="music-mini">

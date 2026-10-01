@@ -34,7 +34,18 @@
 
   /* ---- the models (sizes are the download) ---- */
   const MODELS = [
-    // WebLLM
+    // WebLLM: the newest first. "think" models reason before they answer (shown in the app).
+    { engine: "webllm", id: "Qwen3.5-0.8B-q4f16_1-MLC", name: "Qwen 3.5 0.8B", mb: 600, tier: 1, think: true, best: true },
+    { engine: "webllm", id: "Qwen3.5-2B-q4f16_1-MLC", name: "Qwen 3.5 2B", mb: 1400, tier: 3, think: true, best: true },
+    { engine: "webllm", id: "Qwen3.5-4B-q4f16_1-MLC", name: "Qwen 3.5 4B", mb: 2600, tier: 4, think: true, best: true },
+    { engine: "webllm", id: "Qwen3.5-9B-q4f16_1-MLC", name: "Qwen 3.5 9B", mb: 5500, tier: 5, think: true, best: true },
+    { engine: "webllm", id: "Qwen3-1.7B-q4f16_1-MLC", name: "Qwen 3 1.7B", mb: 1100, tier: 2, think: true },
+    { engine: "webllm", id: "Qwen3-4B-q4f16_1-MLC", name: "Qwen 3 4B", mb: 2400, tier: 4, think: true },
+    { engine: "webllm", id: "Qwen3-8B-q4f16_1-MLC", name: "Qwen 3 8B", mb: 5000, tier: 5, think: true },
+    { engine: "webllm", id: "DeepSeek-R1-Distill-Qwen-7B-q4f16_1-MLC", name: "DeepSeek R1 7B", mb: 5100, tier: 5, think: true },
+    { engine: "webllm", id: "Llama-3.1-8B-Instruct-q4f16_1-MLC", name: "Llama 3.1 8B", mb: 5000, tier: 5 },
+    { engine: "webllm", id: "Phi-4-mini-instruct-q4f16_1-MLC", name: "Phi-4 mini", mb: 2600, tier: 4 },
+    { engine: "webllm", id: "Ministral-3-3B-Instruct-2512-BF16-q4f16_1-MLC", name: "Ministral 3 3B", mb: 2100, tier: 4 },
     { engine: "webllm", id: "SmolLM2-360M-Instruct-q4f16_1-MLC", name: "SmolLM2 360M", mb: 380, tier: 0 },
     { engine: "webllm", id: "Qwen2.5-0.5B-Instruct-q4f16_1-MLC", name: "Qwen 2.5 0.5B", mb: 950, tier: 1 },
     { engine: "webllm", id: "Llama-3.2-1B-Instruct-q4f16_1-MLC", name: "Llama 3.2 1B", mb: 880, tier: 2 },
@@ -43,11 +54,18 @@
     { engine: "webllm", id: "Llama-3.2-3B-Instruct-q4f16_1-MLC", name: "Llama 3.2 3B", mb: 2300, tier: 4 },
     { engine: "webllm", id: "Phi-3.5-mini-instruct-q4f16_1-MLC", name: "Phi-3.5 mini", mb: 3700, tier: 4 },
     // Transformers.js (dtype per device: q4f16 on WebGPU, q4 on the CPU)
+    { engine: "transformers", id: "onnx-community/Qwen3-0.6B-ONNX", name: "Qwen 3 0.6B", mb: 570, tier: 1, think: true, best: true },
+    { engine: "transformers", id: "onnx-community/Qwen3-1.7B-ONNX", name: "Qwen 3 1.7B", mb: 1300, tier: 3, think: true, gpuOnly: true, best: true },
+    { engine: "transformers", id: "onnx-community/gemma-3-1b-it-ONNX", name: "Gemma 3 1B", mb: 1000, tier: 2 },
     { engine: "transformers", id: "HuggingFaceTB/SmolLM2-135M-Instruct", name: "SmolLM2 135M", mb: 120, tier: 0 },
     { engine: "transformers", id: "HuggingFaceTB/SmolLM2-360M-Instruct", name: "SmolLM2 360M", mb: 270, tier: 1 },
     { engine: "transformers", id: "onnx-community/Qwen2.5-0.5B-Instruct", name: "Qwen 2.5 0.5B", mb: 480, tier: 1 },
     { engine: "transformers", id: "onnx-community/Llama-3.2-1B-Instruct-q4f16", name: "Llama 3.2 1B", mb: 1100, tier: 2, gpuOnly: true },
     // wllama (GGUF from Hugging Face)
+    { engine: "wllama", id: "unsloth/Qwen3-1.7B-GGUF/Qwen3-1.7B-Q4_K_M.gguf", name: "Qwen 3 1.7B", mb: 1100, tier: 2, think: true, best: true },
+    { engine: "wllama", id: "unsloth/Qwen3-4B-GGUF/Qwen3-4B-Q4_K_M.gguf", name: "Qwen 3 4B", mb: 2500, tier: 4, think: true, best: true },
+    { engine: "wllama", id: "unsloth/gemma-3-1b-it-GGUF/gemma-3-1b-it-Q4_K_M.gguf", name: "Gemma 3 1B", mb: 810, tier: 2 },
+    { engine: "wllama", id: "unsloth/Phi-4-mini-instruct-GGUF/Phi-4-mini-instruct-Q4_K_M.gguf", name: "Phi-4 mini", mb: 2500, tier: 4 },
     { engine: "wllama", id: "Qwen/Qwen2.5-0.5B-Instruct-GGUF/qwen2.5-0.5b-instruct-q4_k_m.gguf", name: "Qwen 2.5 0.5B", mb: 490, tier: 1 },
     { engine: "wllama", id: "bartowski/Llama-3.2-1B-Instruct-GGUF/Llama-3.2-1B-Instruct-Q4_K_M.gguf", name: "Llama 3.2 1B", mb: 810, tier: 2 },
     // MediaPipe: only its web builds (-web.task) run in a browser; Gemma 4's need no login.
@@ -101,10 +119,13 @@
   async function pick() {
     const all = (await list()).filter((m) => !m.why && m.tier >= 0);
     const c = await capabilities();
+    // the strongest the device can hold: memory decides the size
     const order = [
-      c.gpu && c.mem >= 4 && all.find((m) => m.engine === "webllm" && /Llama-3\.2-1B/.test(m.id)),
+      c.gpu && c.mem >= 8 && all.find((m) => m.engine === "webllm" && /Qwen3\.5-4B/.test(m.id)),
+      c.gpu && c.mem >= 4 && all.find((m) => m.engine === "webllm" && /Qwen3\.5-2B/.test(m.id)),
       c.nano === "available" && all.find((m) => m.engine === "chrome"),
-      c.gpu && all.find((m) => m.engine === "webllm" && /Qwen2\.5-0\.5B/.test(m.id)),
+      c.gpu && all.find((m) => m.engine === "webllm" && /Qwen3\.5-0\.8B/.test(m.id)),
+      c.mem >= 8 && all.find((m) => m.engine === "wllama" && /Qwen3-1\.7B/.test(m.id)),
       all.find((m) => m.engine === "wllama" && /0\.5b/i.test(m.id)),
       all.find((m) => m.engine === "transformers" && /360M/.test(m.id)),
     ];

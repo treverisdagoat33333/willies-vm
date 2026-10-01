@@ -217,6 +217,13 @@ function aiMock(req, res, u) {
       [/^\(From the site/, [`Summary of ${said.split("\n").length - 1} messages.`, act({ do: "theme.preset", id: "ember" })]],
     ];
     const hit = ACTS.find(([re]) => re.test(said));
+    // "reason first": thinking sent apart, in delta.reasoning_content, like DeepSeek's and Qwen's APIs
+    if (/reason first/.test(said)) {
+      const steps = [{ reasoning_content: "Let me work " }, { reasoning_content: "this out." }, { content: "The answer is 42." }];
+      let j = 0;
+      const t2 = () => { if (res.destroyed) return; if (j >= steps.length) { res.write("data: [DONE]\n\n"); return res.end(); } res.write(`data: ${JSON.stringify({ choices: [{ delta: steps[j++] }] })}\n\n`); setTimeout(t2, 30); };
+      return t2();
+    }
     const parts = hit ? hit[1] : /slow/.test(said) ? Array.from({ length: 20 }, (_, i) => `word${i} `) : ["Hello ", "**there**", "\n\n```js\nconsole.log(1)\n```\n", `You said: ${said}`];
     let i = 0;
     const tick = () => {

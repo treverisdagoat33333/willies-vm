@@ -63,8 +63,9 @@ const ask = async (text) => {
   const n = await p.$$eval(".ai-msg.bot", (b) => b.length);
   await p.fill("#ai-input", text);
   await p.press("#ai-input", "Enter");
-  await p.waitForFunction((n) => document.querySelectorAll(".ai-msg.bot").length > n && !document.querySelector("#ai-window").classList.contains("busy"), n, { timeout: 15000 }).catch(() => {});
-  return p.$$eval(".ai-msg.bot", (b) => b.at(-1).textContent);
+  // done, and typed out (the tools bar shows once the whole answer is on screen)
+  await p.waitForFunction((n) => document.querySelectorAll(".ai-msg.bot").length > n && !document.querySelector("#ai-window").classList.contains("busy") && (document.querySelector(".ai-msg.bot:last-child .ai-tools, .ai-msg.bot:last-child .ai-err") || document.querySelector(".ai-msg.bot:last-child .ai-acts")), n, { timeout: 15000 }).catch(() => {});
+  return p.$$eval(".ai-msg.bot", (b) => [...b.at(-1).childNodes].filter((n) => !n.classList?.contains("ai-tools")).map((n) => n.textContent).join(""));
 };
 ok(/You said: hello there/.test(await ask("hello there")), "a reply streams in from the model on this device");
 const first = await p.evaluate(() => window.__nano.prompts[0]);
@@ -80,7 +81,7 @@ await p.press("#ai-input", "Enter");
 await p.waitForTimeout(900);
 await p.click("#ai-send");
 await p.waitForTimeout(800);
-const stopped = await p.$$eval(".ai-msg.bot", (b) => b.at(-1).textContent);
+const stopped = await p.$$eval(".ai-msg.bot", (b) => [...b.at(-1).querySelectorAll("p")].map((n) => n.textContent).join(""));
 ok(!/ten/.test(stopped) && /one/.test(stopped), "Stop ends a reply part-way (clicked through the toast the theme change left on top of it)", stopped);
 
 /* the server hands out the instructions, nothing secret */

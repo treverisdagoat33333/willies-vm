@@ -84,7 +84,13 @@ const cut = await page.textContent("#ai-log .ai-msg.bot");
 ok(!(await page.$eval("#ai-window", (w) => w.classList.contains("busy"))) && !/word19/.test(cut), "Stop cuts the reply short", cut);
 
 // picking a model is remembered and used
-await page.selectOption("#ai-model", "gpt-4o");
+// the picker is drawn in the site's style; the native select only holds the value
+ok(await page.isVisible("#ai-mp-btn") && !(await page.isVisible("#ai-model")) && /gpt-4o-mini/.test(await page.textContent("#ai-mp-btn")), "the model picker is the site's own, showing the current model");
+await page.click("#ai-mp-btn");
+ok(await page.isVisible("#ai-mp-pop") && await page.$$eval("#ai-mp-list .ai-mp-it:not([data-v^='local:'])", (b) => b.length) === 3 && /On this device/.test(await page.textContent("#ai-mp-list")), "…it opens a list of the models, online and on this device", await page.textContent("#ai-mp-list"));
+await page.fill("#ai-mp-q", "gpt-4o");
+await page.click('#ai-mp-list .ai-mp-it[data-v="gpt-4o"]');
+ok(!(await page.isVisible("#ai-mp-pop")) && /gpt-4o\b/.test(await page.textContent(".ai-mp-name")), "…and picking one closes it");
 await page.fill("#ai-input", "model check");
 await page.press("#ai-input", "Enter");
 await page.waitForFunction(() => /You said: model check/.test(document.querySelector("#ai-log .ai-msg.bot:last-child")?.textContent || ""), null, { timeout: 10000 }).catch(() => {});
@@ -118,7 +124,66 @@ ok(await page.$$eval("#ai-log .ai-msg.me", (m) => m.every((x) => !/From the site
 // a reasoning model's thinking isn't shown, and an action inside it isn't carried out
 await ask("think it over", () => /Thought about it/.test(document.querySelector("#ai-log .ai-msg.bot:last-child")?.textContent || ""));
 lb = await lastBot();
-ok(lb.text.trim() === "Thought about it." && !lb.chips.length && await page.evaluate(() => S.wallpaper) === "live-synth", "a model's <think> part is hidden, and nothing in it acts", JSON.stringify(lb));
+const ans = await page.$eval("#ai-log .ai-msg.bot:last-child", (b) => [...b.querySelectorAll(":scope > p")].map((p) => p.textContent).join(""));
+const fold = await page.$eval("#ai-log .ai-msg.bot:last-child", (b) => ({ open: b.querySelector(".ai-think")?.open, sum: b.querySelector(".ai-think summary")?.textContent, body: b.querySelector(".ai-think-body")?.textContent }));
+ok(ans === "Thought about it." && !lb.chips.length && await page.evaluate(() => S.wallpaper) === "live-synth", "a model's <think> part is kept out of the answer, and nothing in it acts", JSON.stringify(lb));
+ok(/Thought for/.test(fold.sum) && /They might like/.test(fold.body) && !fold.open, "…and shows folded up as \"Thought for…\", to open if you want", JSON.stringify(fold));
+// thinking sent apart by the API comes through as well
+await ask("reason first", () => /The answer is 42/.test(document.querySelector("#ai-log .ai-msg.bot:last-child")?.textContent || "") && !document.querySelector("#ai-window.busy"));
+ok(await page.$eval("#ai-log .ai-msg.bot:last-child .ai-think-body", (b) => b.textContent) === "Let me work this out.", "thinking the API sends apart (reasoning_content) shows too");
+
+// the tools under an answer: copy, read aloud, again, and which model answered
+ok(/gpt-4o/.test(await page.textContent("#ai-log .ai-msg.bot:last-child .ai-meta")) && !!(await page.$("#ai-log .ai-msg.bot:last-child .ai-t-again")), "a finished answer says which model answered, with Answer again");
+const before = await page.$$eval("#ai-log .ai-msg", (m) => m.length);
+await page.click("#ai-log .ai-msg.bot:last-child .ai-t-again");
+await page.waitForFunction(() => /The answer is 42/.test(document.querySelector("#ai-log .ai-msg.bot:last-child")?.textContent || "") && !document.querySelector("#ai-window.busy"), null, { timeout: 10000 }).catch(() => {});
+ok(await page.$$eval("#ai-log .ai-msg", (m) => m.length) === before, "Answer again replaces the last answer instead of adding one");
+// editing a message sends it again, dropping what came after
+await page.hover("#ai-log .ai-msg.me >> nth=-1");
+await page.click("#ai-log .ai-msg.me >> nth=-1 >> .ai-edit");
+ok(await page.inputValue("#ai-input") === "reason first" && await page.isVisible("#ai-editbar"), "Edit puts your message back in the box");
+await page.fill("#ai-input", "edited one");
+await page.press("#ai-input", "Enter");
+await page.waitForFunction(() => /You said: edited one/.test(document.querySelector("#ai-log .ai-msg.bot:last-child")?.textContent || ""), null, { timeout: 10000 }).catch(() => {});
+ok(await page.$$eval("#ai-log .ai-msg", (m) => m.length) === before && !(await page.$$eval("#ai-log .ai-msg.me", (m) => m.map((x) => x.textContent))).includes("reason first"), "…and sending replaces it and the answer after it");
+
+// custom instructions reach the AI
+await page.click("#ai-custom-btn");
+await page.fill("#ai-c-about", "Call me Captain.");
+await page.click('#ai-c-tags [data-tag="concise"]');
+await page.click('#ai-custom-form button[type="submit"]');
+await ask("who am i", () => /You said: who am i/.test(document.querySelector("#ai-log .ai-msg.bot:last-child")?.textContent || ""));
+const sys2 = (await last()).messages[0].content;
+ok(/custom instructions/.test(sys2) && /Call me Captain\./.test(sys2) && /short and to the point/.test(sys2), "custom instructions go along with every message", sys2.slice(-200));
+
+// / shortcuts
+await page.fill("#ai-input", "");
+await page.type("#ai-input", "/sum");
+ok(await page.isVisible("#ai-slash") && /summarize/.test(await page.textContent("#ai-slash")), "typing / offers shortcuts");
+await page.press("#ai-input", "Enter");
+ok(/^Summarize this/.test(await page.inputValue("#ai-input")) && !(await page.isVisible("#ai-slash")), "…Enter fills one in, without sending");
+await page.fill("#ai-input", "");
+// chat search
+await page.fill("#ai-search", "zzz no such chat");
+ok(/No chats match/.test(await page.textContent("#ai-chats")), "searching the chats filters the list");
+await page.fill("#ai-search", "");
+
+// a game window left open doesn't eat what you type
+await page.evaluate(() => window.ai.hide());
+await page.waitForSelector("#ai-window:not(.show)", { state: "attached" });
+await page.evaluate(() => window.apps.tool("snake"));
+await page.waitForSelector('.aw[data-win="snake"]');
+await page.evaluate(() => window.ai.open());
+await page.waitForTimeout(300);
+await page.click("#ai-input");
+await page.keyboard.type("wasd w s");
+ok(await page.inputValue("#ai-input") === "wasd w s", "Snake left open doesn't swallow W/A/S/D or space typed in the AI box", await page.inputValue("#ai-input"));
+ok(await page.evaluate(() => { const r = document.querySelector("#ai-input").getBoundingClientRect(); return document.elementFromPoint(r.x + 5, r.y + 5)?.id === "ai-input"; }), "…and the AI window sits above app windows, so the box takes clicks");
+await page.fill("#ai-input", "");
+await page.evaluate(() => window.ai.hide());
+await page.waitForSelector("#ai-window:not(.show)", { state: "attached" });
+await page.evaluate(() => window.apps.close?.("snake"));
+await page.evaluate(() => window.ai.open());
 
 // the per-person limit
 const statuses = await page.evaluate(async () => {

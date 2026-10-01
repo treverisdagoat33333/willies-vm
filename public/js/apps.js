@@ -60,6 +60,14 @@
   let z = 61;
   const wins = new Map(); // id -> {el, cleanup:[]}
   function focus(w) { w.el.style.zIndex = ++z; }
+  /* a game's or tool's keys are only its own when nothing else has the keyboard: typing in
+     the AI box, chat or any field elsewhere must never be swallowed by a window behind it */
+  const ownsKeys = (id, e) => {
+    const el = wins.get(id)?.el;
+    if (!el || el.style.zIndex != z || el.hidden) return false;
+    const t = e.target;
+    return t === document.body || t === document.documentElement || el.contains(t);
+  };
   function openWin({ id, title, app = null, icon, color, w = 420, h = 480, build }) {
     if (wins.has(id)) { const o = wins.get(id); restore(id); return o; }
     const el = document.createElement('div');
@@ -204,7 +212,7 @@
     };
     win.body.addEventListener('click', (e) => { const k = e.target.closest('button')?.dataset.k; if (k) press(k); });
     const keys = (e) => {
-      if (wins.get('calc')?.el.style.zIndex != z) return;
+      if (!ownsKeys('calc', e)) return;
       const m = { '*': '×', '/': '÷', '-': '−', Enter: '=', '=': '=', Backspace: '⌫', Escape: 'C' };
       const k = m[e.key] || (/^[\d+().%]$/.test(e.key) ? e.key : null);
       if (k && !e.target.closest('input:not(.calc-out),textarea')) { e.preventDefault(); press(k); }
@@ -525,7 +533,7 @@
       draw();
     };
     const keys = (e) => {
-      if (wins.get('snake')?.el.style.zIndex != z) return;
+      if (!ownsKeys('snake', e) || e.target.closest('input,textarea,select,[contenteditable]')) return;
       const m = { ArrowUp: [0, -1], w: [0, -1], ArrowDown: [0, 1], s: [0, 1], ArrowLeft: [-1, 0], a: [-1, 0], ArrowRight: [1, 0], d: [1, 0] }[e.key];
       if (e.key === ' ') { paused = !paused; e.preventDefault(); return; }
       if (m && !(m[0] === -dir[0] && m[1] === -dir[1])) { next = m; e.preventDefault(); }
