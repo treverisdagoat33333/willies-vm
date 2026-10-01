@@ -14,6 +14,10 @@
   const NEWS_KEY = 'wvm.news.seen';
   /* add new entries at the top; the id only has to grow */
   const NEWS = [
+    { id: 6, date: 'Oct 2026', items: [
+      ['▦', 'Apps', 'YouTube, Discord, TikTok and more open in their own window. Alt+P.'],
+      ['🧮', '18 built-in tools', 'Calculator, notes, paint, code playground, focus timer, calendar, screen recorder and more.'],
+    ] },
     { id: 5, date: 'Oct 2026', items: [
       ['⚡', 'Faster everywhere', 'The site and WillieJet download about a third as much and start sooner.'],
       ['🔍', 'Search chat', 'Ctrl+F in chat searches every channel and your DMs. Try from:name.'],
