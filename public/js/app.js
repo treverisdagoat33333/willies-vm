@@ -1353,6 +1353,7 @@ const openTab=u=>{const t=window.open(u,'_blank');if(t)try{t.opener=null}catch(_
 function openVM(url,label){window.restoreApp?.('vm');vmUrl=url;const f=$('#vm-frame'),w=$('#vm-wrap'),cross=crossOrigin(url);if(cross&&!('credentialless' in HTMLIFrameElement.prototype)){const tab=openTab(url);toast(!tab?'Your browser blocked the VM tab. Allow pop-ups for this site, then press Open in a new tab.':"Opened the VM in a new tab. This browser can't show it inside the desktop.",!tab?'err':'')}f.toggleAttribute('credentialless',cross);$('#vm-label').textContent=label||'Private VM';f.src='about:blank';w.style.display='flex';w.classList.remove('closing');warned={};vmStart=Date.now();clearInterval(vmTimerI);vmTimerI=setInterval(tickVM,1000);tickVM();setTimeout(()=>f.src=url,50);setStatus('VM connected.');setLaunching(false);toast('VM launched!','ok');$('#tb-vm').classList.add('active');closeAllPanels()}
 async function closeVM(force){
   if(!force&&S.vmconfirm&&!confirm('Close the VM? Your session will end.'))return;
+  window.restoreApp?.('vm'); // closing ends a minimized VM too (its time ran out), so drop the taskbar dot
   clearInterval(pollI);clearInterval(vmTimerI);vmStart=null;$('#vm-timer').textContent='00:00';$('#vm-timer').className='';
   const w=$('#vm-wrap');w.classList.add('closing');onCloseDone(w,()=>{w.style.display='none';w.classList.remove('closing')});setTimeout(()=>$('#vm-frame').src='about:blank',220);
   const id=containerId,type=vmType;containerId=vmType=vmUrl=null;
@@ -2684,6 +2685,9 @@ function dcModal({title,sub,fields,okLabel='Save',onOk,danger=false}){
 }
 function dcCloseModal(){$('#dc-modal').classList.remove('show');dcModalOk=null}
 $('#dc-modal-cancel').onclick=dcCloseModal;
+// Escape, or a click on the dark backdrop, closes a dialog like Cancel does
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&$('#dc-modal').classList.contains('show')){e.preventDefault();e.stopPropagation();dcCloseModal()}},true);
+$('#dc-modal').addEventListener('pointerdown',e=>{if(e.target===e.currentTarget)dcCloseModal()});
 $('#dc-modal-ok').onclick=async()=>{
   const ok=$('#dc-modal-ok');if(!dcModalOk||ok.disabled)return;
   ok.disabled=true;

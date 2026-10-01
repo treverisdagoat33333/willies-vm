@@ -64,7 +64,7 @@
     if (wins.has(id)) { const o = wins.get(id); restore(id); return o; }
     const el = document.createElement('div');
     el.className = 'aw';
-    el.dataset.app = id;
+    el.dataset.win = id; // not data-app: that attribute launches apps on click (app.js), which reopened a window as you closed it
     const n = wins.size;
     const W = Math.min(w, innerWidth - 16), H = Math.min(h, innerHeight - 90);
     Object.assign(el.style, { width: `${W}px`, height: `${H}px`, left: `${Math.max(8, (innerWidth - W) / 2 + n * 26 - 60)}px`, top: `${Math.max(8, (innerHeight - H) / 2 + n * 26 - 70)}px`, zIndex: ++z });
