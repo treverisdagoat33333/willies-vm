@@ -40,13 +40,26 @@
     ['canva', 'Canva', 'https://www.canva.com', '#00c4cc', '🎨'],
     ['github', 'GitHub', 'https://github.com', '#24292f', '🐙'],
     ['soundcloud', 'SoundCloud', 'https://soundcloud.com', '#ff5500', '☁'],
-  ].map(([id, name, url, color, icon]) => ({ id, name, url, color, icon, web: true }));
+  ].map(([id, name, url, color, icon]) => ({ id, name, url, color, icon, web: true, logo: `/icons/apps/${id}.png` }));
+
+  /* a site's real logo on a white tile (icons/apps/, saved from each site, so
+     they load from our origin under COEP); its letter tile if the file is missing */
+  const iconHtml = (a) => (a.logo ? `<img src="${a.logo}" alt="" draggable="false" data-fallback="${esc(a.icon)}">` : a.icon);
+  const tileStyle = (a) => (a.logo ? 'background:#fff' : `background:${a.color}`);
+  document.addEventListener('error', (e) => {
+    const img = e.target;
+    if (img.tagName !== 'IMG' || !img.dataset.fallback) return;
+    const tile = img.parentNode;
+    tile.style.background = [...WEB].find((a) => a.logo === img.getAttribute('src'))?.color || '#555';
+    tile.classList.remove('has-logo');
+    img.replaceWith(img.dataset.fallback);
+  }, true);
 
   /* ---------- windows ---------- */
   let z = 61;
   const wins = new Map(); // id -> {el, cleanup:[]}
   function focus(w) { w.el.style.zIndex = ++z; }
-  function openWin({ id, title, icon, color, w = 420, h = 480, build }) {
+  function openWin({ id, title, icon, color, logo, w = 420, h = 480, build }) {
     if (wins.has(id)) { const o = wins.get(id); o.el.hidden = false; focus(o); return o; }
     const el = document.createElement('div');
     el.className = 'aw';
@@ -54,7 +67,7 @@
     const n = wins.size;
     const W = Math.min(w, innerWidth - 16), H = Math.min(h, innerHeight - 90);
     Object.assign(el.style, { width: `${W}px`, height: `${H}px`, left: `${Math.max(8, (innerWidth - W) / 2 + n * 26 - 60)}px`, top: `${Math.max(8, (innerHeight - H) / 2 + n * 26 - 70)}px`, zIndex: ++z });
-    el.innerHTML = `<div class="aw-bar"><span class="aw-ic" style="background:${color}">${icon}</span><b>${esc(title)}</b><span class="sp"></span><span class="aw-extra"></span><button class="aw-max" title="Maximize">▢</button><button class="aw-x" title="Close">✕</button></div><div class="aw-body"></div>`;
+    el.innerHTML = `<div class="aw-bar"><span class="aw-ic${logo ? ' has-logo' : ''}" style="${logo ? 'background:#fff' : `background:${color}`}">${logo ? iconHtml({ logo, icon }) : icon}</span><b>${esc(title)}</b><span class="sp"></span><span class="aw-extra"></span><button class="aw-max" title="Maximize">▢</button><button class="aw-x" title="Close">✕</button></div><div class="aw-body"></div>`;
     document.body.appendChild(el);
     const win = { el, body: $('.aw-body', el), extra: $('.aw-extra', el), cleanup: [] };
     wins.set(id, win);
@@ -85,7 +98,7 @@
   async function openWeb(app) {
     const id = `web-${app.id}`;
     if (wins.has(id)) return openWin({ id });
-    const win = openWin({ id, title: app.name, icon: app.icon, color: app.color, w: 1100, h: 720, build: (w) => {
+    const win = openWin({ id, title: app.name, icon: app.icon, color: app.color, logo: app.logo, w: 1100, h: 720, build: (w) => {
       w.body.classList.add('aw-web');
       w.body.innerHTML = '<div class="aw-load">Opening…</div>';
       w.extra.innerHTML = '<button title="Back">‹</button><button title="Reload">⟳</button><button title="Open in the browser">↗</button>';
@@ -479,7 +492,7 @@
     openWin({ id, title: 'Apps', icon: '▦', color: 'linear-gradient(135deg,#4f8cff,#a855f7)', w: 820, h: 620, build: (win) => {
       win.body.innerHTML = '<div class="al"><input class="field al-q" placeholder="Search apps" autocomplete="off"><div class="al-list"></div></div>';
       const list = $('.al-list', win.body), q = $('.al-q', win.body);
-      const card = (a) => `<div class="al-app" data-id="${a.id}" data-web="${a.web ? 1 : ''}" role="button" tabindex="0" title="${esc(a.desc || a.url)}"><span class="al-ic" style="background:${a.color}">${a.icon}</span><b>${esc(a.name)}</b><button class="al-fav${favs().includes(a.id) ? ' on' : ''}" title="Favourite">★</button></div>`;
+      const card = (a) => `<div class="al-app" data-id="${a.id}" data-web="${a.web ? 1 : ''}" role="button" tabindex="0" title="${esc(a.desc || a.url)}"><span class="al-ic${a.logo ? ' has-logo' : ''}" style="${tileStyle(a)}">${iconHtml(a)}</span><b>${esc(a.name)}</b><button class="al-fav${favs().includes(a.id) ? ' on' : ''}" title="Favourite">★</button></div>`;
       const draw = () => {
         const s = q.value.trim().toLowerCase(), m = (a) => !s || a.name.toLowerCase().includes(s);
         const all = [...WEB, ...T], fav = favs().map((f) => all.find((a) => a.id === f)).filter((a) => a && m(a));
