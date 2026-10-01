@@ -21,7 +21,16 @@
   const keep = () => { try { localStorage.setItem(LS, JSON.stringify(me)); } catch (_) {} };
 
   let games = null;
-  const load = async () => (games ||= await fetch('/data/arcade.json').then((r) => r.json()).catch(() => []));
+  /* everything in one place: the collection, the site's original game list
+     (now.gg cloud games and game hubs, opened in the browser as before) and
+     your own games from public/games/ */
+  const load = async () => {
+    if (games) return games;
+    const [list, mine] = await Promise.all([fetch('/data/arcade.json').then((r) => r.json()).catch(() => []), window.apps?.games?.().catch(() => []) || []]);
+    const extra = typeof GAMES !== 'undefined' ? GAMES.map((g) => ({ f: `ext:${g.name}`, t: g.name, c: 'Cloud & web', img: g.img, ext: g })) : [];
+    const own = (mine || []).map((g) => ({ f: `mine:${g.id}`, t: g.title, c: 'My games', img: g.cover, mine: g }));
+    return (games = [...own, ...extra, ...list]);
+  };
 
   /* ---- saves, per game ---- */
   let dbp = null;
@@ -53,6 +62,7 @@
     return out;
   }
   function cover(g) {
+    if (g.img) return `<img src="${esc(g.img)}" alt="" loading="lazy" decoding="async">`;
     const h = hash(g.t), a = h % 360, b = (a + 40 + (h >> 8) % 60) % 360;
     const ls = lines(g.t), size = ls.some((l) => l.length > 12) ? 26 : ls.length > 2 ? 26 : 30;
     const y0 = 182 - (ls.length - 1) * (size + 4);
@@ -66,6 +76,8 @@
 
   /* ---- playing ---- */
   async function play(g) {
+    if (g.ext) { try { closeAllPanels(); } catch (_) {} return launchGame(g.ext); }
+    if (g.mine) return window.apps.play(g.mine);
     const id = `arcade:${g.f}`;
     me.recent = [g.f, ...me.recent.filter((x) => x !== g.f)].slice(0, 30); keep();
     try { track('app', 'games'); } catch (_) {}
@@ -117,9 +129,9 @@
       c.Flash = games.filter((g) => g.fl).length;
       return c;
     };
-    const ORDER = ['All', 'Favourites', 'Recent', 'Arcade', 'Platformer', 'Shooter', 'Racing', 'Sports', 'Puzzle', 'Horror', 'Idle & Tycoon', 'Adventure', 'Strategy', 'Multiplayer', 'Flash'];
+    const ORDER = ['All', 'Favourites', 'Recent', 'My games', 'Cloud & web', 'Arcade', 'Platformer', 'Shooter', 'Racing', 'Sports', 'Puzzle', 'Horror', 'Idle & Tycoon', 'Adventure', 'Strategy', 'Multiplayer', 'Flash'];
     const drawCats = () => { const c = counts(); cats.innerHTML = ORDER.filter((k) => c[k] || ['All', 'Favourites', 'Recent'].includes(k)).map((k) => `<button class="chip${k === cat ? ' active' : ''}" data-c="${esc(k)}">${esc(k)} <span>${c[k] || 0}</span></button>`).join(''); };
-    const card = (g) => `<button class="ar-card" data-f="${esc(g.f)}" title="${esc(g.t)}"><span class="ar-cover">${cover(g)}</span><span class="ar-meta"><b>${esc(g.t)}</b><small>${esc(g.c)}${g.fl ? ' · Flash' : ''}</small></span><span class="ar-star${me.fav.includes(g.f) ? ' on' : ''}" data-star="${esc(g.f)}" title="Favourite">★</span></button>`;
+    const card = (g) => `<button class="ar-card" data-f="${esc(g.f)}" title="${esc(g.t)}"><span class="ar-cover">${cover(g)}</span><span class="ar-meta"><b>${esc(g.t)}</b><small>${esc(g.c === 'Cloud & web' ? (g.ext?.tag === 'nowgg' ? 'Cloud · opens in the browser' : 'Web · opens in the browser') : g.c)}${g.fl ? ' · Flash' : ''}</small></span><span class="ar-star${me.fav.includes(g.f) ? ' on' : ''}" data-star="${esc(g.f)}" title="Favourite">★</span></button>`;
     const more = () => { const next = list.slice(shown, shown + PAGE); grid.insertAdjacentHTML('beforeend', next.map(card).join('')); shown += next.length; };
     const filter = () => {
       const s = q.value.trim().toLowerCase().replace(/[^a-z0-9 ]/g, ''), byF = new Map(games.map((g) => [g.f, g]));
@@ -156,6 +168,8 @@
   }
 
   const open = () => window.apps?.tool('arcade');
+  // the launcher's Games tile counts everything here, once the desktop has settled
+  setTimeout(() => load().then((l) => { const c = $('#games-count'); if (c && l.length) c.textContent = `${l.length.toLocaleString()} games`; }), 1500);
   window.apps?.addTool({ id: 'arcade', name: 'Arcade', icon: '🕹️', color: '#ff2d55', desc: '1,700+ games, right here', w: 1180, h: 760, build, glyph: { from: '#ff5f6d', to: '#c2185b', svg: '<rect x="3" y="7" width="18" height="11" rx="4"/><path d="M7 12.5h4M9 10.5v4"/><circle cx="15.5" cy="11.5" r=".9" fill="currentColor"/><circle cx="17.5" cy="13.5" r=".9" fill="currentColor"/>' } });
   window.arcade = { open, play: (f) => load().then(() => { const g = games.find((x) => x.f === f); if (g) play(g); }), list: load, cover };
 })();

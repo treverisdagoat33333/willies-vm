@@ -518,7 +518,7 @@ function closeAllPanels(){['links-panel','games-panel','settings-panel','history
 
 /* app launcher (delegated) */
 const APPS={
-  browser:()=>openBrowser(),games:()=>openGames(),links:()=>openLinks(),chat:()=>toggleChat(),settings:()=>openSettings(),cloud:()=>toggleCloud(),remote:()=>toggleRemote(),
+  browser:()=>openBrowser(),games:()=>window.arcade?window.arcade.open():openGames(),links:()=>openLinks(),chat:()=>toggleChat(),settings:()=>openSettings(),cloud:()=>toggleCloud(),remote:()=>toggleRemote(),
   vm1:()=>launchE2BVM(),vm2:()=>launchGPUVM(),vm:()=>(S.defaultVM==='gpu'?launchGPUVM():launchE2BVM()),
   admin:()=>openAdmin(),music:()=>window.music?.toggle(),ai:()=>window.ai?.toggle(),movies:()=>window.movies?.toggle(),apps:()=>window.apps?.open(),arcade:()=>{closeAllPanels();window.arcade?.open()}
 };

@@ -42,3 +42,4 @@ html[data-motion="off"] .ar-card,html[data-perf="on"] .ar-card{transition:none}
 .ar-banner small{display:block;opacity:.85;font-size:.82em;margin-top:2px}
 .ar-banner>span:nth-child(2){flex:1}
 .ar-banner-go{font-weight:700;white-space:nowrap}
+.ar-cover img{display:block;width:100%;height:100%;object-fit:cover;background:var(--glass-3)}

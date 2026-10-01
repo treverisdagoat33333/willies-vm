@@ -60,9 +60,9 @@ await page.waitForTimeout(300);
 d = await desk();
 const nb = await ic.boundingBox(), spot = await ic.evaluate((e) => e.style.left + "," + e.style.top);
 ok(d.icons?.games && nb.x > ib.x + 300 && await page.$eval("#icons", (e) => e.classList.contains("free")), "desktop icons can be dragged, snapping to a spot that's remembered", JSON.stringify(d.icons?.games));
-ok(!(await page.evaluate(() => document.getElementById("games-panel")?.classList.contains("show"))), "…and a drag doesn't open the app");
+ok(!(await page.evaluate(() => !!document.querySelector('.aw[data-app="arcade"]'))), "…and a drag doesn't open the app");
 await page.click('#icons .dicon[data-app="games"]');
-ok(await page.waitForFunction(() => document.getElementById("games-panel")?.classList.contains("show"), null, { timeout: 5000 }).then(() => true, () => false), "…while a click still does");
+ok(await page.waitForFunction(() => !!document.querySelector('.aw[data-app="arcade"]'), null, { timeout: 5000 }).then(() => true, () => false), "…while a click still does");
 await page.evaluate(() => closeAllPanels());
 // it all survives a reload
 await page.reload();
