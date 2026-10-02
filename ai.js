@@ -42,7 +42,7 @@ import { getAiChats, putAiChats } from "./db.js";
 */
 
 const MAX_MESSAGES = 40; // of history sent per request
-const MAX_CHARS = 32_000; // across those messages
+const MAX_CHARS = 120_000; // across those messages (one message alone can be 39,213)
 const MAX_TOKENS = 2048; // per reply
 const IDLE_MS = 60_000; // a reply that stalls this long is cut off
 const MAX_CONTEXT = 1500; // characters of "what's on screen" from the page
@@ -71,7 +71,7 @@ You are talking to the site's owner, so you can also moderate for them. These ne
 - admin.timeout {"user": a username, "minutes": a number} stops them chatting for a while
 - admin.announce {"text": the announcement} posts a site-wide announcement
 - admin.unban {"user": a username} lifts their site bans`;
-const MAX_CUSTOM = 2000; // characters of the person's own instructions
+const MAX_CUSTOM = 36_500; // the page allows 36,332 characters of instructions, plus its own labels
 function cleanCustom(v) {
   return typeof v === "string" ? v.replace(/[\u0000-\u0008\u000b-\u001f]/g, " ").slice(0, MAX_CUSTOM).trim() : "";
 }

@@ -31,7 +31,7 @@ function customText(){
   if(custom.about.trim())parts.push(`About me: ${custom.about.trim()}`);
   const st=[...custom.tags.map(t=>STYLES[t]).filter(Boolean),custom.style.trim()].filter(Boolean);
   if(st.length)parts.push(`How to answer: ${st.join(' ')}`);
-  return parts.join('\n').slice(0,2000);
+  return parts.join('\n').slice(0,36500);
 }
 function loadChats(){const c=store('ai.chats',[]);return Array.isArray(c)?c.filter(x=>x&&typeof x.id==='string'&&Array.isArray(x.messages)):[]}
 function saveChats(){if(chats.length>MAX_CHATS){const gone=chats.slice(MAX_CHATS);chats=chats.slice(0,MAX_CHATS);imgDel(gone.flatMap(idsOf))}if(!S.incognito){put('ai.chats',chats);queuePush()}}
