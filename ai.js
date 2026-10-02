@@ -78,6 +78,26 @@ You are talking to the site's owner, so you can also moderate for them. These ne
 - admin.timeout {"user": a username, "minutes": a number} stops them chatting for a while
 - admin.announce {"text": the announcement} posts a site-wide announcement
 - admin.unban {"user": a username} lifts their site bans`;
+/* Prices in US dollars per million tokens, the same list the owner's other AI app uses
+   for this provider. A model missing from it shows "rate not set" rather than a made-up
+   cost. AI_PRICES (JSON, {"model": {"input": 1, "output": 2}}) adds to it or overrides it. */
+const PRICES = {
+  "claude-fable-5-1": { input: 3, output: 15 }, "claude-fable-5": { input: 3, output: 15 },
+  "claude-opus-5": { input: 15, output: 75 }, "claude-opus-4-8": { input: 15, output: 75 },
+  "claude-opus-4-7": { input: 15, output: 75 }, "claude-opus-4-6": { input: 15, output: 75 },
+  "claude-sonnet-5": { input: 3, output: 15 }, "claude-sonnet-4-6": { input: 3, output: 15 },
+  "claude-haiku-4-5": { input: 0.8, output: 4 },
+  "gpt-6-astra": { input: 5, output: 15 }, "gpt-5.6-sol": { input: 2.5, output: 10 },
+  "gpt-5.6-terra": { input: 2.5, output: 10 }, "gpt-5.6-luna": { input: 2.5, output: 10 },
+  "gpt-5.5": { input: 2, output: 8 },
+};
+try { Object.assign(PRICES, JSON.parse(process.env.AI_PRICES || "{}")); } catch (_) { console.warn("[ai] AI_PRICES isn't valid JSON; ignoring it"); }
+/* One reply's token counts, added up across its continuation rounds, and what they cost. */
+function usageOf(model, u) {
+  const rate = PRICES[model];
+  const cost = rate ? (u.prompt / 1e6) * rate.input + (u.completion / 1e6) * rate.output : null;
+  return { ...u, total: u.prompt + u.completion, cost, rate: rate || null };
+}
 const MAX_CUSTOM = 36_500; // the page allows 36,332 characters of instructions, plus its own labels
 function cleanCustom(v) {
   return typeof v === "string" ? v.replace(/[\u0000-\u0008\u000b-\u001f]/g, " ").slice(0, MAX_CUSTOM).trim() : "";
@@ -209,7 +229,7 @@ async function fetchImage(url, signal, headers = {}) {
 /* Reads one streamed reply. Resolves with why it ended: the API's finish_reason
    ("stop", "length", …), "done" for a bare [DONE], or "eof" when the stream simply
    stopped, which means the connection dropped mid-answer. */
-async function readStream(body, onText, signal, onThink = () => {}) {
+async function readStream(body, onText, signal, onThink = () => {}, onUsage = () => {}) {
   const reader = body.getReader(), dec = new TextDecoder();
   let buf = "", finish = null;
   const line = (raw) => {
@@ -220,6 +240,8 @@ async function readStream(body, onText, signal, onThink = () => {}) {
     let j;
     try { j = JSON.parse(data); } catch (_) { return false; }
     if (j.error) throw new Error(j.error.message || String(j.error));
+    // the provider's own count, usually on the last chunk (asked for with include_usage)
+    if (j.usage) onUsage(j.usage);
     const c = j.choices?.[0] || {};
     // reasoning models: some APIs send the thinking in its own field, before the answer
     const d = c.delta || c.message || {};
@@ -284,15 +306,20 @@ export function aiRouter({ requireSession, limiter, userLimiter, isOwner = () =>
     // the page carrying on a reply whose connection dropped: what it already has goes back as
     // the assistant's, and the model is asked to go on from there
     const partial = typeof req.body?.partial === "string" ? req.body.partial.slice(-MAX_CHARS / 2) : "";
-    let tokens = MAX_TOKENS;
+    let tokens = MAX_TOKENS, withUsage = true;
     const call = async (msgs) => {
       const go = (n) => fetch(`${base}/chat/completions`, {
         method: "POST",
         headers: { authorization: `Bearer ${key}`, "content-type": "application/json", accept: "text/event-stream" },
-        body: JSON.stringify({ model, stream: true, max_tokens: n, messages: [system, ...msgs] }),
+        body: JSON.stringify({ model, stream: true, max_tokens: n, ...(withUsage ? { stream_options: { include_usage: true } } : {}), messages: [system, ...msgs] }),
         signal: abort.signal,
       });
       let up = await go(tokens);
+      // an API that doesn't know stream_options: ask again without it (no token counts then)
+      if (up.status === 400 && withUsage) {
+        const why = await up.clone().text().catch(() => "");
+        if (/stream_options|include_usage/i.test(why)) { withUsage = false; up = await go(tokens); }
+      }
       // some APIs refuse a max_tokens above the model's own limit; ask again for less
       if (up.status === 400 && tokens > FALLBACK_TOKENS) {
         const why = await up.text().catch(() => "");
@@ -328,14 +355,23 @@ export function aiRouter({ requireSession, limiter, userLimiter, isOwner = () =>
     send({ t: "model", v: model });
     record("ai");
     let text = partial;
+    const used = { prompt: 0, completion: 0, cached: 0, reasoning: 0, counted: false };
+    const onUsage = (u) => {
+      used.counted = true;
+      used.prompt += Number(u.prompt_tokens ?? u.input_tokens) || 0;
+      used.completion += Number(u.completion_tokens ?? u.output_tokens) || 0;
+      used.cached += Number(u.prompt_tokens_details?.cached_tokens) || 0;
+      used.reasoning += Number(u.completion_tokens_details?.reasoning_tokens) || 0;
+    };
+    const sendUsage = () => send({ t: "usage", v: usageOf(model, used) });
     try {
       for (let round = 0; ; round++) {
-        const finish = await readStream(upstream.body, (v) => { text += v; send({ t: "text", v }); }, abort.signal, (v) => send({ t: "think", v }));
+        const finish = await readStream(upstream.body, (v) => { text += v; send({ t: "text", v }); }, abort.signal, (v) => send({ t: "think", v }), onUsage);
         if (finish === "aborted") break;
         // hit the token limit (or the API dropped us mid-answer): carry on in a new request
         const cut = finish === "length" || (finish === "eof" && text.length > partial.length);
-        if (!cut) { send({ t: "done", finish }); break; }
-        if (round + 1 >= MAX_ROUNDS) { send({ t: "done", finish: "length" }); break; }
+        if (!cut) { sendUsage(); send({ t: "done", finish }); break; }
+        if (round + 1 >= MAX_ROUNDS) { sendUsage(); send({ t: "done", finish: "length" }); break; }
         send({ t: "continue" });
         upstream = await call(withPartial(text));
         if (!upstream.ok || !upstream.body) throw new Error(`The AI stopped partway (HTTP ${upstream.status}).`);

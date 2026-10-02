@@ -68,6 +68,7 @@ try {
   // the AI app and music talk to the test site's pretend AI API, SoundCloud, Deezer and Audius
   await server(port, {
     AI_API_KEY: "test-ai-key",
+    AI_PRICES: JSON.stringify({ "gpt-4o-mini": { input: 1, output: 4 }, "gpt-4o": { input: 1, output: 4 } }),
     AI_BASE_URL: `http://127.0.0.1:${sitePort}/v1`,
     SOUNDCLOUD_API: `http://127.0.0.1:${sitePort}/sc`,
     SOUNDCLOUD_CLIENT_ID: "test-client-id",

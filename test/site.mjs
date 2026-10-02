@@ -260,7 +260,11 @@ function aiMock(req, res, u) {
     let i = 0;
     const tick = () => {
       if (res.destroyed) return;
-      if (i >= parts.length) { res.write("data: [DONE]\n\n"); return res.end(); }
+      if (i >= parts.length) {
+        // the provider's token count, sent last like OpenAI's when include_usage is asked for
+        if (b.stream_options?.include_usage) res.write(`data: ${JSON.stringify({ choices: [], usage: { prompt_tokens: 1200, completion_tokens: 300, prompt_tokens_details: { cached_tokens: 200 } } })}\n\n`);
+        res.write("data: [DONE]\n\n"); return res.end();
+      }
       res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: parts[i++] } }] })}\n\n`);
       setTimeout(tick, /slow/.test(said) ? 300 : 20);
     };

@@ -121,6 +121,12 @@ ok(/Summary of 2 messages/.test(lb.text) && /alice: movie night friday\?/.test(s
 ok(await page.evaluate(() => S.wallpaper === "live-synth") && lb.chips.length === 0, "…and that answer can't act (someone's chat message can't steer your AI)", JSON.stringify(lb.chips));
 ok(await page.$$eval("#ai-log .ai-msg.me", (m) => m.every((x) => !/From the site/.test(x.textContent))), "…and the chat log isn't shown as something you said");
 
+// under each answer: tokens, cost and time, from the provider's own count
+await ask("how much did that cost", () => /tokens/.test(document.querySelector("#ai-log .ai-msg.bot:last-child .ai-meta")?.textContent || ""));
+const meta = await page.$eval("#ai-log .ai-msg.bot:last-child .ai-meta", (m) => ({ line: m.textContent, detail: m.title }));
+// 1200 in at $1/M + 300 out at $4/M = $0.0024
+ok(/300 tokens/.test(meta.line) && /\$0\.0024/.test(meta.line) && /\ds/.test(meta.line), "a finished answer shows its tokens, cost and time", meta.line);
+ok(/Prompt: 1,200 tokens \(200 from cache\)/.test(meta.detail) && /Total: 1,500/.test(meta.detail) && /\$1 in \/ \$4 out/.test(meta.detail), "…with the details on hover", meta.detail);
 // answers that get cut off are carried on, never left half-written
 const botText = () => page.$eval("#ai-log .ai-msg.bot:last-child", (b) => b.textContent);
 await ask("write me long code", () => /All done\./.test(document.querySelector("#ai-log .ai-msg.bot:last-child")?.textContent || ""));

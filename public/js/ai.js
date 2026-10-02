@@ -217,7 +217,10 @@ function bubble(m){
       const last=cur&&[...cur.messages].reverse().find(x=>x.role==='assistant')===m;
       const bar=document.createElement('div');bar.className='ai-tools';
       bar.innerHTML=`<button type="button" class="ai-t-copy" title="Copy"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button><button type="button" class="ai-t-say${speaking===m?' on':''}" title="Read aloud"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14"/></svg></button>${last&&!busy?'<button type="button" class="ai-t-again" title="Answer again"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg></button>':''}<span class="ai-meta"></span>`;
-      bar.querySelector('.ai-meta').textContent=[m.modelName,m.tps?`${m.tps} tok/s`:''].filter(Boolean).join(' · ');
+      const meta=bar.querySelector('.ai-meta'),info=metaOf(m);
+      meta.textContent=info.line;meta.title=info.detail;
+      // phones have no hover, so a tap shows the same details
+      if(info.detail)meta.onclick=()=>toast(info.detail.replace(/\n/g,' · '));
       d.appendChild(bar);
     }
   }
@@ -374,6 +377,7 @@ async function askOnline(reply,model,canAct,signal,base){
         if(m.t==='text'){reply.content+=m.v;noteTiming(reply);paintLast()}
         else if(m.t==='think'){reply.think=(reply.think||'')+m.v;noteTiming(reply);paintLast()}
         else if(m.t==='model')reply.modelName=m.v;
+        else if(m.t==='usage')reply.usage=m.v;
         else if(m.t==='done'){finished=true;if(m.finish==='length')reply.note='This answer was very long, so it stopped here. Say "continue" for the rest.'}
         else if(m.t==='error')failed=new Error(m.error);
       };
@@ -392,8 +396,33 @@ async function askOnline(reply,model,canAct,signal,base){
     await new Promise(r=>setTimeout(r,800*(tries+1)));
   }
 }
+/* What's shown under a finished answer: the model, tokens, cost, time and speed, the way
+   the owner's other AI app shows them. Counts are the provider's own when it sends them;
+   otherwise they're estimated from the text (about 4 characters a token) and marked ~. */
+const fmtTok=n=>n>=10000?`${(n/1000).toFixed(1)}k`:n.toLocaleString();
+const fmtCost=c=>c===0?'$0':c<0.0001?'<$0.0001':`$${c<0.01?c.toFixed(4):c.toFixed(3)}`;
+function metaOf(m){
+  const u=m.usage,local=/ · on this device$/.test(m.modelName||'');
+  const est=!u?.counted;
+  const out=est?Math.ceil((visibleText(m.content).length+(thinkOf(m)||'').length)/4):u.completion;
+  const parts=[m.modelName?.replace(/ · on this device$/,'')].filter(Boolean),detail=[];
+  if(out)parts.push(`${est?'~':''}${fmtTok(out)} tokens`);
+  if(local)parts.push('free, on this device');
+  else if(u?.cost!=null&&!est)parts.push(fmtCost(u.cost));
+  else if(u&&!u.rate)parts.push('rate not set');
+  if(m.ms)parts.push(`${(m.ms/1000).toFixed(1)}s`);
+  if(m.tps)parts.push(`${m.tps} tok/s`);
+  if(u?.counted){
+    detail.push(`Prompt: ${u.prompt.toLocaleString()} tokens${u.cached?` (${u.cached.toLocaleString()} from cache)`:''}`,`Answer: ${u.completion.toLocaleString()} tokens${u.reasoning?` (${u.reasoning.toLocaleString()} thinking)`:''}`,`Total: ${u.total.toLocaleString()} tokens`);
+    if(u.rate)detail.push(`Cost: ${fmtCost(u.cost)} ($${u.rate.input} in / $${u.rate.output} out per million tokens)`);
+    else detail.push('No price is set for this model');
+  }else if(out)detail.push(local?'Estimated from the text; models on this device are free':'Estimated from the text: the AI sent no token count');
+  if(m.thinkMs)detail.push(`Thought for ${(m.thinkMs/1000).toFixed(1)}s`);
+  return{line:parts.join(' · '),detail:detail.join('\n')};
+}
 /* one answer from one model; its errors stay on its own bubble */
 async function answer(reply,model,canAct,signal,base){
+  const began=performance.now();
   try{
     if(isLocal(model))await askLocal(reply,canAct,signal,base,model);else await askOnline(reply,model,canAct,signal,base);
     // only thinking, or nothing at all, is an empty answer; actions alone are fine
@@ -402,7 +431,7 @@ async function answer(reply,model,canAct,signal,base){
   }catch(e){
     if(!signal.aborted){reply.error=String(e?.message||e);reportError('ai',reply.error)}
     else if(!reply.content)reply.error='Stopped.';
-  }finally{reply.done=true;reply.streaming=false;delete reply.t0}
+  }finally{reply.ms=Math.round(performance.now()-began);reply.done=true;reply.streaming=false;delete reply.t0}
   return null;
 }
 /* Compare: the same question to a second model, answered side by side. Only the
