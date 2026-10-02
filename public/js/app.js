@@ -1290,13 +1290,30 @@ $('#btn-maximize').onclick=()=>{click();winMax=!winMax;const s=mainWin.style;s.t
    ═══════════════════════════════════════════════════════════ */
 let authMode='register',currentUsername='Guest',currentRole='guest',vmLimit=30*60;
 function setAuthMode(m){authMode=m;const L=m==='login';$('#auth-title').textContent=L?'Welcome back':'Create your account';$('#auth-submit').textContent=L?'Log in':'Create account';$('#auth-alt-text').textContent=L?'New here?':'Already have an account?';$('#login-button').textContent=L?'Create an account':'Log in';$('#auth-password').autocomplete=L?'current-password':'new-password';$('#auth-error').textContent=''}
+/* The owner viewing the site as someone (owner-tools.js): a bar says so and leads back.
+   Everyone else hears once when the owner looked at their account. */
+window.viewingAs=null;
+function viewAsBanner(d){
+  window.viewingAs=d.viewedBy?d.username:null;
+  root.dataset.viewas=d.viewedBy?'on':'off';
+  let bar=$('#viewas-bar');
+  if(d.viewedBy&&!bar){
+    bar=document.createElement('div');bar.id='viewas-bar';bar.setAttribute('role','status');
+    bar.innerHTML=`<span>👁 Viewing as <b>${esc(d.username)}</b> · read-only</span><button type="button" class="btn sm">Back to my account</button>`;
+    bar.querySelector('button').onclick=async()=>{await fetch('/api/auth/viewas/stop',{method:'POST'}).catch(()=>{});leaveQuietly();location.reload()};
+    document.body.appendChild(bar);
+  }else if(!d.viewedBy)bar?.remove();
+  if(d.ownerViews?.length)setTimeout(()=>toast(`The site owner viewed your account as you ${d.ownerViews.length>1?`${d.ownerViews.length} times, last `:''}on ${new Date(d.ownerViews.at(-1)).toLocaleString()}, to help with the site.`),2500);
+}
 function acceptAuth(d,fresh){
   vmLimit=(d.vmMinutes||30)*60;currentUsername=d.username||'Guest';
   currentRole=d.role||(d.account?'member':'guest');
   root.dataset.account=d.account?'on':'off';
   root.dataset.owner=currentRole==='owner'?'on':'off';
   $('#auth-wrap').classList.add('hidden');setUser();connectChat();
-  if(d.account)syncStart(currentUsername);
+  viewAsBanner(d);
+  // viewing as someone: their settings must not overwrite the owner's on this device
+  if(d.account&&!d.viewedBy)syncStart(currentUsername);
   if(!acceptAuth.counted){acceptAuth.counted=true;track('visit');setTimeout(()=>window.tour?.greet(RETURNING||(d.account&&d.since&&Date.now()-d.since>3600000)),1200)}
   toast(`Welcome, ${currentUsername}! ${d.vmMinutes||30} min of VM time.`,'ok');
   if(fresh)window.motion?.celebrate();
@@ -1436,11 +1453,47 @@ async function closeVM(force){
   const id=containerId,type=vmType;containerId=vmType=vmUrl=null;
   if(id&&type==='gpu')fetch(`/api/vm/${encodeURIComponent(id)}`,{method:'DELETE'}).catch(()=>{});
   if(id&&type==='e2b')fetch(`/api/e2b/${encodeURIComponent(id)}`,{method:'DELETE'}).catch(()=>{});
+  // the owner's kept VM is paused, never thrown away
+  if(id&&type==='kept')fetch('/api/vm/kept/pause',{method:'POST'}).then(()=>adKept()).catch(()=>{});
   setStatus('VM closed.');$('#tb-vm').classList.remove('active');
 }
 $('#vm-close').onclick=()=>closeVM();
 $('#vm-newtab').onclick=()=>{click();if(vmUrl&&!openTab(vmUrl))toast('Your browser blocked the tab. Allow pop-ups for this site.','err')};
 $('#vm-fs').onclick=async()=>{try{if(!document.fullscreenElement)await $('#vm-wrap').requestFullscreen();else await document.exitFullscreen()}catch(e){toast('Fullscreen failed: '+e.message,'err')}};
+/* The owner's kept VM (server.js): resumed where it was left, paused on close. */
+async function adKept(){
+  if(currentRole!=='owner')return;
+  const st=$('#ad-kept-state'),go=$('#ad-kept-go');
+  let d;try{d=await(await fetch('/api/vm/kept')).json()}catch(_){return}
+  const running=vmType==='kept';
+  st.textContent=!d.configured?'· E2B isn\'t set up':!d.exists?(d.lost?'· E2B lost the old one; Start makes a new one':'· none yet'):running?'· open now':`· ${d.state==='paused'?'paused':d.state}, last used ${adAgo(d.usedAt)}`;
+  go.textContent=running?'Show it':d.exists?'Resume':'Make one';
+  go.disabled=!d.configured;
+  $('#ad-kept-pause').hidden=!d.exists||d.state==='paused';
+  $('#ad-kept-del').hidden=!d.exists;
+}
+async function launchKeptVM(){
+  if(vmType==='kept'){$('#vm-wrap').style.display='flex';closeAllPanels();return}
+  if(containerId){toast('Close the VM you have open first.','err');return}
+  setLaunching(true);setStatus('Starting your kept VM…',true);toast('Starting your kept VM… resuming takes a few seconds, a new one about a minute.');
+  try{
+    const r=await fetch('/api/vm/kept/start',{method:'POST'}),d=await r.json();
+    if(!r.ok)throw new Error(d.error||`HTTP ${r.status}`);
+    containerId=d.sandboxId;vmType='kept';vmLimit=(d.timeoutMinutes||60)*60;
+    openVM(d.url,d.fresh?'Kept VM · new':'Kept VM · resumed');
+  }catch(e){setStatus('Error: '+e.message);toast('Kept VM: '+e.message,'err');reportError('vm',e.message,'Kept VM');containerId=vmType=null;setLaunching(false)}
+  adKept();
+}
+$('#ad-kept-go').onclick=()=>{click();launchKeptVM()};
+$('#ad-kept-pause').onclick=async()=>{
+  if(vmType==='kept'){closeVM(true);return}
+  const r=await fetch('/api/vm/kept/pause',{method:'POST'});toast(r.ok?'Paused':'Couldn\'t pause it',r.ok?'ok':'err');adKept();
+};
+$('#ad-kept-del').onclick=()=>dcModal({title:'Delete your kept VM?',sub:'Everything on it is gone for good: files, programs, open apps.',fields:[],okLabel:'Delete',danger:true,onOk:async()=>{
+  if(vmType==='kept'){containerId=vmType=null;closeVM(true)}
+  const r=await fetch('/api/vm/kept',{method:'DELETE'}),d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||'HTTP '+r.status);
+  toast('Kept VM deleted','ok');adKept();
+}});
 async function launchE2BVM(){if(containerId){$('#vm-wrap').style.display='flex';return}clearInterval(pollI);setLaunching(true);setStatus('Starting desktop sandbox…',true);try{const r=await fetch('/api/e2b/start',{method:'POST',headers:{'Content-Type':'application/json'}}),d=await r.json();if(!r.ok)throw new Error(d.error||d.message||`HTTP ${r.status}`);if(d.status&&d.status!=='success')throw new Error(d.error||d.message||'Sandbox did not start.');if(!d.sandboxId||!d.url)throw new Error('Sandbox returned no stream URL.');containerId=d.sandboxId;vmType='e2b';openVM(d.url,'VM #1 · Desktop')}catch(e){setStatus('Error: '+e.message);toast('VM #1 failed: '+e.message,'err');reportError('vm',e.message,'VM #1');containerId=vmType=null;setLaunching(false)}}
 async function launchGPUVM(){if(containerId){$('#vm-wrap').style.display='flex';return}clearInterval(pollI);setLaunching(true);setStatus('Requesting GPU instance…',true);try{const r=await fetch('/api/launch?gpu=true'),d=await r.json();if(!r.ok)throw new Error(d.error||d.message||`HTTP ${r.status}`);if(d.status==='success'){containerId=d.container_id;vmType='gpu';openVM(d.url,'VM #2 · GPU');return}if(d.status==='queued'){setStatus(`Queued — position ${d.position??'?'}…`,true);pollQueue(d.token);return}throw new Error(d.error||d.message||'Unexpected response')}catch(e){setStatus('Error: '+e.message);toast('VM #2 failed: '+e.message,'err');reportError('vm',e.message,'VM #2');setLaunching(false)}}
 function pollQueue(token){clearInterval(pollI);if(!token){setLaunching(false);return}pollI=setInterval(async()=>{try{const r=await fetch(`/api/queue?token=${encodeURIComponent(token)}`),d=await r.json().catch(()=>({}));if(!r.ok){if([401,403,404].includes(r.status)){clearInterval(pollI);setStatus('Error: '+(d.error||`HTTP ${r.status}`));toast('VM #2 failed: '+(d.error||`HTTP ${r.status}`),'err');setLaunching(false)}return}if(d.status==='allocated'){clearInterval(pollI);containerId=d.container_id;vmType='gpu';openVM(d.url,'VM #2 · GPU');return}if(d.status==='failed'){clearInterval(pollI);setStatus('Failed: '+(d.reason||'unknown'));toast('Queue failed: '+(d.reason||'unknown'),'err');setLaunching(false);return}setStatus(d.position!==undefined?`Queued — position ${d.position}…`:'Waiting for GPU…',true)}catch(_){}},4000)}
@@ -3177,7 +3230,7 @@ $('#dc-toggle-members').onclick=()=>$('#chat-window').classList.toggle('hide-mem
 let adData=null,adTimer=null,adFilter='';
 function openAdmin(){
   if(currentRole!=='owner')return toast('The admin dashboard is for the owner.','err');
-  openPanel('admin-panel');adRefresh();window.adStats?.load();adErrors();adLiveStart();adBans();
+  openPanel('admin-panel');adRefresh();window.adStats?.load();adErrors();adLiveStart();adBans();adKept();
   clearInterval(adTimer);
   adTimer=setInterval(()=>{if($('#admin-panel').classList.contains('show')&&!document.hidden)adRefresh();else if(!$('#admin-panel').classList.contains('show'))clearInterval(adTimer)},5000);
 }
@@ -3325,6 +3378,12 @@ function adRender(){
     sel.onchange=()=>adAct(`/api/admin/users/${encodeURIComponent(u.username)}/role`,{role:sel.value},'POST',`${u.username} is now ${sel.value}`);
     return adRow(u.displayName!==u.username?`${u.displayName} (@${u.username})`:u.username,`joined ${adAgo(u.createdAt)} · seen ${adAgo(u.lastSeen)}`,[
       {el:sel},
+      {label:'View as',fn:async()=>{
+        if(!confirm(`See the site exactly as ${u.username} sees it? It's read-only, and they'll be told you looked.`))return;
+        const r=await fetch(`/api/admin/viewas/${encodeURIComponent(u.username)}`,{method:'POST'});
+        if(!r.ok){toast((await r.json().catch(()=>({}))).error||'That failed','err');return}
+        leaveQuietly();location.reload();
+      }},
       {label:'Sign out',fn:()=>{if(confirm(`Sign ${u.username} out on every device?`))adAct(`/api/admin/users/${encodeURIComponent(u.username)}/signout`,null,'POST',`${u.username} signed out`)}},
       {label:'Chat ban',danger:true,fn:()=>adBan(u.username)},
       {label:'Site ban',danger:true,fn:()=>adSiteBan({kind:'user',user:u.username,label:u.username})},

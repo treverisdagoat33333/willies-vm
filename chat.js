@@ -103,7 +103,7 @@ const CALL_RING_MS = 35_000;
 const CALL_ID_RE = /^[A-Za-z0-9-]{8,64}$/;
 
 function socketsOf(name) {
-  return [...clients].filter(([, st]) => st.name === name && st.account).map(([ws]) => ws);
+  return [...clients].filter(([, st]) => st.name === name && st.account && !st.viewOnly).map(([ws]) => ws);
 }
 function inCall(name) {
   for (const c of calls.values()) if (c.from === name || c.to === name) return true;
@@ -156,7 +156,7 @@ function can(state, action, targetRole = "guest") {
 function roster() {
   const seen = new Map();
   for (const st of clients.values()) {
-    if (seen.has(st.name)) continue;
+    if (seen.has(st.name) || st.viewOnly) continue;
     const role = roleOf(st);
     const p = st.account ? profileOf(st.name) : null;
     seen.set(st.name, {
@@ -205,6 +205,9 @@ function untilText(until) {
   return `for another ${Math.ceil(mins / 60)}h`;
 }
 
+/* What a view-as connection may still send: only reading. */
+const READ_ONLY_OK = new Set(["open", "more", "search", "pins", "thread", "profile.get", "dm.list", "directory"]);
+
 /* Target's role, checked against the actor's so nobody acts upward. */
 function outranks(st, target) {
   const targetState = [...clients.values()].find((c) => c.name === target);
@@ -242,7 +245,9 @@ wss.on("connection", (ws, _req, session, ip) => {
     return;
   }
 
-  const state = { name, account, ip, stamps: [], typing: null, since: Date.now() };
+  // the owner viewing as this person (owner-tools.js): reading only, and not shown as online
+  const viewOnly = !!session.viewedBy;
+  const state = { name, account, ip, stamps: [], typing: null, since: Date.now(), viewOnly };
   clients.set(ws, state);
   ws.isAlive = true;
 
@@ -266,8 +271,10 @@ wss.on("connection", (ws, _req, session, ip) => {
     emojis: listEmojis(),
   });
 
-  broadcast({ type: "join", name, at: Date.now() });
-  pushPresence();
+  if (!viewOnly) {
+    broadcast({ type: "join", name, at: Date.now() });
+    pushPresence();
+  }
 
   ws.on("pong", () => {
     ws.isAlive = true;
@@ -285,6 +292,7 @@ wss.on("connection", (ws, _req, session, ip) => {
     }
     // the page's heartbeat: a reply proves the connection still works both ways
     if (d?.type === "ping") return send(ws, { type: "pong" });
+    if (st.viewOnly && !READ_ONLY_OK.has(d?.type)) return fail(ws, `Read-only: you're viewing chat as ${st.name}.`);
 
     switch (d.type) {
       /* ---- reading ---- */
@@ -670,7 +678,7 @@ wss.on("connection", (ws, _req, session, ip) => {
       if (c.fromWs === ws || c.toWs === ws) endCall(id, "disconnected", ws);
       else if (c.state === "ringing" && st && c.to === st.name && !socketsOf(c.to).length) endCall(id, "offline");
     }
-    if (st) {
+    if (st && !st.viewOnly) {
       if (st.typing) broadcast({ type: "typing", name: st.name, channel: st.typing, on: false });
       broadcast({ type: "leave", name: st.name, at: Date.now() });
     }

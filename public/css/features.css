@@ -403,3 +403,7 @@ html[data-motion="off"] .ad-le.fresh,html[data-perf="on"] .ad-le.fresh{animation
 .ad-lv-acts{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
 .ad-lv-acts .btn{padding:3px 9px;font-size:.78em}
 .ad-ver{color:var(--text-3);font-size:.75em;margin-left:8px}
+/* the owner viewing as someone (owner-tools.js) */
+#viewas-bar{position:fixed;top:10px;left:50%;translate:-50% 0;z-index:9500;display:flex;align-items:center;gap:12px;padding:8px 10px 8px 16px;border-radius:999px;background:#b45309;color:#fff;font-size:.9em;box-shadow:0 6px 24px rgba(0,0,0,.45)}
+#viewas-bar .btn{background:rgba(255,255,255,.2);color:#fff;border-color:transparent}
+.ad-kept-acts{display:flex;gap:8px;flex-wrap:wrap}

@@ -63,13 +63,22 @@ The user doesn't see these lines, only a note that it was done, so also say in a
 - todo.add {"text": a task} (adds it to their to-do widget, and switches the widget on)
 - image.make {"prompt": a detailed description in English} draws a picture and shows it under your reply. Use it whenever they ask you to draw, make, generate or create an image, picture, logo, wallpaper or art.
 - chat.read {} reads the recent messages of the chat channel or DM they have open. Use it when asked to summarize or catch them up on chat; the messages come back to you in the next message, then answer from them (don't act again).`;
+// only for the owner's own AI; the page asks the owner to confirm each one before it runs
+const ADMIN_ACTIONS = `
+You are talking to the site's owner, so you can also moderate for them. These never run by themselves: the owner sees a confirm button for each. Use them only when the owner clearly asks, and name exactly who:
+- admin.kick {"user": a username or guest name} signs them out and sends them away
+- admin.ban {"user": a username, "kind"?: "user"|"ip"|"device", "hours"?: a number (leave out for forever), "reason"?: text they see} bans them from the whole site (kind ip bans their whole network)
+- admin.timeout {"user": a username, "minutes": a number} stops them chatting for a while
+- admin.announce {"text": the announcement} posts a site-wide announcement
+- admin.unban {"user": a username} lifts their site bans`;
 const MAX_CUSTOM = 2000; // characters of the person's own instructions
 function cleanCustom(v) {
   return typeof v === "string" ? v.replace(/[\u0000-\u0008\u000b-\u001f]/g, " ").slice(0, MAX_CUSTOM).trim() : "";
 }
-function systemFor(actions, context, custom = "") {
+function systemFor(actions, context, custom = "", owner = false) {
   let sys = SYSTEM;
   if (actions) sys += "\n" + ACTIONS;
+  if (actions && owner) sys += "\n" + ADMIN_ACTIONS;
   // the person's own instructions (the AI app's Customize): how to answer, what to know about them
   if (custom) sys += `\n\nThe user's custom instructions (follow them unless they ask for something harmful):\n${custom}`;
   // the page's note is data about the screen, never instructions
@@ -222,7 +231,7 @@ async function readStream(body, onText, signal, onThink = () => {}) {
   }
 }
 
-export function aiRouter({ requireSession, limiter, userLimiter }) {
+export function aiRouter({ requireSession, limiter, userLimiter, isOwner = () => false }) {
   const router = express.Router();
   // which models the API offers, and which look like picture makers, so the owner can pick
   // AI_IMAGE_MODEL from the deploy logs without a way to call the API by hand
@@ -260,7 +269,7 @@ export function aiRouter({ requireSession, limiter, userLimiter }) {
       upstream = await fetch(`${base}/chat/completions`, {
         method: "POST",
         headers: { authorization: `Bearer ${key}`, "content-type": "application/json", accept: "text/event-stream" },
-        body: JSON.stringify({ model, stream: true, max_tokens: MAX_TOKENS, messages: [{ role: "system", content: systemFor(req.body?.actions === true, cleanContext(req.body?.context), cleanCustom(req.body?.custom)) }, ...messages] }),
+        body: JSON.stringify({ model, stream: true, max_tokens: MAX_TOKENS, messages: [{ role: "system", content: systemFor(req.body?.actions === true, cleanContext(req.body?.context), cleanCustom(req.body?.custom), isOwner(req.vmSession)) }, ...messages] }),
         signal: abort.signal,
       });
     } catch (e) {

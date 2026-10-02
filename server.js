@@ -25,7 +25,7 @@ import { uvPath } from "@titaniumnetwork-dev/ultraviolet";
 import { baremuxPath } from "@mercuryworkshop/bare-mux/node";
 import { server as wisp } from "@mercuryworkshop/wisp-js/server";
 import { Sandbox } from "@e2b/desktop";
-import {
+import db, {
   getUser,
   createUser,
   touchUser,
@@ -77,6 +77,7 @@ import { driveRouter, forgetDrive } from "./drive.js";
 import { hasBadWords } from "./profanity.js";
 import { banFor, addBan, removeBan, listBans, deviceOf, deviceFromCookieHeader, seenAt, lastSeenFrom, bannedPage, KINDS, SCOPES } from "./bans.js";
 import { fastnetHandler } from "./fastnet.js";
+import { ownerToolsRouter, viewOnly, untoldViews } from "./owner-tools.js";
 
 const require = createRequire(import.meta.url);
 const dirOf = (specifier) => path.dirname(require.resolve(specifier));
@@ -115,7 +116,9 @@ server.on("upgrade", (req, socket, head) => {
   // the same site bans as for pages: chat, voice, the proxy's wisp and the rest
   {
     const s = getSessionFromCookieHeader(req.headers.cookie);
-    const owner = s?.type === "account" && getUser(s.username)?.role === "owner";
+    const owner = s?.viewedBy || (s?.type === "account" && getUser(s.username)?.role === "owner");
+    // viewing as someone is read-only: chat (read-only there) and the proxy, nothing that talks
+    if (s?.viewedBy && /^\/(voice|call-relay|remote)\//.test(upgradePath)) return refuseUpgrade(socket, 403, "Read-only");
     if (!owner && banFor({ ip: clientIp(req), user: s?.type === "account" ? s.username : null, device: deviceFromCookieHeader(req.headers.cookie) })) return refuseUpgrade(socket, 403, "Banned");
   }
 
@@ -207,7 +210,9 @@ app.use(cookieParser());
 app.use((req, res, next) => {
   req.deviceId = deviceOf(req, res);
   const session = getSession(req);
-  if (session?.type === "account" && getUser(session.username)?.role === "owner") return next();
+  // the owner viewing as someone (owner-tools.js) may look, never change anything
+  if (viewOnly(session, req)) return res.status(403).json({ error: `Read-only: you're viewing the site as ${session.username}.` });
+  if (session?.viewedBy || (session?.type === "account" && getUser(session.username)?.role === "owner")) return next();
   const b = banFor({ ip: req.ip, user: session?.type === "account" ? session.username : null, device: req.deviceId });
   if (!b) return next();
   if (req.path.startsWith("/api/") || req.method !== "GET") return res.status(403).json({ error: "You're banned from Willie OS.", banned: true });
@@ -521,6 +526,7 @@ app.use(arcadeRouter({ catalog: ARCADE_CATALOG(publicDir), limiter: limitByIp(ar
 // your own HTML games in public/games/ (games.js)
 app.use(gamesRouter(path.join(publicDir, "games")));
 app.use(compressedStatic(publicDir), express.static(publicDir));
+app.use(ownerToolsRouter({ requireOwner, getUser, getSession, verifyToken, createToken, tokenVersion, cookieOptions, logEvent }));
 
 const e2bSandboxes = new Map(); // sandboxId -> { sandbox, owner, who, startedAt, expiresAt }
 const xenvVMs = new Map(); // container id -> { owner, who, startedAt, expiresAt }
@@ -534,8 +540,8 @@ function cookieOptions() {
   };
 }
 
-function createToken(payload) {
-  return jwt.sign(payload, AUTH_SECRET, { expiresIn: "7d" });
+function createToken(payload, expiresIn = "7d") {
+  return jwt.sign(payload, AUTH_SECRET, { expiresIn });
 }
 
 /* Account tokens carry the user's token version: bumping it signs out everywhere. */
@@ -748,6 +754,9 @@ app.get("/api/auth/me", (req, res) => {
     role: account ? getUser(session.username)?.role || "member" : "guest",
     vmMinutes: account ? 60 : 30,
     since: account ? getUser(session.username)?.created_at || null : null,
+    viewedBy: session.viewedBy || null,
+    // the owner looked at this account as them; say so once
+    ownerViews: account && !session.viewedBy ? untoldViews(session.username) : [],
   });
 });
 
@@ -947,6 +956,7 @@ app.use(
   aiRouter({
     requireSession,
     limiter: limitByIp(aiIpLimiter, "Too many AI messages from your network."),
+    isOwner: isOwnerSession,
     userLimiter: (req, res, next) => {
       const wait = aiUserLimiter.hit(sessionLabel(req.vmSession));
       if (!wait) return next();
@@ -1435,6 +1445,100 @@ app.post("/api/e2b/start", requireSession, vmStartGate, async (req, res) => {
 
 /*
 |--------------------------------------------------------------------------
+| The owner's kept VM
+|
+| One E2B desktop that isn't thrown away: E2B pauses it (memory, open apps
+| and files) instead of killing it, when the owner closes it or its hour runs
+| out (autoPause, so even a server restart doesn't lose it), and resumes it
+| next time. Owner only, because a kept VM costs E2B storage for as long as
+| it exists, and running time like any other. Delete it to stop paying.
+|--------------------------------------------------------------------------
+*/
+db.exec("CREATE TABLE IF NOT EXISTS kept_vms (username TEXT PRIMARY KEY, sandbox_id TEXT NOT NULL, created_at INTEGER NOT NULL, used_at INTEGER NOT NULL)");
+const KEPT_RUN_MS = 60 * 60_000; // running time per start, then it pauses itself
+const E2B_API = process.env.E2B_API_URL || "https://api.e2b.dev";
+async function e2bApi(method, p, body) {
+  const r = await fetch(E2B_API + p, { method, headers: { "X-API-Key": E2B_API_KEY, "content-type": "application/json" }, body: body ? JSON.stringify(body) : undefined });
+  if (r.status === 404) return null;
+  const text = await r.text();
+  if (!r.ok) throw new Error(`E2B: ${(() => { try { return JSON.parse(text).message; } catch (_) { return text.slice(0, 200); } })() || r.status}`);
+  return text ? JSON.parse(text) : {};
+}
+// the SDK always creates with autoPause off, so a kept desktop is created through the API itself
+class KeptDesktop extends Sandbox {
+  static async createSandbox(template, timeoutMs, opts) {
+    const d = await e2bApi("POST", "/sandboxes", { templateID: template, timeout: Math.ceil(timeoutMs / 1000), autoPause: true, envVars: opts?.envs, metadata: { kept: "owner" } });
+    return { sandboxId: d.sandboxID, sandboxDomain: d.domain || undefined, envdVersion: d.envdVersion, envdAccessToken: d.envdAccessToken };
+  }
+}
+const keptRow = (u) => db.prepare("SELECT * FROM kept_vms WHERE username = ?").get(u);
+
+app.get("/api/vm/kept", requireOwner, async (req, res) => {
+  const row = keptRow(req.vmSession.username);
+  if (!row || !E2B_API_KEY) return res.json({ exists: false, configured: Boolean(E2B_API_KEY) });
+  const info = await e2bApi("GET", `/sandboxes/${row.sandbox_id}`).catch(() => undefined);
+  if (info === null) { db.prepare("DELETE FROM kept_vms WHERE username = ?").run(row.username); return res.json({ exists: false, configured: true, lost: true }); }
+  res.json({ exists: true, configured: true, state: info?.state || "unknown", createdAt: row.created_at, usedAt: row.used_at });
+});
+
+app.post("/api/vm/kept/start", requireOwner, async (req, res) => {
+  if (!E2B_API_KEY) return res.status(500).json({ error: "E2B_API_KEY is not configured on the server." });
+  const me = req.vmSession.username;
+  let row = keptRow(me), sbx = null, fresh = false;
+  try {
+    if (row) {
+      const info = await e2bApi("GET", `/sandboxes/${row.sandbox_id}`);
+      if (!info) { db.prepare("DELETE FROM kept_vms WHERE username = ?").run(me); row = null; } // E2B dropped it
+      else {
+        if (info.state === "paused") await e2bApi("POST", `/sandboxes/${row.sandbox_id}/resume`, { timeout: KEPT_RUN_MS / 1000, autoPause: true });
+        else await e2bApi("POST", `/sandboxes/${row.sandbox_id}/timeout`, { timeout: KEPT_RUN_MS / 1000 }).catch(() => {});
+        sbx = await KeptDesktop.connect(row.sandbox_id, { apiKey: E2B_API_KEY });
+        // the old screen server came back with the memory, but its password didn't: start a new one
+        await sbx.commands.run("pkill -f x11vnc; pkill -f novnc; pkill -f websockify; true", { timeoutMs: 10_000 }).catch(() => {});
+      }
+    }
+    if (!row) {
+      sbx = await KeptDesktop.create({ apiKey: E2B_API_KEY, timeoutMs: KEPT_RUN_MS });
+      fresh = true;
+      db.prepare("INSERT INTO kept_vms (username, sandbox_id, created_at, used_at) VALUES (?, ?, ?, ?)").run(me, sbx.sandboxId, Date.now(), Date.now());
+    }
+    await sbx.stream.start({ requireAuth: true });
+    const authKey = await sbx.stream.getAuthKey();
+    const url = sbx.stream.getUrl({ authKey, autoConnect: true, resize: "scale", viewOnly: false });
+    db.prepare("UPDATE kept_vms SET used_at = ? WHERE username = ?").run(Date.now(), me);
+    e2bSandboxes.set(sbx.sandboxId, { sandbox: sbx, owner: me, who: vmWho(req.vmSession), startedAt: Date.now(), expiresAt: Date.now() + KEPT_RUN_MS, kept: true });
+    setTimeout(() => { if (e2bSandboxes.get(sbx.sandboxId)?.kept) e2bSandboxes.delete(sbx.sandboxId); }, KEPT_RUN_MS).unref?.();
+    logEvent("vm", `${me} ${fresh ? "made" : "resumed"} their kept VM`);
+    record("vm", "kept");
+    res.json({ status: "success", sandboxId: sbx.sandboxId, url, fresh, timeoutMinutes: KEPT_RUN_MS / 60000 });
+  } catch (err) {
+    console.error("KEPT VM START FAILED", err);
+    res.status(500).json({ error: err?.message || "The kept VM didn't start." });
+  }
+});
+
+app.post("/api/vm/kept/pause", requireOwner, async (req, res) => {
+  const row = keptRow(req.vmSession.username);
+  if (!row) return res.status(404).json({ error: "You have no kept VM." });
+  const entry = e2bSandboxes.get(row.sandbox_id);
+  e2bSandboxes.delete(row.sandbox_id);
+  try { await entry?.sandbox.stream.stop(); } catch (_) {}
+  try { await e2bApi("POST", `/sandboxes/${row.sandbox_id}/pause`); res.json({ ok: true }); }
+  catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.delete("/api/vm/kept", requireOwner, async (req, res) => {
+  const row = keptRow(req.vmSession.username);
+  if (!row) return res.status(404).json({ error: "You have no kept VM." });
+  e2bSandboxes.delete(row.sandbox_id);
+  try { await e2bApi("DELETE", `/sandboxes/${row.sandbox_id}`); } catch (err) { return res.status(500).json({ error: err.message }); }
+  db.prepare("DELETE FROM kept_vms WHERE username = ?").run(row.username);
+  logEvent("vm", `${row.username} deleted their kept VM`);
+  res.json({ ok: true });
+});
+
+/*
+|--------------------------------------------------------------------------
 | Kill E2B Desktop VM
 |--------------------------------------------------------------------------
 */
@@ -1484,7 +1588,8 @@ app.delete("/api/vm/:id", requireSession, async (req, res) => {
 
 async function cleanupE2BSandboxes() {
   console.log("Cleaning up E2B sandboxes...");
-  for (const sandboxId of [...e2bSandboxes.keys()]) {
+  for (const [sandboxId, v] of [...e2bSandboxes]) {
+    if (v.kept) continue; // pauses itself when its hour is up
     await killE2B(sandboxId);
   }
 }
