@@ -402,3 +402,4 @@ html[data-motion="off"] .ad-le.fresh,html[data-perf="on"] .ad-le.fresh{animation
 @media (max-width:720px){.ad-live-cols{grid-template-columns:minmax(0,1fr)}}
 .ad-lv-acts{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
 .ad-lv-acts .btn{padding:3px 9px;font-size:.78em}
+.ad-ver{color:var(--text-3);font-size:.75em;margin-left:8px}

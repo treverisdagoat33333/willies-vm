@@ -3452,7 +3452,16 @@ function liveBeat(force){
   liveLast=Date.now();
   fetch('/api/live/beat',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({app:liveApp(),hidden:document.hidden}),keepalive:true})
     // kicked or banned by the owner: back to the sign-in screen (or the banned page)
-    .then(async r=>{const d=r.status===200?await r.json().catch(()=>({})):{};if(d.kick||r.status===403){leaveQuietly();location.reload()}}).catch(()=>{});
+    .then(async r=>{const d=r.status===200?await r.json().catch(()=>({})):{};if(d.kick||r.status===403){leaveQuietly();location.reload()}else if(d.build)checkBuild(d.build)}).catch(()=>{});
+}
+/* A new deploy while this page is open: an old page misses new features (the owner once
+   couldn't find a new Admin card), so reload on the desktop, or say so inside an app. */
+let pageBuild='',buildToast=0;
+function checkBuild(b){
+  if(!pageBuild){pageBuild=b;const v=$('#ad-ver');if(v)v.textContent='Version '+b;return}
+  if(b===pageBuild)return;
+  if(liveApp()==='desktop'&&!document.hidden&&!document.querySelector('.panel.show,.aw')){leaveQuietly();location.reload();return}
+  if(Date.now()-buildToast>600000){buildToast=Date.now();toast('Willie OS was updated. Reload the page to get the new version.')}
 }
 setInterval(()=>liveBeat(),20000);
 setTimeout(()=>liveBeat(true),3000);

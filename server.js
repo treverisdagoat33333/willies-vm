@@ -1013,6 +1013,9 @@ const LIVE_MS = 50_000;
 const liveVisitors = new Map(); // label -> {name, account, app, since, at, ip, device}
 const kicked = new Set(); // labels whose next beat sends them back to the sign-in screen
 const LIVE_APPS = new Set(["desktop", "browser", "vm", "cloud", "remote", "movies", "music", "ai", "chat", "arcade", "apps", "settings", "files"]);
+// which deploy this is, so open pages notice they're out of date (Render sets the commit)
+const BUILD = (process.env.RENDER_GIT_COMMIT || Date.now().toString(36)).slice(0, 7);
+app.get("/api/version", (req, res) => res.set("cache-control", "no-store").json({ build: BUILD }));
 app.post("/api/live/beat", requireSession, (req, res) => {
   const label = sessionLabel(req.vmSession);
   const appName = LIVE_APPS.has(req.body?.app) ? req.body.app : "desktop";
@@ -1025,7 +1028,7 @@ app.post("/api/live/beat", requireSession, (req, res) => {
     liveVisitors.delete(label);
     return res.json({ kick: true });
   }
-  res.status(204).end();
+  res.json({ build: BUILD });
 });
 function liveSnapshot() {
   const now = Date.now();
