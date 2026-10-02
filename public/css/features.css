@@ -400,3 +400,5 @@ html[data-motion="off"] .ad-live-dot,html[data-perf="on"] .ad-live-dot{animation
 @keyframes ad-flash{from{background:rgba(239,68,68,.3)}}
 html[data-motion="off"] .ad-le.fresh,html[data-perf="on"] .ad-le.fresh{animation:none}
 @media (max-width:720px){.ad-live-cols{grid-template-columns:minmax(0,1fr)}}
+.ad-lv-acts{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
+.ad-lv-acts .btn{padding:3px 9px;font-size:.78em}

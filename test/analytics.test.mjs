@@ -48,7 +48,10 @@ await o.waitForFunction(() => document.querySelectorAll("#an-kpis .an-kpi").leng
 ok(await o.$$eval("#an-kpis .an-kpi", (k) => k.length) === 10, "the admin panel shows the headline numbers");
 ok(await o.$$eval("#an-visitors svg path.line", (p) => p.length) === 1 && await o.$$eval("#an-social svg path.line", (p) => p.length) === 3 && await o.$$eval("#an-heat .c", (c) => c.length) === 168, "…the visitor line, the chat/AI/calls lines and the busy-times grid");
 ok(await o.$$eval("#an-apps .an-bar", (b) => b.some((x) => /Music/.test(x.textContent))), "…and the apps list");
-const hit = await o.$("#an-visitors svg .hit"), hb = await hit.boundingBox();
+// the cards above it (Live now, Bans) grow with the visitors, and the chart redraws: find it fresh
+await o.evaluate(() => document.querySelector("#an-visitors").scrollIntoView({ block: "center" }));
+await o.waitForTimeout(400);
+const hb = await o.locator("#an-visitors svg .hit").boundingBox();
 await o.mouse.move(hb.x + hb.width - 3, hb.y + hb.height / 2);
 ok(await o.$eval("#an-tip", (t) => !t.hidden && /Visitors:/.test(t.textContent)), "hovering the chart shows that day's numbers");
 await o.click('#an-range [data-d="90"]');

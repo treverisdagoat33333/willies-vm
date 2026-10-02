@@ -75,6 +75,7 @@ import { filesRouter } from "./files.js";
 import { emojiRouter } from "./emoji.js";
 import { driveRouter, forgetDrive } from "./drive.js";
 import { hasBadWords } from "./profanity.js";
+import { banFor, addBan, removeBan, listBans, deviceOf, deviceFromCookieHeader, seenAt, lastSeenFrom, bannedPage, KINDS, SCOPES } from "./bans.js";
 import { fastnetHandler } from "./fastnet.js";
 
 const require = createRequire(import.meta.url);
@@ -111,6 +112,12 @@ if (!AUTH_SECRET) {
 */
 server.on("upgrade", (req, socket, head) => {
   const upgradePath = new URL(req.url ?? "/", "http://localhost").pathname;
+  // the same site bans as for pages: chat, voice, the proxy's wisp and the rest
+  {
+    const s = getSessionFromCookieHeader(req.headers.cookie);
+    const owner = s?.type === "account" && getUser(s.username)?.role === "owner";
+    if (!owner && banFor({ ip: clientIp(req), user: s?.type === "account" ? s.username : null, device: deviceFromCookieHeader(req.headers.cookie) })) return refuseUpgrade(socket, 403, "Banned");
+  }
 
   if (upgradePath === "/wisp/") {
     req.url = upgradePath;
@@ -193,6 +200,19 @@ app.use("/api/ai/chat", express.json({ limit: "10mb" }));
 app.use("/api/ai/chats", express.json({ limit: "4mb" })); // an account's whole chat list
 app.use(express.json());
 app.use(cookieParser());
+
+/* Site bans (bans.js): every request carries a device id, and a banned IP,
+   account or device gets the "You're banned" page (or a 403 for the API).
+   The owner is never shut out. */
+app.use((req, res, next) => {
+  req.deviceId = deviceOf(req, res);
+  const session = getSession(req);
+  if (session?.type === "account" && getUser(session.username)?.role === "owner") return next();
+  const b = banFor({ ip: req.ip, user: session?.type === "account" ? session.username : null, device: req.deviceId });
+  if (!b) return next();
+  if (req.path.startsWith("/api/") || req.method !== "GET") return res.status(403).json({ error: "You're banned from Willie OS.", banned: true });
+  res.status(403).type("html").send(bannedPage(b));
+});
 
 /*
 |--------------------------------------------------------------------------
@@ -666,11 +686,16 @@ app.post("/api/auth/register", limitByIp(registerLimiter, "Too many new accounts
     return res.status(400).json({ error: "Pick a different username. That one has a bad word in it." });
   }
 
+  // the owner can stop a device or network making accounts (Admin panel)
+  if (banFor({ ip: req.ip, device: req.deviceId }, "signup")) {
+    return res.status(403).json({ error: "New accounts can't be made from this device." });
+  }
   const passwordHash = await bcrypt.hash(password, 12);
   if (getUser(username)) {
     return res.status(409).json({ error: "That username is already taken." });
   }
   const created = createUser(username, passwordHash);
+  seenAt(username, req.ip, req.deviceId);
   logEvent("account", `${username} signed up`);
   record("signup");
 
@@ -695,7 +720,9 @@ app.post("/api/auth/login", limitByIp(loginIpLimiter, "Too many sign-in attempts
   }
 
   passwordFailLimiter.reset(username);
+  if (user.role !== "owner" && banFor({ user: username })) return res.status(403).json({ error: "That account is banned from Willie OS.", banned: true });
   touchUser(username);
+  seenAt(username, req.ip, req.deviceId);
   logEvent("login", `${username} signed in`);
 
   res.cookie("vm_session", accountToken(username), cookieOptions());
@@ -713,6 +740,7 @@ app.get("/api/auth/me", (req, res) => {
   const session = getSession(req);
   if (!session) return res.json({ loggedIn: false });
   const account = session.type === "account";
+  if (account) seenAt(session.username, req.ip, req.deviceId);
   return res.json({
     loggedIn: true,
     account,
@@ -982,13 +1010,21 @@ app.get("/api/admin/overview", requireOwner, (_req, res) => {
 |--------------------------------------------------------------------------
 */
 const LIVE_MS = 50_000;
-const liveVisitors = new Map(); // label -> {name, account, app, since, at}
+const liveVisitors = new Map(); // label -> {name, account, app, since, at, ip, device}
+const kicked = new Set(); // labels whose next beat sends them back to the sign-in screen
 const LIVE_APPS = new Set(["desktop", "browser", "vm", "cloud", "remote", "movies", "music", "ai", "chat", "arcade", "apps", "settings", "files"]);
 app.post("/api/live/beat", requireSession, (req, res) => {
   const label = sessionLabel(req.vmSession);
   const appName = LIVE_APPS.has(req.body?.app) ? req.body.app : "desktop";
   const prev = liveVisitors.get(label);
-  liveVisitors.set(label, { name: label, account: req.vmSession.type === "account", app: appName, hidden: !!req.body?.hidden, since: prev?.since || Date.now(), at: Date.now() });
+  liveVisitors.set(label, { name: label, account: req.vmSession.type === "account", app: appName, hidden: !!req.body?.hidden, since: prev?.since || Date.now(), at: Date.now(), ip: req.ip, device: req.deviceId });
+  // kicked by the owner: a guest loses their session; the page goes back to the sign-in screen
+  if (kicked.has(label)) {
+    kicked.delete(label);
+    if (req.vmSession.type !== "account") res.clearCookie("vm_session", cookieOptions());
+    liveVisitors.delete(label);
+    return res.json({ kick: true });
+  }
   res.status(204).end();
 });
 function liveSnapshot() {
@@ -1007,6 +1043,52 @@ app.get("/api/admin/live", requireOwner, (req, res) => {
   const tick = setInterval(() => push("live", liveSnapshot()), 2000);
   const stop = onError((e) => push("problem", e));
   req.on("close", () => { clearInterval(tick); stop(); });
+});
+
+/* ---- site bans and kicks (bans.js) ---- */
+app.get("/api/admin/bans", requireOwner, (_req, res) => res.json({ bans: listBans() }));
+app.post("/api/admin/bans", requireOwner, (req, res) => {
+  const kind = String(req.body?.kind || ""), scope = SCOPES.includes(req.body?.scope) ? req.body.scope : "site";
+  if (!KINDS.includes(kind)) return res.status(400).json({ error: "Ban an ip, user or device." });
+  // the value can be given, or worked out from an account or someone on the site right now
+  let value = String(req.body?.value || "").trim(), label = String(req.body?.label || "").slice(0, 80);
+  const user = req.body?.user ? String(req.body.user).toLowerCase() : "";
+  const visitor = req.body?.visitor ? liveVisitors.get(String(req.body.visitor)) : null;
+  if (!value && kind === "user") value = user || (visitor?.account ? visitor.name : "");
+  if (!value && user) value = (lastSeenFrom(user) || {})[kind === "ip" ? "ip" : "device"] || "";
+  if (!value && visitor) value = kind === "ip" ? visitor.ip : visitor.device;
+  if (!value) return res.status(400).json({ error: kind === "user" ? "Pick an account." : `No ${kind === "ip" ? "IP address" : "device"} known for them yet.` });
+  label ||= user || visitor?.name || "";
+  // never lock out the owner, by name, network or device
+  const me = req.vmSession.username;
+  if ((kind === "user" && value === me) || (kind === "ip" && value === req.ip) || (kind === "device" && value === req.deviceId)) return res.status(400).json({ error: "That would ban you too." });
+  if (kind === "user" && getUser(value)?.role === "owner") return res.status(400).json({ error: "The owner can't be banned." });
+  const hours = req.body?.hours ? Math.min(Math.max(Number(req.body.hours) || 24, 1), 24 * 365 * 5) : null;
+  const id = addBan({ kind, value, scope, hours, reason: req.body?.reason || "", label, by: me });
+  if (scope === "site") {
+    // whoever it matches leaves now: their pages, chat and voice
+    for (const [l, v] of liveVisitors) if ((kind === "ip" && v.ip === value) || (kind === "device" && v.device === value) || (kind === "user" && l === value)) { kicked.add(l); if (v.account) kickUser(l, 4005, "banned"); }
+    if (kind === "user") { bumpTokenVersion(value); kickUser(value, 4005, "banned"); }
+  }
+  logEvent("admin", `${scope === "signup" ? "blocked sign-ups from" : "banned"} ${kind} ${kind === "user" ? value : label || value.slice(0, 12)}${hours ? ` for ${hours}h` : ""}`);
+  res.json({ ok: true, id });
+});
+app.delete("/api/admin/bans/:id", requireOwner, (req, res) => {
+  if (!removeBan(req.params.id)) return res.status(404).json({ error: "No such ban." });
+  logEvent("admin", `lifted ban ${req.params.id}`);
+  res.json({ ok: true });
+});
+/* Kick someone off the site: an account is signed out everywhere, a guest loses their session. */
+app.post("/api/admin/visitors/:label/kick", requireOwner, (req, res) => {
+  const label = String(req.params.label || "");
+  if (label === req.vmSession.username) return res.status(400).json({ error: "That's you." });
+  const v = liveVisitors.get(label);
+  if (getUser(label)) { if (getUser(label).role === "owner") return res.status(400).json({ error: "The owner can't be kicked." }); bumpTokenVersion(label); kickUser(label, 4005, "kicked"); }
+  else if (!v) return res.status(404).json({ error: "They aren't on the site right now." });
+  else kickUser(label, 4005, "kicked"); // a guest's chat socket goes now; the page follows on its next beat
+  kicked.add(label);
+  logEvent("admin", `${label} was kicked off the site`);
+  res.json({ ok: true });
 });
 
 app.post("/api/admin/vms/:id/kill", requireOwner, async (req, res) => {

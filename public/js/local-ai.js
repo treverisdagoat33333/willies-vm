@@ -114,6 +114,12 @@
   const crashed = (key) => { const t = getJSON(CRASHED_KEY, {})[key]; return t && Date.now() - t < 14 * 86_400_000; }; // forgiven after two weeks
   function why(m, c) {
     if (crashed(keyOf(m))) return "Crashed on this device last time (too big for it)";
+    // Chrome closes a tab that uses too much memory ("Aw, Snap!", error 9). A CPU model needs
+    // about twice its file while loading; a graphics-chip one shares a Chromebook's memory too.
+    // Browsers say at most 8 GB, so these budgets stay on the safe side.
+    const gb = c.mem * 1024;
+    if ((m.engine === "wllama" || (m.engine === "transformers" && !c.gpu)) && m.mb * 2 > gb * 0.3) return "Needs more memory than this device has";
+    if ((m.engine === "webllm" || m.engine === "mediapipe" || m.engine === "transformers") && c.gpu && m.mb > Math.min(gb * 0.45, c.gpuMb || gb)) return "Too big for this device's memory";
     if (m.engine === "webllm" || m.engine === "mediapipe") return c.gpu ? "" : "Needs WebGPU, which this browser doesn't have";
     if (m.engine === "transformers") return m.gpuOnly && !c.gpu ? "Needs WebGPU, which this browser doesn't have" : "";
     if (m.engine === "wllama") return c.wasm ? "" : "This browser can't run WebAssembly";
@@ -343,6 +349,8 @@
   }
   async function chat({ key, messages, onToken, onStatus = () => {}, signal, file }) {
     setJSON(CRASH_KEY, { key, at: Date.now() });
+    // WillieJet's spare workers give their memory back while a model is in it
+    try { if (typeof proxies !== "undefined") proxies.wj?.then((e) => e.shrink?.()).catch(() => {}); } catch (_) {}
     let answered = false;
     try {
       const eng = await load(key, onStatus, file);

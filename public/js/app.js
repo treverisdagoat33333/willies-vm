@@ -3177,7 +3177,7 @@ $('#dc-toggle-members').onclick=()=>$('#chat-window').classList.toggle('hide-mem
 let adData=null,adTimer=null,adFilter='';
 function openAdmin(){
   if(currentRole!=='owner')return toast('The admin dashboard is for the owner.','err');
-  openPanel('admin-panel');adRefresh();window.adStats?.load();adErrors();adLiveStart();
+  openPanel('admin-panel');adRefresh();window.adStats?.load();adErrors();adLiveStart();adBans();
   clearInterval(adTimer);
   adTimer=setInterval(()=>{if($('#admin-panel').classList.contains('show')&&!document.hidden)adRefresh();else if(!$('#admin-panel').classList.contains('show'))clearInterval(adTimer)},5000);
 }
@@ -3222,11 +3222,40 @@ function adLiveDraw(d){
   $('#ad-live-sub').textContent=`updated ${new Date(d.at).toLocaleTimeString([],{hour:'numeric',minute:'2-digit',second:'2-digit'})}`;
   const apps=Object.entries(d.byApp).sort((a,b)=>b[1]-a[1]);
   $('#ad-live-apps').innerHTML=apps.length?apps.map(([a,n])=>`<span class="ad-la">${(LIVE_APP[a]||['•',a])[0]} ${esc((LIVE_APP[a]||['',a])[1])} <b>${n}</b></span>`).join(''):'';
-  $('#ad-live-list').innerHTML=d.visitors.length?d.visitors.map(v=>`<div class="ad-lv${v.hidden?' away':''}"><span class="nm">${esc(v.name)}</span><span class="ap">${(LIVE_APP[v.app]||['•',v.app]).join(' ')}</span><small>${v.hidden?'tab in background · ':''}here ${adAgo(v.since).replace(' ago','')}</small></div>`).join(''):'<div class="ad-empty">Nobody else is here right now.</div>';
+  const meName=currentUsername;
+  $('#ad-live-list').innerHTML=d.visitors.length?d.visitors.map(v=>`<div class="ad-lv${v.hidden?' away':''}" data-v="${esc(v.name)}"><span class="nm">${esc(v.name)}</span><span class="ap">${(LIVE_APP[v.app]||['•',v.app]).join(' ')}</span><small>${v.hidden?'tab in background · ':''}here ${adAgo(v.since).replace(' ago','')} · ${esc(v.ip||'?')}</small>${v.name===meName?'':`<div class="ad-lv-acts"><button type="button" class="btn sm" data-do="kick">Kick</button><button type="button" class="btn sm danger" data-do="ban">Ban</button><button type="button" class="btn sm danger" data-do="ip">IP ban</button><button type="button" class="btn sm" data-do="signup">No new accounts</button></div>`}</div>`).join(''):'<div class="ad-empty">Nobody else is here right now.</div>';
   const box=$('#ad-live-errs');
   if(!box.dataset.init){box.dataset.init='1';box.innerHTML='';(d.errors||[]).forEach(e=>adLiveErr(e))}
   if(!box.children.length)box.innerHTML='<div class="ad-empty">No problems since the server started. 🎉</div>';
 }
+/* site bans (bans.js): a person on the site now, or an account; how long and why */
+function adSiteBan(o){
+  const what=o.scope==='signup'?'Stop new accounts from their device':o.kind==='ip'?`Ban ${o.label}'s network (IP address)`:o.kind==='device'?`Ban ${o.label}'s device`:`Ban ${o.label} from the whole site`;
+  dcModal({title:what,danger:o.scope!=='signup',okLabel:o.scope==='signup'?'Block sign-ups':'Ban',
+    sub:o.scope==='signup'?'They can still use the site; they just can\'t make new accounts from it.':o.kind==='ip'?'Everyone on that network is shut out, so be careful with schools and shared Wi-Fi.':'They\'re sent away right now and can\'t come back.',
+    fields:[{key:'hours',label:'For how many hours? (leave empty for forever)',placeholder:'e.g. 24'},{key:'reason',label:'Reason (they see it)',maxlength:200}],
+    onOk:async v=>{
+      const r=await fetch('/api/admin/bans',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({...o,hours:Number(v.hours)||null,reason:v.reason})});
+      const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||'HTTP '+r.status);
+      toast(o.scope==='signup'?'Sign-ups blocked':'Banned','ok');adBans();
+    }});
+}
+async function adBans(){
+  try{
+    const r=await fetch('/api/admin/bans',{cache:'no-store'});if(!r.ok)return;
+    const{bans}=await r.json();$('#ad-bans-n').textContent=bans.length||'';
+    const KIND={ip:'IP',user:'Account',device:'Device'};
+    $('#ad-bans').replaceChildren(...(bans.length?bans.map(b=>adRow(`${b.scope==='signup'?'No new accounts':'Banned'} · ${KIND[b.kind]} · ${b.label||(b.kind==='user'?b.value:b.value.slice(0,16))}`,`${b.kind==='ip'?b.value+' · ':''}${b.until?adLeft(b.until):'forever'}${b.reason?' · '+b.reason:''} · by ${b.by||'?'} ${adAgo(b.createdAt)}`,[{label:'Lift',fn:async()=>{await fetch('/api/admin/bans/'+b.id,{method:'DELETE'});toast('Lifted','ok');adBans()}}])):[adEmpty('Nobody is banned.')]));
+  }catch(_){}
+}
+$('#ad-live-list').addEventListener('click',e=>{
+  const b=e.target.closest('[data-do]');if(!b)return;
+  const name=b.closest('.ad-lv').dataset.v,acct=!name.startsWith('guest-');click();
+  if(b.dataset.do==='kick'){if(confirm(`Kick ${name} off the site? ${acct?'Their account is signed out everywhere.':'They lose their guest session.'}`))fetch(`/api/admin/visitors/${encodeURIComponent(name)}/kick`,{method:'POST'}).then(async r=>toast(r.ok?`${name} kicked`:((await r.json().catch(()=>({}))).error||'Couldn\'t kick'),r.ok?'ok':'err'));return}
+  if(b.dataset.do==='ban')return adSiteBan(acct?{kind:'user',user:name,label:name}:{kind:'device',visitor:name,label:name});
+  if(b.dataset.do==='ip')return adSiteBan({kind:'ip',visitor:name,label:name});
+  if(b.dataset.do==='signup')return adSiteBan({kind:'device',scope:'signup',visitor:name,label:name});
+});
 function adLiveErr(e,fresh){
   const box=$('#ad-live-errs');box.querySelector('.ad-empty')?.remove();
   const row=document.createElement('div');row.className='ad-le'+(fresh?' fresh':'');
@@ -3297,7 +3326,10 @@ function adRender(){
     return adRow(u.displayName!==u.username?`${u.displayName} (@${u.username})`:u.username,`joined ${adAgo(u.createdAt)} · seen ${adAgo(u.lastSeen)}`,[
       {el:sel},
       {label:'Sign out',fn:()=>{if(confirm(`Sign ${u.username} out on every device?`))adAct(`/api/admin/users/${encodeURIComponent(u.username)}/signout`,null,'POST',`${u.username} signed out`)}},
-      {label:'Ban',danger:true,fn:()=>adBan(u.username)},
+      {label:'Chat ban',danger:true,fn:()=>adBan(u.username)},
+      {label:'Site ban',danger:true,fn:()=>adSiteBan({kind:'user',user:u.username,label:u.username})},
+      {label:'IP ban',danger:true,fn:()=>adSiteBan({kind:'ip',user:u.username,label:u.username})},
+      {label:'No new accounts',fn:()=>adSiteBan({kind:'device',scope:'signup',user:u.username,label:u.username})},
       {label:'Delete',danger:true,fn:()=>{if(prompt(`Type ${u.username} to delete this account and all its messages.`)===u.username)adAct(`/api/admin/users/${encodeURIComponent(u.username)}`,null,'DELETE','Account deleted')}}
     ],'role-'+u.role);
   }):[adEmpty(adFilter?'No accounts match.':'No accounts yet.')]));
@@ -3418,7 +3450,9 @@ function liveBeat(force){
   if(document.querySelector('#auth-wrap:not(.hidden)'))return;
   if(!force&&Date.now()-liveLast<15000)return;
   liveLast=Date.now();
-  fetch('/api/live/beat',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({app:liveApp(),hidden:document.hidden}),keepalive:true}).catch(()=>{});
+  fetch('/api/live/beat',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({app:liveApp(),hidden:document.hidden}),keepalive:true})
+    // kicked or banned by the owner: back to the sign-in screen (or the banned page)
+    .then(async r=>{const d=r.status===200?await r.json().catch(()=>({})):{};if(d.kick||r.status===403){leaveQuietly();location.reload()}}).catch(()=>{});
 }
 setInterval(()=>liveBeat(),20000);
 setTimeout(()=>liveBeat(true),3000);

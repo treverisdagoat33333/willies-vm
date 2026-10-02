@@ -53,6 +53,7 @@ export async function start({ wisp, cache = true, fast = false, fastSkip = [], a
   const cores = navigator.hardwareConcurrency || 2;
   const HELPERS = (navigator.deviceMemory || 4) <= 2 ? Math.min(1, cores - 1) : Math.max(0, Math.min(3, cores - 1));
   let helpers = [];
+  let wanted = false; // set by the first page opened
   const toAll = (msg) => { worker?.postMessage(msg); for (const h of helpers) h.postMessage(msg); };
   function spawnHelpers() {
     for (const h of helpers) { try { h.terminate(); } catch (_) {} }
@@ -87,7 +88,9 @@ export async function start({ wisp, cache = true, fast = false, fastSkip = [], a
     lastPong = Date.now();
     register();
     // the helpers start once the main worker is up, so they never slow its start
-    booted.then(spawnHelpers, () => {});
+    // helpers wait until something is browsed: each is a whole copy of the engine, and
+    // memory spent on them before then is memory a local AI model can't have
+    booted.then(() => { if (wanted) spawnHelpers(); }, () => {});
     return booted;
   }
 
@@ -154,7 +157,7 @@ export async function start({ wisp, cache = true, fast = false, fastSkip = [], a
     frame(el) {
       const win = () => el.contentWindow;
       return {
-        go(url) { el.src = prefix + encodeURIComponent(url); },
+        go(url) { if (!wanted || !helpers.length) { wanted = true; if (worker && !helpers.length && HELPERS) spawnHelpers(); } el.src = prefix + encodeURIComponent(url); },
         back() { win()?.history.back(); },
         forward() { win()?.history.forward(); },
         reload() { win()?.location.reload(); },
@@ -165,6 +168,8 @@ export async function start({ wisp, cache = true, fast = false, fastSkip = [], a
     /* the ad blocker on or off; `hosts` are sites it stays off for */
     setAds(on, hosts = [...adsOff]) { adsOn = !!on; adsOff = new Set(hosts); toAll({ t: "ads", on: adsOn, skip: [...adsOff] }); },
     helpers: () => helpers.length,
+    /* let the helpers go (a local AI model needs the memory); the next page opened brings them back */
+    shrink() { for (const h of helpers) { try { h.terminate(); } catch (_) {} } if (helpers.length) worker?.postMessage({ t: "helpers-reset" }); helpers = []; },
     /* preloading pages' files on or off (on unless you're comparing) */
     setPreload(on) { preloadOn = !!on; worker.postMessage({ t: "preload", on: preloadOn }); },
     warm(url) { worker.postMessage({ t: "warm", url }); },
