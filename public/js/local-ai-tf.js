@@ -18,6 +18,8 @@ class Stop extends StoppingCriteria {
 self.onmessage = async ({ data }) => {
   try {
     if (data.t === "load") {
+      // leave the page a core or two (js/local-ai.js works out how many)
+      if (data.threads && env.backends?.onnx?.wasm) env.backends.onnx.wasm.numThreads = data.threads;
       gen = await pipeline("text-generation", data.model, {
         device: data.device,
         dtype: data.dtype,

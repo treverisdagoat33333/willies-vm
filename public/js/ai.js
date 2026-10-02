@@ -125,10 +125,12 @@ const thinkOf=m=>{const c=String(m.content||'');let t=m.think||'';const a=c.matc
 const revealAt=new WeakMap();
 function revealed(m,full){
   if(!m.streaming&&!revealAt.has(m))return full.length;
-  const at=revealAt.get(m)||0;
-  if(at>=full.length){if(m.done)revealAt.delete(m);return full.length}
-  const next=Math.min(full.length,at+Math.max(2,Math.ceil((full.length-at)/12)));
-  revealAt.set(m,next);
+  const r=revealAt.get(m)||{at:0,t:performance.now()};
+  if(r.at>=full.length){if(m.done)revealAt.delete(m);return full.length}
+  // by time, not by redraw: a device that redraws less often still types at the same speed
+  const now=performance.now(),frames=Math.max(1,Math.min(10,(now-r.t)/16));
+  const next=Math.min(full.length,r.at+Math.ceil(Math.max(2,(full.length-r.at)/12)*frames));
+  revealAt.set(m,{at:next,t:now});
   return next;
 }
 const fmtSecs=ms=>ms<1000?'a moment':`${Math.round(ms/1000)}s`;
@@ -249,9 +251,17 @@ function pairEl(a){
 }
 function render(){renderChats();renderLog()}
 /* while a reply streams, only its bubble is redrawn, once a frame */
+/* a weak device redraws a writing reply a dozen times a second, not every frame:
+   rebuilding the bubble's Markdown 60 times a second is its own source of lag */
+const SLOW_PAINT=(navigator.hardwareConcurrency||2)<=4||(navigator.deviceMemory||4)<=4;
+let lastPaint=0;
 function paintLast(){
   if(paintQueued)return;paintQueued=true;
-  requestAnimationFrame(()=>{
+  const lite=SLOW_PAINT||document.documentElement.dataset.perf==='on';
+  const wait=lite?Math.max(0,80-(performance.now()-lastPaint)):0;
+  const frame=f=>wait?setTimeout(()=>requestAnimationFrame(f),wait):requestAnimationFrame(f);
+  frame(()=>{
+    lastPaint=performance.now();
     paintQueued=false;
     const last=LOG.lastElementChild,m=cur?.messages[cur.messages.length-1];
     if(!last||!m||m.role!=='assistant')return;

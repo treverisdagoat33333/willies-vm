@@ -156,6 +156,16 @@
   const pct = (a, b) => (b ? Math.round((a / b) * 100) : 0);
   const counter = (total, report) => { let got = 0; return new TransformStream({ transform(chunk, ctl) { got += chunk.length; report(got); ctl.enqueue(chunk); } }); };
 
+  /* Gentle mode: a model writing flat out takes the whole graphics chip (WebLLM) or every
+     core (wllama), and on a Chromebook the screen shares both, so the device lags or
+     freezes. These engines only work out the next word when asked, so a short pause
+     after each one hands the screen its turn: a little slower to write, smooth to use. */
+  const cores = navigator.hardwareConcurrency || 2;
+  const weak = (navigator.deviceMemory || 4) <= 4 || cores <= 4;
+  const PACE = weak ? 35 : 12; // ms after each word
+  const pause = () => new Promise((r) => setTimeout(r, document.hidden ? 0 : PACE));
+  const THREADS = Math.max(1, Math.min(4, cores - (weak ? 2 : 1))); // CPU engines leave the page a core or two
+
   const ENGINES = {
     async webllm(m, onStatus) {
       const W = await import(CDN.webllm);
@@ -167,7 +177,7 @@
           signal?.addEventListener("abort", stop);
           try {
             const chunks = await eng.chat.completions.create({ messages, stream: true, max_tokens: MAX_TOKENS, temperature: 0.6 });
-            for await (const c of chunks) { const t = c.choices?.[0]?.delta?.content; if (t) onToken(t); }
+            for await (const c of chunks) { const t = c.choices?.[0]?.delta?.content; if (t) onToken(t); await pause(); }
           } finally { signal?.removeEventListener("abort", stop); }
         },
         async unload() { try { await eng.unload(); } catch (_) {} worker.terminate(); },
@@ -187,7 +197,7 @@
       worker.onerror = (e) => { e.preventDefault?.(); waiting?.({ t: "error", error: e.message || "The AI engine couldn't start in this browser." }); };
       await new Promise((res, rej) => {
         waiting = (d) => (d.t === "ready" ? res() : d.t === "error" ? rej(new Error(d.error)) : null);
-        worker.postMessage({ t: "load", model: m.id, device: c.gpu ? "webgpu" : "wasm", dtype: c.gpu ? "q4f16" : "q4" });
+        worker.postMessage({ t: "load", model: m.id, device: c.gpu ? "webgpu" : "wasm", dtype: c.gpu ? "q4f16" : "q4", threads: THREADS });
       });
       return {
         chat(messages, onToken, signal) {
@@ -211,11 +221,11 @@
       const w = new Wllama({ default: CDN.wllamaWasm }, { suppressNativeLog: true });
       const parts = m.id.split("/"), repo = parts.slice(0, 2).join("/"), file = parts.slice(2).join("/");
       onStatus("Downloading the model… 0%", 0);
-      await w.loadModelFromHF({ repo, file }, { n_ctx: 4096, progressCallback: ({ loaded, total }) => onStatus(`Downloading the model… ${pct(loaded, total)}%`, total ? loaded / total : 0) });
+      await w.loadModelFromHF({ repo, file }, { n_ctx: 4096, n_threads: THREADS, progressCallback: ({ loaded, total }) => onStatus(`Downloading the model… ${pct(loaded, total)}%`, total ? loaded / total : 0) });
       return {
         async chat(messages, onToken, signal) {
           const it = await w.createChatCompletion({ messages, stream: true, max_tokens: MAX_TOKENS, temperature: 0.6, abortSignal: signal });
-          try { for await (const c of it) { const t = c.choices?.[0]?.delta?.content; if (t) onToken(t); } }
+          try { for await (const c of it) { const t = c.choices?.[0]?.delta?.content; if (t) onToken(t); await pause(); } }
           catch (e) { if (!signal?.aborted) throw e; }
         },
         async unload() { try { await w.exit(); } catch (_) {} },

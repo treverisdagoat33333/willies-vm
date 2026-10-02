@@ -99,7 +99,7 @@ ok((await last()).model === "gpt-4o" && await page.evaluate(() => JSON.parse(loc
 // the AI does things on the site: its action lines are hidden, carried out, and shown as chips
 const lastBot = () => page.evaluate(() => { const b = [...document.querySelectorAll("#ai-log .ai-msg.bot")].at(-1); return { text: b?.textContent || "", chips: [...(b?.querySelectorAll(".ai-act") || [])].map((c) => ({ ok: c.classList.contains("ok"), t: c.textContent })) }; });
 const ask = async (q, done) => { await page.fill("#ai-input", q); await page.press("#ai-input", "Enter"); await page.waitForFunction(done, null, { timeout: 10000 }).catch(() => {}); };
-await ask("please play the test song", () => document.querySelectorAll("#ai-log .ai-act").length > 0);
+await ask("please play the test song", () => document.querySelectorAll("#ai-log .ai-act").length > 0 && /On it/.test(document.querySelector("#ai-log .ai-msg.bot:last-child")?.textContent || ""));
 let lb = await lastBot(), got2 = await last();
 ok(got2.messages[0].role === "system" && /\[\[action/.test(got2.messages[0].content) && /What's on the user's screen/.test(got2.messages[0].content), "the AI is told what it can do and what's on screen", got2.messages[0].content.slice(0, 120));
 ok(!/\[\[action/.test(lb.text) && /On it/.test(lb.text), "action lines don't show in the reply", lb.text);
@@ -122,7 +122,7 @@ ok(await page.evaluate(() => S.wallpaper === "live-synth") && lb.chips.length ==
 ok(await page.$$eval("#ai-log .ai-msg.me", (m) => m.every((x) => !/From the site/.test(x.textContent))), "…and the chat log isn't shown as something you said");
 
 // a reasoning model's thinking isn't shown, and an action inside it isn't carried out
-await ask("think it over", () => /Thought about it/.test(document.querySelector("#ai-log .ai-msg.bot:last-child")?.textContent || ""));
+await ask("think it over", () => /Thought about it\./.test(document.querySelector("#ai-log .ai-msg.bot:last-child")?.textContent || ""));
 lb = await lastBot();
 const ans = await page.$eval("#ai-log .ai-msg.bot:last-child", (b) => [...b.querySelectorAll(":scope > p")].map((p) => p.textContent).join(""));
 const fold = await page.$eval("#ai-log .ai-msg.bot:last-child", (b) => ({ open: b.querySelector(".ai-think")?.open, sum: b.querySelector(".ai-think summary")?.textContent, body: b.querySelector(".ai-think-body")?.textContent }));
