@@ -333,7 +333,7 @@ let sysCache=null,taskFile=null;
 async function systemPrompt(){
   if(sysCache)return sysCache;
   try{const r=await fetch('/api/ai/system');if(r.ok){sysCache=await r.json();put('ai.system',sysCache);return sysCache}}catch(_){}
-  return sysCache=store('ai.system',null)||{system:"You are a helpful, friendly assistant inside William's VM. Answer clearly and concisely.",actions:''};
+  return sysCache=store('ai.system',null)||{system:"You are a helpful, friendly assistant inside Willie OS. Answer clearly and concisely.",actions:''};
 }
 async function askLocal(reply,canAct,signal){
   let key=MODEL.value;

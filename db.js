@@ -125,6 +125,27 @@ fs.mkdirSync(FILES_DIR, { recursive: true });
 /* songs stitched together from HLS pieces (music.js), a cache */
 export const MUSIC_DIR = path.join(DATA_DIR, "music");
 fs.mkdirSync(MUSIC_DIR, { recursive: true });
+/* threads (a reply kept under its parent, not in the channel), polls, profile banners */
+addColumn("messages", "thread_of", "INTEGER");
+addColumn("messages", "poll", "TEXT");
+addColumn("users", "banner", "TEXT");
+db.exec(`
+  CREATE TABLE IF NOT EXISTS poll_votes (
+    message_id INTEGER NOT NULL,
+    username   TEXT NOT NULL,
+    opt        INTEGER NOT NULL,
+    PRIMARY KEY (message_id, username, opt)
+  );
+  CREATE TABLE IF NOT EXISTS emojis (
+    name       TEXT PRIMARY KEY,
+    type       TEXT NOT NULL,
+    by         TEXT,
+    created_at INTEGER NOT NULL
+  );
+`);
+/* the owner's custom emoji pictures (emoji.js) */
+export const EMOJI_DIR = path.join(DATA_DIR, "emoji");
+fs.mkdirSync(EMOJI_DIR, { recursive: true });
 // bumped to invalidate every token issued before (password change, sign out everywhere)
 addColumn("users", "token_version", "INTEGER NOT NULL DEFAULT 0");
 
@@ -163,11 +184,12 @@ const q = {
   touchUser: db.prepare("UPDATE users SET last_seen = ? WHERE username = ?"),
   countUsers: db.prepare("SELECT COUNT(*) AS n FROM users"),
   setRole: db.prepare("UPDATE users SET role = ? WHERE username = ?"),
+  setBanner: db.prepare("UPDATE users SET banner = ? WHERE username = ?"),
   setProfile: db.prepare(
     "UPDATE users SET display_name = ?, color = ?, bio = ? WHERE username = ?"
   ),
   allUsers: db.prepare(
-    "SELECT username, role, display_name, color, bio, last_seen FROM users ORDER BY username"
+    "SELECT username, role, display_name, color, bio, banner, created_at, last_seen FROM users ORDER BY username"
   ),
   adminUsers: db.prepare(
     "SELECT username, role, display_name, created_at, last_seen FROM users ORDER BY last_seen DESC"
@@ -190,7 +212,7 @@ const q = {
   messageCount: db.prepare("SELECT COUNT(*) AS n FROM messages WHERE deleted = 0"),
 
   addMessage: db.prepare(
-    "INSERT INTO messages (username, account, text, created_at, channel, reply_to, file_id) VALUES (?, ?, ?, ?, ?, ?, ?)"
+    "INSERT INTO messages (username, account, text, created_at, channel, reply_to, file_id, thread_of, poll) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
   ),
   addFile: db.prepare(
     "INSERT INTO files (id, username, channel, name, type, size, width, height, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
@@ -208,12 +230,12 @@ const q = {
   editMessage: db.prepare("UPDATE messages SET text = ?, edited_at = ? WHERE id = ?"),
   getMessage: db.prepare("SELECT * FROM messages WHERE id = ?"),
   channelMessages: db.prepare(
-    "SELECT id, username, account, text, created_at, channel, reply_to, edited_at, deleted, file_id, pinned FROM messages" +
-      " WHERE channel = ? AND deleted = 0 ORDER BY id DESC LIMIT ?"
+    "SELECT id, username, account, text, created_at, channel, reply_to, edited_at, deleted, file_id, pinned, thread_of, poll FROM messages" +
+      " WHERE channel = ? AND deleted = 0 AND thread_of IS NULL ORDER BY id DESC LIMIT ?"
   ),
   olderMessages: db.prepare(
-    "SELECT id, username, account, text, created_at, channel, reply_to, edited_at, deleted, file_id, pinned FROM messages" +
-      " WHERE channel = ? AND deleted = 0 AND id < ? ORDER BY id DESC LIMIT ?"
+    "SELECT id, username, account, text, created_at, channel, reply_to, edited_at, deleted, file_id, pinned, thread_of, poll FROM messages" +
+      " WHERE channel = ? AND deleted = 0 AND thread_of IS NULL AND id < ? ORDER BY id DESC LIMIT ?"
   ),
   softDelete: db.prepare("UPDATE messages SET deleted = 1 WHERE id = ?"),
   trimChannel: db.prepare(
@@ -388,9 +410,14 @@ export function profileOf(username) {
     displayName: u.display_name || u.username,
     color: u.color || null,
     bio: u.bio || "",
+    banner: u.banner || null,
     createdAt: u.created_at,
     lastSeen: u.last_seen,
+    messages: db.prepare("SELECT COUNT(*) AS n FROM messages WHERE username = ? AND deleted = 0 AND channel NOT LIKE 'dm:%'").get(username).n,
   };
+}
+export function setBanner(username, banner) {
+  q.setBanner.run(banner, username);
 }
 
 export function allProfiles() {
@@ -400,6 +427,8 @@ export function allProfiles() {
     displayName: u.display_name || u.username,
     color: u.color || null,
     bio: u.bio || "",
+    banner: u.banner || null,
+    createdAt: u.created_at,
     lastSeen: u.last_seen,
   }));
 }
@@ -481,9 +510,9 @@ export function dmsFor(username) {
 
 /* ---- messages ---- */
 
-export function saveMessage({ username, account, text, channel, replyTo = null, fileId = null }) {
+export function saveMessage({ username, account, text, channel, replyTo = null, fileId = null, threadOf = null, poll = null }) {
   const createdAt = Date.now();
-  const info = q.addMessage.run(username, account ? 1 : 0, text, createdAt, channel, replyTo, fileId);
+  const info = q.addMessage.run(username, account ? 1 : 0, text, createdAt, channel, replyTo, fileId, threadOf, poll ? JSON.stringify(poll) : null);
   const id = Number(info.lastInsertRowid);
   if (fileId) q.attachFile.run(id, fileId);
   if (id % 50 === 0) q.trimChannel.run(channel, channel);
@@ -504,7 +533,7 @@ function fileShape(id) {
   if (!id) return null;
   const f = q.getFile.get(id);
   if (!f) return { id, missing: true };
-  return { id: f.id, name: f.name, size: f.size, image: f.type.startsWith("image/"), w: f.width || null, h: f.height || null };
+  return { id: f.id, name: f.name, size: f.size, image: f.type.startsWith("image/"), audio: f.type.startsWith("audio/"), w: f.width || null, h: f.height || null };
 }
 
 /* ---- files (files.js) ---- */
@@ -552,7 +581,57 @@ const shape = (m) => ({
   reactions: reactionsOf(m.id),
   file: fileShape(m.file_id),
   pinned: Boolean(m.pinned),
+  threadOf: m.thread_of || null,
+  thread: m.thread_of ? null : threadInfo(m.id),
+  poll: pollShape(m),
 });
+
+/* ---- threads ---- */
+function threadInfo(id) {
+  const r = db.prepare("SELECT COUNT(*) AS n, MAX(created_at) AS last FROM messages WHERE thread_of = ? AND deleted = 0").get(id);
+  return r.n ? { count: r.n, last: r.last } : null;
+}
+export function threadMessages(parentId, limit = 200) {
+  return db.prepare("SELECT * FROM messages WHERE thread_of = ? AND deleted = 0 ORDER BY id DESC LIMIT ?").all(parentId, limit).reverse().map(shape);
+}
+export function threadSummary(parentId) {
+  return threadInfo(parentId);
+}
+
+/* ---- polls: the question and options live with the message, the votes in poll_votes ---- */
+function pollShape(m) {
+  if (!m.poll) return null;
+  let p;
+  try { p = JSON.parse(m.poll); } catch (_) { return null; }
+  const votes = db.prepare("SELECT username, opt FROM poll_votes WHERE message_id = ?").all(m.id);
+  return { q: p.q, multi: !!p.multi, options: p.options.map((t, i) => ({ t, voters: votes.filter((v) => v.opt === i).map((v) => v.username) })) };
+}
+/* one person's vote: the same option again takes it back; a single-choice poll moves it */
+export function votePoll(id, username, opt) {
+  const m = q.getMessage.get(id);
+  if (!m || m.deleted || !m.poll) return null;
+  const p = JSON.parse(m.poll);
+  if (!Number.isInteger(opt) || opt < 0 || opt >= p.options.length) return null;
+  const had = db.prepare("SELECT 1 FROM poll_votes WHERE message_id = ? AND username = ? AND opt = ?").get(id, username, opt);
+  if (!p.multi) db.prepare("DELETE FROM poll_votes WHERE message_id = ? AND username = ?").run(id, username);
+  if (had) db.prepare("DELETE FROM poll_votes WHERE message_id = ? AND username = ? AND opt = ?").run(id, username, opt);
+  else db.prepare("INSERT OR IGNORE INTO poll_votes (message_id, username, opt) VALUES (?, ?, ?)").run(id, username, opt);
+  return pollShape(m);
+}
+
+/* ---- custom emoji ---- */
+export function listEmojis() {
+  return db.prepare("SELECT name, type, by, created_at FROM emojis ORDER BY name").all().map((e) => ({ name: e.name, by: e.by, createdAt: e.created_at }));
+}
+export function getEmoji(name) {
+  return db.prepare("SELECT * FROM emojis WHERE name = ?").get(name) || null;
+}
+export function addEmoji(name, type, by) {
+  db.prepare("INSERT INTO emojis (name, type, by, created_at) VALUES (?, ?, ?, ?) ON CONFLICT(name) DO UPDATE SET type = excluded.type, by = excluded.by, created_at = excluded.created_at").run(name, type, by, Date.now());
+}
+export function removeEmoji(name) {
+  return db.prepare("DELETE FROM emojis WHERE name = ?").run(name).changes > 0;
+}
 
 /* ---- pins and search ---- */
 export function setPinned(id, on, by) {

@@ -8,11 +8,11 @@
    ═══════════════════════════════════════════════════════════ */
 const $=(s,r=document)=>r.querySelector(s),$$=(s,r=document)=>[...r.querySelectorAll(s)];
 const DEFAULTS={
-  theme:'dark',accent:'#4f8cff',accent2:'#a855f7',gradient:true,glow:false,autotheme:false,
+  theme:'oled',accent:'#4f8cff',accent2:'#a855f7',gradient:true,glow:false,autotheme:false,
   font:'system',radius:'normal',density:'normal',
-  wallpaper:'aurora',wallpaperUrl:'',blur:true,opacity:0.72,scale:'1',
+  wallpaper:'black',wallpaperUrl:'',blur:true,opacity:0.72,scale:'1',
   particles:false,pstyle:'dots',pcount:70,ripple:false,trail:false,filter:'none',dim:1,
-  tbpos:'bar',tbside:'bottom',tbhide:false,clock24:false,clocksec:false,icons:true,bgtext:true,bgtextval:'Willie Games V3',showlauncher:true,greeting:true,startapp:'none',
+  tbpos:'bar',tbside:'bottom',tbhide:false,clock24:false,clocksec:false,icons:true,bgtext:true,bgtextval:'Willie OS',showlauncher:true,greeting:true,startapp:'none',
   homepage:'https://www.google.com/',engine:'google',autoblank:false,bmbar:true,incognito:false,
   gsize:'normal',gopen:'new',recent:true,gsort:'default',
   defaultVM:'e2b',vmwarn:true,vmconfirm:false,
@@ -48,6 +48,8 @@ let S=(()=>{
 })();
 /* WillieJet with fast mode became the default: anyone still on the old defaults (Scramjet v2,
    fast mode off) moves over once. Picking something else afterwards sticks. */
+// the rebrand to Willie OS: everyone moves to the black look once; a pick made after that sticks
+try{if(!localStorage.getItem('wvm.defaults.v3')){S.theme='oled';S.autotheme=false;S.wallpaper='black';if(S.bgtextval==='Willie Games V3')S.bgtextval='Willie OS';localStorage.setItem(KEY,JSON.stringify(S));localStorage.setItem('wvm.defaults.v3','1')}}catch(_){}
 try{if(!localStorage.getItem('wvm.defaults.v2')){if(S.proxy==='sj2')S.proxy='wj';if(S.wjFast===false)S.wjFast=true;localStorage.setItem(KEY,JSON.stringify(S));localStorage.setItem('wvm.defaults.v2','1')}}catch(_){}
 let quietLeave=false; // our own reload or the panic key is leaving: don't ask "Leave site?" (see askBeforeLeaving)
 /* settings sync state; the logic lives in SETTINGS SYNC further down */
@@ -61,6 +63,7 @@ const put=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(_){}if(SYN
 let bookmarks=store('bookmarks',[]),historyData=store('history',[]),recentGames=store('recentGames',[]),favGames=store('favGames',[]);
 
 const WALLS=[
+  {id:'black',name:'Black',css:'radial-gradient(1400px 900px at 50% -10%,rgba(255,255,255,.07),transparent 60%),#000'},
   {id:'aurora',name:'Aurora',css:'radial-gradient(1200px 800px at 15% 10%,rgba(var(--accent-rgb),.35),transparent 60%),radial-gradient(1000px 700px at 90% 90%,rgba(168,85,247,.28),transparent 60%),linear-gradient(160deg,var(--bg1),var(--bg0))'},
   {id:'sunset',name:'Sunset',css:'linear-gradient(135deg,#ff6b6b 0%,#f7b267 40%,#7b2cbf 100%)'},
   {id:'ocean',name:'Ocean',css:'linear-gradient(160deg,#021b3a 0%,#0a4d8c 50%,#00b4d8 100%)'},
@@ -81,7 +84,7 @@ const WALLS=[
 ];
 const ico=d=>`https://www.google.com/s2/favicons?domain=${d}&sz=32`;
 const CLOAKS={
-  none:{t:"william's vm",i:$('#favicon').href},
+  none:{t:"Willie OS",i:$('#favicon').href},
   classroom:{t:'Classes',i:'https://ssl.gstatic.com/classroom/favicon.png'},
   docs:{t:'Untitled document - Google Docs',i:'https://ssl.gstatic.com/docs/documents/images/kix-favicon7.ico'},
   drive:{t:'My Drive - Google Drive',i:'https://ssl.gstatic.com/docs/doclist/images/drive_2022q3_32dp.png'},
@@ -2088,6 +2091,7 @@ let dcAtBottom=true,dcUnread={},dcMentioned={},dcLastSeen=store('dcLastSeen',{})
 let dcMuted=store('dcMuted',{});
 const dcIsMuted=ch=>!!dcMuted[ch];
 let dcReply=null,dcEdit=null,dcFresh=new Set(),dcBump=null,dcBanned=null;
+let dcEmojis=[]; // the owner's custom emoji: [{name}], used as :name:
 let dcFile=null; // a picture or file waiting to be sent: {file, id, pct, xhr, url, send, channel}
 const DC_EMOJI=['👍','❤️','😂','🔥','😮','😢','🎉','👀','💯','🙏','😎','🤯','👎','✅','❌','🤣','😭','🥳','🤔','💀','🫡','⚡','🍿','🐐'];
 const ROLE_COLOR={owner:'#f5b301',admin:'#ef4444',mod:'#3b82f6',member:'',guest:''};
@@ -2143,7 +2147,7 @@ function dcHandle(d){
       dcChannels=d.channels||[];dcDMs=d.dms||[];dcMembers=d.members||[];
       if(d.profile)dcProfiles=[d.profile];
       dcActive=d.channel;dcActiveIsDM=false;
-      dcMessages=d.messages||[];
+      dcMessages=d.messages||[];dcEmojis=d.emojis||[];
       dcSend({type:'directory'});
       dcRenderAll();dcScroll(true);
       window.voice?.setRooms(d.voice||{});
@@ -2177,9 +2181,15 @@ function dcHandle(d){
         box.scrollTop=box.scrollHeight-prev;
       }
       break;
-    case 'msg': dcOnMessage(d);break;
+    // a thread reply lives in its thread panel (js/chat-extras.js), not the channel
+    case 'msg': if(d.threadOf){window.chatx?.onThreadMsg(d);break}dcOnMessage(d);break;
+    case 'thread': window.chatx?.onThread(d);break;
+    case 'threadinfo': {const m=dcMessages.find(x=>x.id===d.id);if(m&&d.channel===dcActive){m.thread=d.thread;dcRenderMessages()}window.chatx?.onThreadInfo(d);break}
+    case 'poll': {const m=dcMessages.find(x=>x.id===d.id);if(m&&d.channel===dcActive){m.poll=d.poll;dcRenderMessages()}window.chatx?.onPoll(d);break}
+    case 'emojis': dcEmojis=d.emojis||[];dcRenderMessages();break;
     case 'voice': window.voice?.setRoom(d.channel,d.members);break; // who's in a channel's voice (js/voice.js)
     case 'deleted':
+      if(d.threadOf){window.chatx?.onThreadDeleted(d);break}
       if(d.channel===dcActive){
         dcMessages=dcMessages.filter(m=>m.id!==d.id);
         dcMessages.forEach(m=>{if(m.replyTo&&m.replyTo.id===d.id)m.replyTo={id:d.id,missing:true}});
@@ -2262,7 +2272,7 @@ function dcOnMessage(m){
     if(!looking)chatPing(mention);
     const open=$('#chat-window').classList.contains('show');
     if(!open)bumpBadge(mention||m.channel.startsWith('dm:'));
-    const say=m.text||(m.file?(m.file.image?'📷 sent a picture':'📎 sent a file'):'');
+    const say=m.poll?`📊 ${m.text}`:m.text||(m.file?(m.file.image?'📷 sent a picture':m.file.audio?'🎙️ sent a voice message':'📎 sent a file'):'');
     if(mention&&(!open||m.channel!==dcActive))toast(`${nameOf(m.username)} mentioned you: ${say.slice(0,80)}`,'ok');
     const dm=m.channel.startsWith('dm:');
     if(dm||mention)notify(dm?nameOf(m.username):`${nameOf(m.username)} mentioned you`,say,{tag:m.channel,onclick:()=>{openChat();if(m.channel!==dcActive)dcOpen(m.channel)}});
@@ -2366,11 +2376,17 @@ function dcDayLabel(ts){
   return d.toLocaleDateString(undefined,{month:'long',day:'numeric',year:'numeric'});
 }
 /* links open in the proxied browser; @names become clickable mentions */
+const dcEmojiImg=name=>{const i=document.createElement('img');i.className='dc-cemoji';i.src='/api/emoji/'+encodeURIComponent(name);i.alt=':'+name+':';i.title=':'+name+':';i.draggable=false;return i};
+const dcHasEmoji=name=>dcEmojis.some(e=>e.name===name);
 function dcRichText(el,text){
-  const re=/(https?:\/\/[^\s]+)|(^|[^a-z0-9_-])@([a-z0-9_-]{3,24})(?![a-z0-9_-])/gi;
+  const re=/(https?:\/\/[^\s]+)|(^|[^a-z0-9_-])@([a-z0-9_-]{3,24})(?![a-z0-9_-])|:([a-z0-9_]{2,32}):/gi;
   let last=0,m;
   while((m=re.exec(text))){
-    if(m[1]){
+    if(m[4]){
+      if(!dcHasEmoji(m[4].toLowerCase()))continue;
+      if(m.index>last)el.appendChild(document.createTextNode(text.slice(last,m.index)));
+      el.appendChild(dcEmojiImg(m[4].toLowerCase()));last=m.index+m[0].length;
+    }else if(m[1]){
       // each handler keeps its own URL; sharing the loop variable made every link point at null
       const url=m[1];
       if(m.index>last)el.appendChild(document.createTextNode(text.slice(last,m.index)));
@@ -2396,6 +2412,7 @@ const ICON={
   reply:'<svg class="i i-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 17 4 12l5-5"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>',
   edit:'<svg class="i i-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>',
   del:'<svg class="i i-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>',
+  thread:'<svg class="i i-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 9h8M8 13h5"/></svg>',
   pin:'<svg class="i i-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 17v5"/><path d="M9 10.8V5h6v5.8l2.6 2.6c.6.6.2 1.6-.7 1.6H7.1c-.9 0-1.3-1-.7-1.6z"/><path d="M8 2h8"/></svg>'
 };
 function dcTool(title,icon,fn,cls=''){
@@ -2540,7 +2557,8 @@ function dcRenderMessages(){
     }
     if(m.text||!m.file){
       const txt=document.createElement('div');txt.className='dc-text';
-      dcRichText(txt,m.text);
+      if(!m.poll)dcRichText(txt,m.text);
+      if(/^(\s*:[a-z0-9_]{2,32}:\s*){1,6}$/i.test(m.text||'')&&txt.querySelector('.dc-cemoji')&&!txt.textContent.trim())txt.classList.add('jumbo');
       if(m.editedAt){
         const ed=document.createElement('span');ed.className='dc-edited';ed.textContent='(edited)';
         ed.title='Edited '+new Date(m.editedAt).toLocaleString();
@@ -2549,6 +2567,8 @@ function dcRenderMessages(){
       body.appendChild(txt);
     }
     if(m.file)body.appendChild(dcFileEl(m.file));
+    if(m.poll&&window.chatx)body.appendChild(window.chatx.pollEl(m));
+    if(m.thread&&window.chatx)body.appendChild(window.chatx.threadChip(m));
 
     if(m.reactions&&m.reactions.length){
       const rx=document.createElement('div');rx.className='dc-reacts';
@@ -2556,7 +2576,8 @@ function dcRenderMessages(){
         const chip=document.createElement('button');
         chip.className='dc-react'+(r.users.includes(chatMe)?' mine':'')+(dcBump&&dcBump.id===m.id&&dcBump.emoji===r.emoji?' bump':'');
         chip.title=r.users.map(nameOf).join(', ');
-        const em=document.createElement('span');em.className='em';em.textContent=r.emoji;
+        const em=document.createElement('span');em.className='em';
+        if(/^:[a-z0-9_]+:$/.test(r.emoji))em.appendChild(dcEmojiImg(r.emoji.slice(1,-1)));else em.textContent=r.emoji;
         const n=document.createElement('span');n.className='n';n.textContent=r.users.length;
         chip.append(em,n);
         chip.onclick=e=>{e.stopPropagation();dcReact(m.id,r.emoji,chip)};
@@ -2575,6 +2596,7 @@ function dcRenderMessages(){
     if(canPost){
       tools.appendChild(dcTool('Add reaction',ICON.react,el=>dcEmojiPicker(m.id,el)));
       tools.appendChild(dcTool('Reply',ICON.reply,()=>dcSetMode('reply',m)));
+      if(window.chatx)tools.appendChild(dcTool('Reply in thread',ICON.thread,()=>window.chatx.openThread(m)));
     }
     if(mine&&canPost)tools.appendChild(dcTool('Edit',ICON.edit,()=>dcSetMode('edit',m)));
     if(dcMayPin())tools.appendChild(dcTool(m.pinned?'Unpin':'Pin message',ICON.pin,()=>dcSend({type:'pin',id:m.id,on:!m.pinned}),m.pinned?'on':''));
@@ -2612,6 +2634,10 @@ function dcEmojiPicker(id,anchor){
   pop.replaceChildren(...DC_EMOJI.map(e=>{
     const b=document.createElement('button');b.textContent=e;b.title=e;
     b.onclick=ev=>{ev.stopPropagation();pop.classList.remove('show');dcReact(id,e,anchor)};
+    return b;
+  }),...dcEmojis.map(e=>{
+    const b=document.createElement('button');b.title=':'+e.name+':';b.className='custom';b.appendChild(dcEmojiImg(e.name));
+    b.onclick=ev=>{ev.stopPropagation();pop.classList.remove('show');dcReact(id,':'+e.name+':',anchor)};
     return b;
   }));
   pop.classList.add('show');
@@ -2975,6 +3001,12 @@ function dcFileEl(f){
     b.appendChild(img);b.onclick=()=>dcViewImage(f,url);
     return b;
   }
+  if(f.audio){
+    // a voice message (or any sound file): plays right here
+    const w=document.createElement('div');w.className='dc-voice-msg';
+    const au=document.createElement('audio');au.controls=true;au.preload='metadata';au.src=url;
+    w.innerHTML='<span class="ic">🎙️</span>';w.appendChild(au);return w;
+  }
   const a=document.createElement('a');a.className='dc-att';a.href=url+'?download=1';a.download=f.name;
   a.innerHTML='<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M12 18v-6M9 15l3 3 3-3"/></svg><span class="nm"></span><small></small>';
   a.querySelector('.nm').textContent=f.name;a.querySelector('small').textContent=dcFmtSize(f.size||0);
@@ -3152,7 +3184,7 @@ $('#ad-backup-up').onclick=()=>{click();$('#ad-backup-file').click()};
 $('#ad-backup-file').onchange=async e=>{
   const f=e.target.files[0];e.target.value='';if(!f)return;
   let data;try{data=JSON.parse(await f.text())}catch(_){return toast("That file isn't a backup.",'err')}
-  if(data?.app!=='willies-vm')return toast("That file isn't a william's vm backup.",'err');
+  if(data?.app!=='willies-vm')return toast("That file isn't a Willie OS backup.",'err');
   const t=data.tables||{},when=data.at?new Date(data.at).toLocaleString():'an unknown date';
   dcModal({title:'Restore this backup?',sub:`From ${when}: ${(t.users||[]).length} accounts, ${(t.channels||[]).length} channels, ${(t.messages||[]).length} messages. Everything in the database now is replaced, and everyone reconnects.`,okLabel:'Restore',danger:true,onOk:async()=>{
     const r=await fetch('/api/admin/backup',{method:'POST',headers:{'content-type':'text/plain'},body:JSON.stringify(data)});

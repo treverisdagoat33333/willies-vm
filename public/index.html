@@ -14,13 +14,13 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
 <meta name="color-scheme" content="dark">
 <meta name="theme-color" content="#0b0d12">
-<title>william's vm</title>
+<title>Willie OS</title>
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="willie's vm">
+<meta name="apple-mobile-web-app-title" content="Willie OS">
 <link id="favicon" rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23f2f2f2' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='2' y='4' width='20' height='13' rx='2'/%3E%3Cline x1='8' y1='21' x2='16' y2='21'/%3E%3Cline x1='12' y1='17' x2='12' y2='21'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="/css/app.css">
 <link rel="stylesheet" href="/css/features.css">
@@ -84,7 +84,7 @@
 
   <div class="win glass" id="main-window">
     <div class="tbar" id="win-drag-handle">
-      <div class="ttl"><span class="dot"></span> william's vm</div>
+      <div class="ttl"><span class="dot"></span> Willie OS</div>
       <div class="wc">
         <button id="btn-minimize" title="Minimize"><svg width="10" height="2" viewBox="0 0 10 2"><rect width="10" height="1.5" fill="currentColor"/></svg></button>
         <button id="btn-maximize" title="Maximize"><svg width="10" height="10" viewBox="0 0 10 10"><rect x=".75" y=".75" width="8.5" height="8.5" fill="none" stroke="currentColor" stroke-width="1.5" rx="1"/></svg></button>
@@ -94,7 +94,7 @@
     <div class="body">
       <div class="hero">
         <div class="logo"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg></div>
-        <div><h1>william's virtual machine</h1><p id="hero-sub">Pick something to launch.</p></div>
+        <div><h1>Willie OS</h1><p id="hero-sub">Pick something to launch.</p></div>
       </div>
       <div class="tiles">
         <button class="tile vm-btn" data-app="vm1"><div class="ic c7"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v10H4z"/><path d="M2 19h20"/></svg></div><div><b>VM #1</b><small>Desktop sandbox</small></div></button>
@@ -273,7 +273,7 @@
         <div class="card">
           <h3>Notifications &amp; app</h3>
           <div class="row"><div class="lab"><b>Desktop notifications</b><small>A pop-up for DMs, @mentions and calls while you're in another tab or app. When the tab is cloaked they just say “New message”.</small></div><div class="ctl"><button class="switch" role="switch" data-setting="notify"></button></div></div>
-          <div class="row"><div class="lab"><b>Install as an app</b><small id="install-sub">Adds william's vm to your Chromebook shelf, dock or home screen. It opens in its own window with no browser bar.</small></div><div class="ctl"><button class="btn sm primary" id="install-btn">Install</button></div></div>
+          <div class="row"><div class="lab"><b>Install as an app</b><small id="install-sub">Adds Willie OS to your Chromebook shelf, dock or home screen. It opens in its own window with no browser bar.</small></div><div class="ctl"><button class="btn sm primary" id="install-btn">Install</button></div></div>
         </div>
       </section>
 
@@ -560,6 +560,11 @@ https://discord.com/</textarea><div class="ctl"><button class="btn sm" id="st-ru
       </div>
       <div class="dc-find-list" id="dc-find-list"></div>
     </aside>
+    <aside class="dc-thread" id="dc-thread" hidden aria-label="Thread">
+      <div class="dc-find-head"><b>Thread</b><span class="dc-thread-ch" id="dc-thread-ch"></span><button class="dc-find-x" id="dc-thread-close" title="Close" type="button">✕</button></div>
+      <div class="dc-thread-list" id="dc-thread-list"></div>
+      <form class="dc-thread-form" id="dc-thread-form"><textarea id="dc-thread-input" rows="1" maxlength="2000" placeholder="Reply in thread"></textarea><button class="btn sm primary" type="submit">Send</button></form>
+    </aside>
     <div class="dc-typing" id="dc-typing"><span class="cdots"><i></i><i></i><i></i></span><span id="dc-typing-text"></span></div>
 
     <div class="dc-compose">
@@ -571,7 +576,9 @@ https://discord.com/</textarea><div class="ctl"><button class="btn sm" id="st-ru
       <div class="dc-att-stage" id="dc-att-stage" hidden></div>
       <div class="box">
         <button class="attach" id="dc-attach" title="Attach a picture or file" aria-label="Attach a picture or file" hidden><svg class="i i-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M21.4 11.1l-9.2 9.2a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.8-2.8l8.5-8.5"/></svg></button><input type="file" id="dc-file" hidden>
+        <button class="attach" id="dc-poll-btn" title="Make a poll" aria-label="Make a poll" hidden><svg class="i i-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg></button>
         <textarea id="dc-input" rows="1" placeholder="Message #general" maxlength="2000"></textarea>
+        <button class="attach" id="dc-rec" title="Hold to record a voice message (or click to start and stop)" aria-label="Record a voice message" hidden><svg class="i i-sm" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v4"/></svg></button>
         <button class="send" id="dc-send" title="Send"><svg class="i i-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg></button>
       </div>
       <div class="dc-hint" id="dc-hint">Enter to send · Shift+Enter for a new line</div>
@@ -997,6 +1004,7 @@ https://discord.com/</textarea><div class="ctl"><button class="btn sm" id="st-ru
 <script src="/js/stats.js"></script>
 <script src="/js/local-ai.js"></script>
 <script src="/js/ai.js"></script>
+<script src="/js/chat-extras.js"></script>
 <script src="/js/calls.js"></script>
 <script src="/js/voice.js"></script>
 <script src="/js/remote-extra.js"></script>

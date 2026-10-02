@@ -403,7 +403,7 @@ function setStatus(text){statusText=text||'';$('#mu-artist').textContent=statusT
 /* the OS media controls (keyboard media keys, lock screen, Chromebook shelf) */
 function mediaMeta(t){
   if(!('mediaSession' in navigator))return;
-  try{navigator.mediaSession.metadata=new MediaMetadata({title:t.title,artist:t.artist||t.uploader||'',album:"william's vm",
+  try{navigator.mediaSession.metadata=new MediaMetadata({title:t.title,artist:t.artist||t.uploader||'',album:"Willie OS",
     artwork:t.artwork?[{src:location.origin+art(t.artwork),sizes:'300x300',type:'image/jpeg'}]:[]})}catch(_){}
 }
 if('mediaSession' in navigator){

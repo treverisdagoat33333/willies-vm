@@ -300,3 +300,52 @@ html[data-motion="off"] .dc-find,html[data-perf="on"] .dc-find{animation:none}
 /* minimized apps (MINIMIZE in app.js): hidden as they are, a dot under their taskbar button */
 #browser-wrap.minimized,#vm-wrap.minimized,#cloud-wrap.minimized,#remote-wrap.minimized,#movies-wrap.minimized,#music-window.minimized,#ai-window.minimized,#chat-window.minimized{display:none!important}
 .tbb.minimized::before{content:"";position:absolute;bottom:1px;left:50%;width:5px;height:5px;margin-left:-2.5px;border-radius:50%;background:var(--text-2)}
+
+/* ── chat extras (js/chat-extras.js): threads, polls, voice messages, custom emoji ── */
+.dc-thread{position:absolute;top:52px;right:0;bottom:0;width:min(380px,100%);z-index:6;display:flex;flex-direction:column;background:linear-gradient(var(--glass-2),var(--glass-2)),var(--bg0);border-left:1px solid var(--border);box-shadow:-12px 0 32px rgba(0,0,0,.25);animation:cmin .18s var(--ease)}
+.dc-thread[hidden]{display:none}
+html[data-motion="off"] .dc-thread,html[data-perf="on"] .dc-thread{animation:none}
+.dc-thread .dc-find-head{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid var(--border)}
+.dc-thread-ch{flex:1;color:var(--text-3);font-size:.82em}
+.dc-thread-list{flex:1;min-height:0;overflow:auto;padding:10px 12px;display:flex;flex-direction:column;gap:10px;scrollbar-width:thin}
+.dc-tm{display:flex;gap:10px;align-items:flex-start}
+.dc-tm .av{width:30px;height:30px;flex:0 0 auto;font-size:.8em}
+.dc-tm-body{flex:1;min-width:0}
+.dc-tm-head{display:flex;align-items:baseline;gap:8px;font-size:.88em}
+.dc-tm-head small{color:var(--text-3);font-size:.78em}
+.dc-tm-del{margin-left:auto;color:var(--text-3);opacity:0;font-size:.8em;padding:2px 6px;border-radius:6px}
+.dc-tm:hover .dc-tm-del{opacity:1}
+.dc-tm-del:hover{color:var(--bad);background:var(--glass-3)}
+.dc-tm-sep{display:flex;align-items:center;gap:8px;color:var(--text-3);font-size:.78em}
+.dc-tm-sep::after{content:'';flex:1;height:1px;background:var(--border)}
+.dc-thread-form{display:flex;gap:8px;align-items:flex-end;padding:10px 12px;border-top:1px solid var(--border)}
+.dc-thread-form textarea{flex:1;resize:none;min-height:36px;max-height:140px;padding:8px 10px;border-radius:10px;border:1px solid var(--border);background:var(--glass-2);color:var(--text);font:inherit;font-size:.9em}
+.dc-thread-chip{display:inline-flex;align-items:center;gap:6px;margin-top:6px;padding:4px 10px;border-radius:8px;color:var(--accent);font-size:.82em;background:rgba(var(--accent-rgb),.1)}
+.dc-thread-chip:hover{background:rgba(var(--accent-rgb),.18)}
+.dc-thread-chip small{color:var(--text-3);font-weight:400}
+.dc-poll{margin-top:6px;max-width:420px;padding:12px;border-radius:12px;border:1px solid var(--border-2);background:var(--glass-2);display:flex;flex-direction:column;gap:6px}
+.dc-poll-q{font-weight:700;margin-bottom:2px}
+.dc-poll-opt{position:relative;display:flex;justify-content:space-between;gap:10px;padding:8px 12px;border-radius:9px;border:1px solid var(--border);overflow:hidden;text-align:left;color:var(--text);font-size:.9em;isolation:isolate}
+.dc-poll-opt::before{content:'';position:absolute;inset:0 auto 0 0;width:var(--pct,0%);background:rgba(var(--accent-rgb),.16);z-index:-1;transition:width .35s var(--ease)}
+.dc-poll-opt.mine{border-color:rgba(var(--accent-rgb),.7)}
+.dc-poll-opt.top::before{background:rgba(var(--accent-rgb),.28)}
+.dc-poll-opt:hover{border-color:var(--border-2)}
+.dc-poll-opt .n{color:var(--text-2);font-variant-numeric:tabular-nums;white-space:nowrap}
+.dc-poll-foot{color:var(--text-3);font-size:.78em}
+.dc-voice-msg{display:flex;align-items:center;gap:8px;margin-top:6px;padding:6px 10px;border-radius:999px;background:var(--glass-2);border:1px solid var(--border);width:max-content;max-width:100%}
+.dc-voice-msg audio{height:34px;max-width:260px}
+.dc-cemoji{width:22px;height:22px;object-fit:contain;vertical-align:-5px;margin:0 1px}
+.dc-text.jumbo .dc-cemoji{width:44px;height:44px}
+.dc-react .em .dc-cemoji{width:16px;height:16px;vertical-align:-3px}
+.dc-emoji button.custom .dc-cemoji{width:22px;height:22px}
+#dc-rec.on{color:#fff;background:var(--bad);border-radius:50%;position:relative}
+#dc-rec.on::after{content:attr(data-t);position:absolute;bottom:calc(100% + 6px);left:50%;translate:-50% 0;padding:2px 8px;border-radius:6px;background:var(--bad);color:#fff;font-size:.75em;font-weight:700;white-space:nowrap}
+.cx-check{display:flex;align-items:center;gap:8px;font-size:.88em;color:var(--text-2);margin-top:4px}
+.cx-em-card{width:min(460px,92vw)}
+.cx-em-add{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:10px 0}
+.cx-em-add .field{width:140px}
+.cx-em-add input[type=file]{flex:1;min-width:0;font-size:.82em}
+.cx-em-list{display:flex;flex-direction:column;gap:6px;max-height:300px;overflow:auto}
+.cx-em{display:flex;align-items:center;gap:10px;padding:6px 8px;border-radius:9px;background:var(--glass-2)}
+.cx-em .dc-cemoji{width:28px;height:28px}
+.cx-em code{flex:1}

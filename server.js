@@ -72,6 +72,7 @@ import { aiRouter } from "./ai.js";
 import { moviesRouter } from "./movies.js";
 import { analyticsRouter, record } from "./analytics.js";
 import { filesRouter } from "./files.js";
+import { emojiRouter } from "./emoji.js";
 import { hasBadWords } from "./profanity.js";
 import { fastnetHandler } from "./fastnet.js";
 
@@ -898,6 +899,8 @@ app.use(
     mayRead: chatMayRead,
   })
 );
+
+app.use("/api/emoji", emojiRouter({ requireSession, requireAccount }));
 
 /*
 |--------------------------------------------------------------------------

@@ -69,7 +69,7 @@ const ask = async (text) => {
 };
 ok(/You said: hello there/.test(await ask("hello there")), "a reply streams in from the model on this device");
 const first = await p.evaluate(() => window.__nano.prompts[0]);
-ok(/assistant inside William's VM/.test(first.system) && /\[\[action/.test(first.system) && /on the user's screen/.test(first.system), "…given the same instructions, actions and screen note as the online AI", first.system.slice(0, 120));
+ok(/assistant inside Willie OS/.test(first.system) && /\[\[action/.test(first.system) && /on the user's screen/.test(first.system), "…given the same instructions, actions and screen note as the online AI", first.system.slice(0, 120));
 await ask("and again");
 ok((await p.evaluate(() => window.__nano.prompts.at(-1).history)) === 2, "…and the conversation so far", JSON.stringify(await p.evaluate(() => window.__nano.prompts.at(-1))));
 // actions work the same way
@@ -86,7 +86,7 @@ ok(!/ten/.test(stopped) && /one/.test(stopped), "Stop ends a reply part-way (cli
 
 /* the server hands out the instructions, nothing secret */
 const sys = await (await fetch(BASE + "/api/ai/system")).json();
-ok(/William's VM/.test(sys.system) && /\[\[action/.test(sys.actions) && !/key/i.test(JSON.stringify(sys).replace(/keys?\b/gi, "")), "/api/ai/system gives the instructions to models on the device");
+ok(/Willie OS/.test(sys.system) && /\[\[action/.test(sys.actions) && !/key/i.test(JSON.stringify(sys).replace(/keys?\b/gi, "")), "/api/ai/system gives the instructions to models on the device");
 
 /* the engines load their libraries from pinned versions on jsDelivr */
 const src = await (await fetch(BASE + "/js/local-ai.js")).text();

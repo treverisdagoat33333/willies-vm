@@ -23,7 +23,7 @@ const desk = () => page.evaluate(() => JSON.parse(localStorage.getItem("desk") |
 // presets and live wallpapers
 await page.evaluate(() => openSettings());
 await page.waitForSelector("#presets .preset");
-ok(await page.$$eval("#presets .preset", (x) => x.length) >= 8 && await page.$eval('#presets [data-preset="default"]', (b) => b.classList.contains("on")), "Settings shows the theme presets, with the current one marked");
+ok(await page.$$eval("#presets .preset", (x) => x.length) >= 8 && await page.$eval('#presets [data-preset="black"]', (b) => b.classList.contains("on")), "Settings shows the theme presets, with the current one marked");
 await page.click('#presets [data-preset="synth"]');
 let st = await page.evaluate(() => ({ wall: S.wallpaper, accent: S.accent, live: document.getElementById("bg-live").dataset.live, anim: getComputedStyle(document.getElementById("bg-live"), "::before").animationName, on: document.querySelector('#presets [data-preset="synth"]').classList.contains("on") }));
 ok(st.wall === "live-synth" && st.accent === "#ff2e97" && st.on, "a preset sets the colours and wallpaper in one click", JSON.stringify(st));

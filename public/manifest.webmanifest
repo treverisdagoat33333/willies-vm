@@ -1,7 +1,7 @@
 {
   "id": "/",
-  "name": "william's vm",
-  "short_name": "willie's vm",
+  "name": "Willie OS",
+  "short_name": "Willie OS",
   "description": "Virtual machines, a proxy browser, games, music and chat in one desktop.",
   "start_url": "/",
   "scope": "/",

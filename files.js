@@ -49,6 +49,16 @@ function sniffImage(b) {
   return null;
 }
 
+/* Voice messages (and other sound files) by their first bytes: these play inline in chat. */
+function sniffAudio(b) {
+  if (b.length >= 4 && b.readUInt32BE(0) === 0x1a45dfa3) return "audio/webm"; // what Chrome and Firefox record
+  if (b.length >= 4 && b.toString("latin1", 0, 4) === "OggS") return "audio/ogg";
+  if (b.length >= 12 && b.toString("latin1", 4, 8) === "ftyp") return "audio/mp4"; // Safari records this
+  if (b.length >= 3 && (b.toString("latin1", 0, 3) === "ID3" || (b[0] === 0xff && (b[1] & 0xe0) === 0xe0))) return "audio/mpeg";
+  if (b.length >= 12 && b.toString("latin1", 0, 4) === "RIFF" && b.toString("latin1", 8, 12) === "WAVE") return "audio/wav";
+  return null;
+}
+
 /* Width and height, so the chat can leave the right space before the picture loads. */
 function imageSize(b, type) {
   try {
@@ -124,13 +134,14 @@ export function filesRouter({ requireSession, requireAccount, limiter, mayPost, 
       h.bytes += body.length;
 
       const image = sniffImage(body);
+      const audio = image ? null : sniffAudio(body);
       const [w, hgt] = image ? imageSize(body, image) : [null, null];
       const id = crypto.randomBytes(12).toString("hex");
       fs.writeFile(fileOf(id), body, (err) => {
         if (err) return res.status(500).json({ error: "Couldn't save the file." });
-        addFile({ id, username, channel, name, type: image || "application/octet-stream", size: body.length, width: w, height: hgt });
+        addFile({ id, username, channel, name, type: image || audio || "application/octet-stream", size: body.length, width: w, height: hgt });
         if (fileBytes() > MAX_TOTAL) sweepFiles();
-        res.json({ id, name, size: body.length, image: !!image, w, h: hgt });
+        res.json({ id, name, size: body.length, image: !!image, audio: !!audio, w, h: hgt });
       });
     }
   );
@@ -143,9 +154,10 @@ export function filesRouter({ requireSession, requireAccount, limiter, mayPost, 
     if (!f || !mayRead(req.vmSession, f.channel) || (f.message_id == null ? !mine : !messageAlive(f.message_id))) {
       return res.status(404).json({ error: "That file isn't available." });
     }
-    const inline = f.type.startsWith("image/") && req.query.download == null;
+    const media = f.type.startsWith("image/") || f.type.startsWith("audio/");
+    const inline = media && req.query.download == null;
     res.set({
-      "Content-Type": f.type.startsWith("image/") ? f.type : "application/octet-stream",
+      "Content-Type": media ? f.type : "application/octet-stream",
       "Content-Disposition": `${inline ? "inline" : "attachment"}; filename*=UTF-8''${encodeURIComponent(f.name)}`,
       "X-Content-Type-Options": "nosniff",
       "Content-Security-Policy": "default-src 'none'; sandbox",

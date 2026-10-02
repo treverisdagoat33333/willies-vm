@@ -40,6 +40,12 @@ import {
   liftSanction,
   activeSanction,
   getFile,
+  threadMessages,
+  threadSummary,
+  votePoll,
+  getEmoji,
+  setBanner,
+  listEmojis,
 } from "./db.js";
 import { censor } from "./profanity.js";
 
@@ -58,6 +64,8 @@ const RATE_MAX = 10;
 
 /* one emoji (with skin tones, ZWJ sequences, flags), nothing else */
 const EMOJI_RE = /^(?:\p{Extended_Pictographic}|\p{Emoji_Presentation}|\p{Regional_Indicator}|\p{Emoji_Modifier}|\u200d|\ufe0f|\u20e3|[0-9#*])+$/u;
+// :name: is one of the owner's custom emoji (emoji.js)
+const isCustomEmoji = (s) => /^:[a-z0-9_]{2,32}:$/.test(s) && !!getEmoji(s.slice(1, -1));
 const isEmoji = (s) => s.length > 0 && s.length <= 16 && EMOJI_RE.test(s) && /\p{Extended_Pictographic}|\p{Regional_Indicator}/u.test(s);
 
 const wss = new WebSocketServer({ noServer: true, maxPayload: 64 * 1024 });
@@ -255,6 +263,7 @@ wss.on("connection", (ws, _req, session, ip) => {
     channel: channels[0]?.slug || "general",
     typing: [],
     voice: voiceSnapshot(),
+    emojis: listEmojis(),
   });
 
   broadcast({ type: "join", name, at: Date.now() });
@@ -344,9 +353,24 @@ wss.on("connection", (ws, _req, session, ip) => {
           if (!f || f.username !== st.name || f.channel !== ch || f.message_id != null) return fail(ws, "That file isn't available any more. Attach it again.");
           fileId = f.id;
         }
-        const text = d.text ? tidy(ws, st, clean(d.text)) : "";
+        // a poll: a question and 2 to 10 answers, people vote with "vote"
+        let poll = null;
+        if (d.poll && typeof d.poll === "object") {
+          const qn = tidy(ws, st, clean(d.poll.q || "")).slice(0, 200);
+          const options = (Array.isArray(d.poll.options) ? d.poll.options : []).map((o) => tidy(ws, st, clean(o || "")).slice(0, 80)).filter(Boolean).slice(0, 10);
+          if (!qn || options.length < 2) return fail(ws, "A poll needs a question and at least two answers.");
+          poll = { q: qn, options, multi: !!d.poll.multi };
+        }
+        const text = poll ? poll.q : d.text ? tidy(ws, st, clean(d.text)) : "";
         if (!text && !fileId) return;
         if (!mayPost(st, ch)) return fail(ws, "You can't post in that channel.");
+        // a thread reply: kept under its parent (a top-level message in the same channel)
+        let threadOf = null;
+        if (d.thread) {
+          const parent = getMessage(Number(d.thread));
+          if (!parent || parent.channel !== ch || parent.threadOf) return fail(ws, "That thread isn't there any more.");
+          threadOf = parent.id;
+        }
 
         const mute = muteOf(st);
         if (mute) return fail(ws, `You're timed out ${untilText(mute.until)}.`);
@@ -363,9 +387,27 @@ wss.on("connection", (ws, _req, session, ip) => {
           broadcast({ type: "typing", name: st.name, channel: st.typing, on: false });
           st.typing = null;
         }
-        const saved = saveMessage({ username: st.name, account: st.account, text, channel: ch, replyTo, fileId });
+        const saved = saveMessage({ username: st.name, account: st.account, text, channel: ch, replyTo, fileId, threadOf, poll });
         record("chat", ch.startsWith("dm:") ? "dm" : ch);
         broadcast({ type: "msg", ...saved }, ch);
+        if (threadOf) broadcast({ type: "threadinfo", id: threadOf, channel: ch, thread: threadSummary(threadOf) }, ch);
+        return;
+      }
+
+      case "thread": {
+        const parent = getMessage(Number(d.id));
+        if (!parent || !mayRead(st, parent.channel)) return fail(ws, "That thread isn't there any more.");
+        send(ws, { type: "thread", id: parent.id, channel: parent.channel, parent, messages: threadMessages(parent.id) });
+        return;
+      }
+
+      case "vote": {
+        const m = getMessage(Number(d.id));
+        if (!m || !m.poll || !mayRead(st, m.channel)) return;
+        if (!mayPost(st, m.channel)) return fail(ws, "You can't vote here.");
+        if (rateLimited(st)) return fail(ws, "Slow down a little.");
+        const poll = votePoll(m.id, st.name, Number(d.opt));
+        if (poll) broadcast({ type: "poll", id: m.id, channel: m.channel, poll }, m.channel);
         return;
       }
 
@@ -386,7 +428,7 @@ wss.on("connection", (ws, _req, session, ip) => {
       case "react": {
         const m = getMessage(Number(d.id));
         const emoji = String(d.emoji || "");
-        if (!m || !isEmoji(emoji)) return;
+        if (!m || !(isEmoji(emoji) || isCustomEmoji(emoji))) return;
         if (!mayRead(st, m.channel)) return;
         if (muteOf(st)) return fail(ws, "You can't react while timed out.");
         if (rateLimited(st)) return fail(ws, "Slow down a little.");
@@ -414,7 +456,8 @@ wss.on("connection", (ws, _req, session, ip) => {
         const own = m.username === st.name;
         if (!own && !can(st, "moderate")) return fail(ws, "You can't delete that message.");
         deleteMessage(m.id);
-        broadcast({ type: "deleted", id: m.id, channel: m.channel }, m.channel);
+        broadcast({ type: "deleted", id: m.id, channel: m.channel, threadOf: m.threadOf || undefined }, m.channel);
+        if (m.threadOf) broadcast({ type: "threadinfo", id: m.threadOf, channel: m.channel, thread: threadSummary(m.threadOf) }, m.channel);
         return;
       }
 
@@ -513,6 +556,12 @@ wss.on("connection", (ws, _req, session, ip) => {
           color: d.color ? String(d.color).slice(0, 9) : undefined,
           bio: d.bio != null ? tidy(ws, st, String(d.bio).slice(0, 160)) : undefined,
         });
+        // a banner is one of the page's presets or a colour, never a link
+        if (d.banner != null) {
+          const b = String(d.banner);
+          if (b === "" || /^(g[1-9]|#[0-9a-f]{6})$/i.test(b)) setBanner(st.name, b || null);
+        }
+        Object.assign(p, { banner: profileOf(st.name)?.banner || null });
         send(ws, { type: "profile", profile: p });
         broadcast({ type: "members", members: roster(), profiles: allProfiles() });
         return;
@@ -699,6 +748,11 @@ export function resetChat() {
   for (const ws of clients.keys()) {
     try { ws.close(4005, "restored"); } catch (_) {}
   }
+}
+
+/* Something everyone connected should hear about (new custom emoji). */
+export function tellEveryone(obj) {
+  broadcast(obj);
 }
 
 /* Roles or profiles changed outside the socket (admin dashboard). */

@@ -24,6 +24,7 @@ const motionOff=()=>document.documentElement.dataset.motion==='off'||document.do
 
 /* ═══ theme presets ═══ */
 const PRESETS=[
+  {id:'black',name:'Black',theme:'oled',accent:'#4f8cff',accent2:'#a855f7',gradient:true,glow:false,wallpaper:'black'},
   {id:'default',name:'Classic',theme:'dark',accent:'#4f8cff',accent2:'#a855f7',gradient:true,glow:false,wallpaper:'aurora'},
   {id:'midnight',name:'Midnight',theme:'oled',accent:'#8b5cf6',accent2:'#06b6d4',gradient:true,glow:true,wallpaper:'live-stars'},
   {id:'synth',name:'Synthwave',theme:'dark',accent:'#ff2e97',accent2:'#7b2cbf',gradient:true,glow:true,wallpaper:'live-synth'},

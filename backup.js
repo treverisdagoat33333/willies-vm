@@ -35,7 +35,7 @@ export function exportBackup() {
 /* Replaces those tables with the backup's rows, all or nothing. Only columns
    the current database has are written, so an older backup still loads. */
 export function restoreBackup(data) {
-  if (!data || data.app !== "willies-vm" || typeof data.tables !== "object") throw new Error("That isn't a william's vm backup.");
+  if (!data || data.app !== "willies-vm" || typeof data.tables !== "object") throw new Error("That isn't a Willie OS backup.");
   if (data.version > VERSION) throw new Error("That backup is from a newer version of the site.");
   const counts = {};
   db.exec("BEGIN");
