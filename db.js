@@ -161,6 +161,42 @@ export function putAiChats(username, json) {
   db.prepare("INSERT INTO ai_chats (username, data, updated_at) VALUES (?, ?, ?) ON CONFLICT(username) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at").run(username, json, now);
   return now;
 }
+/* Files: each account's own cloud storage (drive.js); bytes in DATA_DIR/drive/<id> */
+db.exec(`
+  CREATE TABLE IF NOT EXISTS drive (
+    id         TEXT PRIMARY KEY,
+    username   TEXT NOT NULL,
+    name       TEXT NOT NULL,
+    folder     TEXT NOT NULL DEFAULT '/',
+    type       TEXT NOT NULL,
+    size       INTEGER NOT NULL,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS drive_user ON drive(username, folder);
+  CREATE TABLE IF NOT EXISTS drive_folders (
+    username TEXT NOT NULL,
+    path     TEXT NOT NULL,
+    PRIMARY KEY (username, path)
+  );
+`);
+export const DRIVE_DIR = path.join(DATA_DIR, "drive");
+fs.mkdirSync(DRIVE_DIR, { recursive: true });
+export const driveDb = {
+  list: (u) => db.prepare("SELECT id, name, folder, type, size, created_at, updated_at FROM drive WHERE username = ? ORDER BY folder, name").all(u),
+  folders: (u) => db.prepare("SELECT path FROM drive_folders WHERE username = ? ORDER BY path").all(u).map((r) => r.path),
+  used: (u) => db.prepare("SELECT COALESCE(SUM(size), 0) AS n FROM drive WHERE username = ?").get(u).n,
+  get: (u, id) => db.prepare("SELECT * FROM drive WHERE username = ? AND id = ?").get(u, id) || null,
+  add: (f) => db.prepare("INSERT INTO drive (id, username, name, folder, type, size, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)").run(f.id, f.username, f.name, f.folder, f.type, f.size, Date.now(), Date.now()),
+  update: (u, id, name, folder) => db.prepare("UPDATE drive SET name = ?, folder = ?, updated_at = ? WHERE username = ? AND id = ?").run(name, folder, Date.now(), u, id),
+  remove: (u, id) => db.prepare("DELETE FROM drive WHERE username = ? AND id = ?").run(u, id),
+  addFolder: (u, p) => db.prepare("INSERT OR IGNORE INTO drive_folders (username, path) VALUES (?, ?)").run(u, p),
+  // a folder and everything under it
+  inFolder: (u, p) => db.prepare("SELECT id FROM drive WHERE username = ? AND (folder = ? OR folder LIKE ? ESCAPE '\\')").all(u, p, p.replace(/[\\%_]/g, (c) => "\\" + c) + "/%").map((r) => r.id),
+  removeFolder: (u, p) => db.prepare("DELETE FROM drive_folders WHERE username = ? AND (path = ? OR path LIKE ? ESCAPE '\\')").run(u, p, p.replace(/[\\%_]/g, (c) => "\\" + c) + "/%"),
+  all: (u) => db.prepare("SELECT id FROM drive WHERE username = ?").all(u).map((r) => r.id),
+  forget: (u) => { db.prepare("DELETE FROM drive WHERE username = ?").run(u); db.prepare("DELETE FROM drive_folders WHERE username = ?").run(u); },
+};
 /* the owner's custom emoji pictures (emoji.js) */
 export const EMOJI_DIR = path.join(DATA_DIR, "emoji");
 fs.mkdirSync(EMOJI_DIR, { recursive: true });

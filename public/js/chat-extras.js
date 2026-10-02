@@ -231,5 +231,76 @@
     head.after(b);
   }
 
-  window.chatx = { openThread, closeThread, onThread, onThreadMsg, onThreadDeleted, onThreadInfo, threadChip, pollEl, onPoll, openEmoji, recording: () => !!rec };
+  /* ═══ profile pages: banner, badges, bio and stats ═══ */
+  const BANNERS = { g1: 'linear-gradient(135deg,#4f8cff,#a855f7)', g2: 'linear-gradient(135deg,#ff6b6b,#f7b267)', g3: 'linear-gradient(135deg,#0ea5e9,#22c55e)', g4: 'linear-gradient(135deg,#111,#3f3f46)', g5: 'linear-gradient(135deg,#ec4899,#8b5cf6)', g6: 'linear-gradient(135deg,#f59e0b,#ef4444)', g7: 'linear-gradient(135deg,#14b8a6,#1e3a8a)', g8: 'linear-gradient(160deg,#000,#1d4ed8 120%)', g9: 'radial-gradient(circle at 30% 20%,#a3e635,#065f46)' };
+  const bannerCss = (b, name) => BANNERS[b] || (/^#[0-9a-f]{6}$/i.test(b || '') ? b : `linear-gradient(135deg,${colorOf(name)},#000)`);
+  const DAY = 86_400_000;
+  function badgesOf(p, online) {
+    const out = [];
+    const role = p.role || 'member';
+    if (role === 'owner') out.push(['👑', 'Owner', 'Runs Willie OS']);
+    else if (role === 'admin') out.push(['🛡️', 'Admin', 'Keeps the place running']);
+    else if (role === 'mod') out.push(['🔨', 'Moderator', 'Keeps chat friendly']);
+    if (online) out.push(['🟢', 'Online', 'Here right now']);
+    const age = p.createdAt ? Date.now() - p.createdAt : 0;
+    if (age > 30 * DAY) out.push(['🏅', 'Veteran', 'Here for over a month']);
+    else if (age && age < 7 * DAY) out.push(['🌱', 'Newcomer', 'Joined this week']);
+    const n = p.messages || 0;
+    if (n >= 1000) out.push(['🏆', 'Legend', '1,000+ messages']);
+    else if (n >= 100) out.push(['💬', 'Chatterbox', '100+ messages']);
+    else if (n >= 1) out.push(['👋', 'Said hi', 'Sent a message']);
+    if (p.bio) out.push(['✍️', 'Storyteller', 'Wrote a bio']);
+    return out;
+  }
+  const PF = document.createElement('div'); PF.className = 'dc-modal cx-profile'; PF.id = 'cx-profile';
+  document.body.appendChild(PF);
+  PF.addEventListener('click', (e) => { if (e.target === PF || e.target.closest('.cx-pf-x')) PF.classList.remove('show'); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && PF.classList.contains('show')) { e.stopPropagation(); PF.classList.remove('show'); } }, true);
+  let viewing = null;
+  function drawProfile(name) {
+    const p = profileFor(name) || { username: name };
+    const online = dcMembers.some((m) => m.name === name);
+    const me = name === chatMe;
+    const when = (t) => t ? new Date(t).toLocaleDateString([], { year: 'numeric', month: 'short', day: 'numeric' }) : '—';
+    PF.innerHTML = `<div class="dc-card cx-pf-card"><div class="cx-pf-banner"></div><button type="button" class="cx-pf-x" title="Close">✕</button>
+      <div class="cx-pf-top"><div class="cx-pf-av"></div><div class="cx-pf-btns"></div></div>
+      <h3 class="cx-pf-name"></h3><div class="cx-pf-user"></div><div class="cx-pf-badges"></div><p class="cx-pf-bio"></p>
+      <div class="cx-pf-stats"><div><b class="m"></b><small>messages</small></div><div><b class="j"></b><small>joined</small></div><div><b class="s"></b><small>last seen</small></div></div></div>`;
+    $('.cx-pf-banner', PF).style.background = bannerCss(p.banner, name);
+    const av = avatar(name, 'av cx-av'); $('.cx-pf-av', PF).appendChild(av);
+    if (online) av.classList.add('on');
+    $('.cx-pf-name', PF).textContent = nameOf(name);
+    $('.cx-pf-name', PF).style.color = p.color || '';
+    $('.cx-pf-user', PF).textContent = '@' + name;
+    $('.cx-pf-bio', PF).textContent = p.bio || (me ? 'Add a bio so people know who you are.' : '');
+    $('.cx-pf-badges', PF).replaceChildren(...badgesOf(p, online).map(([ic, t, d]) => { const b = document.createElement('span'); b.className = 'cx-badge'; b.title = d; b.textContent = `${ic} ${t}`; return b; }));
+    $('.cx-pf-stats .m', PF).textContent = (p.messages ?? '—').toLocaleString?.() ?? p.messages;
+    $('.cx-pf-stats .j', PF).textContent = when(p.createdAt);
+    $('.cx-pf-stats .s', PF).textContent = online ? 'now' : when(p.lastSeen);
+    const btns = $('.cx-pf-btns', PF);
+    const btn = (t, fn, cls = '') => { const b = document.createElement('button'); b.type = 'button'; b.className = 'btn sm ' + cls; b.textContent = t; b.onclick = () => { PF.classList.remove('show'); fn(); }; btns.appendChild(b); };
+    if (me) btn('Edit profile', () => $('#dc-me-edit').click(), 'primary');
+    else if (chatMeAccount) { btn('Message', () => { openChat(); dcSend({ type: 'dm.open', name }); }, 'primary'); btn('Call', () => window.calls?.start(name)); }
+  }
+  function profile(name) {
+    viewing = name;
+    drawProfile(name); PF.classList.add('show');
+    dcSend({ type: 'profile.get', name }); // the latest, with message count and banner
+  }
+  // a fresh copy of the profile came in (app.js stores it): redraw if it's the one showing
+  setInterval(() => { if (viewing && PF.classList.contains('show')) { const p = profileFor(viewing); const k = JSON.stringify(p); if (k !== PF.dataset.k) { PF.dataset.k = k; drawProfile(viewing); } } }, 300);
+  function bannerPicker(current) {
+    const box = document.createElement('div'); box.className = 'cx-banners';
+    box.innerHTML = '<label>Banner</label><input type="hidden" id="cx-banner-v"><div class="cx-sw"></div>';
+    $('#cx-banner-v', box).value = current || '';
+    const sw = $('.cx-sw', box);
+    for (const [k, css] of [['', `linear-gradient(135deg,${colorOf(chatMe)},#000)`], ...Object.entries(BANNERS)]) {
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'cx-swatch' + (k === (current || '') ? ' on' : ''); b.style.background = css; b.title = k ? 'Banner' : 'Your colour';
+      b.onclick = () => { $('#cx-banner-v', box).value = k; sw.querySelectorAll('.on').forEach((x) => x.classList.remove('on')); b.classList.add('on'); };
+      sw.appendChild(b);
+    }
+    $('#dc-modal-fields').appendChild(box);
+  }
+
+  window.chatx = { profile, bannerPicker,  openThread, closeThread, onThread, onThreadMsg, onThreadDeleted, onThreadInfo, threadChip, pollEl, onPoll, openEmoji, recording: () => !!rec };
 })();

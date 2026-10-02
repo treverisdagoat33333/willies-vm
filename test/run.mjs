@@ -20,7 +20,7 @@ import path from "node:path";
 const root = path.resolve(import.meta.dirname, "..");
 const bench = process.argv.includes("--bench");
 const only = process.argv.slice(2).filter((a) => !a.startsWith("--"));
-const SUITES = ["cache", "engines", "menu", "compat", "williejet", "fastnet", "sw-restart", "nextday", "ai", "calls", "voice", "files", "leave", "music", "desk", "analytics", "extras", "apps", "close", "audio", "heal", "local-ai", "chatx"];
+const SUITES = ["cache", "engines", "menu", "compat", "williejet", "fastnet", "sw-restart", "nextday", "ai", "calls", "voice", "files", "leave", "music", "desk", "analytics", "extras", "apps", "close", "audio", "heal", "local-ai", "chatx", "os"];
 const children = [];
 const temps = [];
 
@@ -75,6 +75,7 @@ try {
     ARCADE_UPSTREAM: `http://127.0.0.1:${sitePort}/ugs/`,
     AUDIUS_API: `http://127.0.0.1:${sitePort}/au`,
     IMAGE_API: `http://127.0.0.1:${sitePort}/img`,
+    REGISTER_PER_HOUR: "500",
     OWNER_USERNAME: "testowner",
     OWNER_PASSWORD: "test-owner-pass",
   });

@@ -192,3 +192,5 @@ html[data-tbside="top"] .news-card{bottom:16px}
 html[data-motion="off"] .news-card,html[data-perf="on"] .news-card{animation:none}
 html[data-motion="off"] .tour-hole,html[data-motion="off"] .tour-card,html[data-perf="on"] .tour-hole,html[data-perf="on"] .tour-card{transition:none}
 @media (prefers-reduced-motion:reduce){.news-card{animation:none}.tour-hole,.tour-card{transition:none}}
+.theme-code{display:flex;gap:8px;align-items:center;margin-top:14px;flex-wrap:wrap}
+.theme-code .field{flex:1;min-width:160px;height:32px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.8em}

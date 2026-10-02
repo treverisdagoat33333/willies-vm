@@ -315,7 +315,37 @@ addEventListener('pointerup',e=>{
 $('#desk-reset')?.addEventListener('click',()=>{click();desk.icons={};desk.widgets={};save();placeIcons();placeAll();toast('Layout reset')});
 
 function reload(){desk=load();wx=null;apply();fetchWeather()}
-window.desk={apply,reload,applyPreset,presets:()=>PRESETS.map(p=>({id:p.id,name:p.name})),
+/* ═══ theme codes: your whole look as one short code to share ("WOS1-…") ═══
+   Only the look travels, each value checked on the way in, so a code can't set anything else. */
+const CODE_KEYS={
+  theme:v=>['dark','oled','light'].includes(v),accent:v=>/^#[0-9a-f]{6}$/i.test(v),accent2:v=>/^#[0-9a-f]{6}$/i.test(v),
+  gradient:v=>typeof v==='boolean',glow:v=>typeof v==='boolean',blur:v=>typeof v==='boolean',
+  wallpaper:v=>WALLS.some(w=>w.id===v&&w.id!=='custom'),font:v=>['system','rounded','mono','serif'].includes(v)||typeof v==='string'&&/^[a-z-]{2,16}$/.test(v),
+  radius:v=>['sharp','normal','round'].includes(v)||typeof v==='string'&&/^[a-z]{2,10}$/.test(v),density:v=>typeof v==='string'&&/^[a-z]{2,10}$/.test(v),
+  opacity:v=>typeof v==='number'&&v>=0.3&&v<=1,particles:v=>typeof v==='boolean',pstyle:v=>typeof v==='string'&&/^[a-z]{2,12}$/.test(v),
+};
+function themeCode(){
+  const o={};for(const k of Object.keys(CODE_KEYS))if(S[k]!==undefined&&!(k==='wallpaper'&&S[k]==='custom'))o[k]=S[k];
+  return 'WOS1-'+btoa(unescape(encodeURIComponent(JSON.stringify(o)))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+}
+function useThemeCode(code){
+  const m=String(code||'').trim().match(/^WOS1-([A-Za-z0-9_-]{8,2000})$/);
+  if(!m)throw new Error("That isn't a Willie OS theme code.");
+  let o;try{o=JSON.parse(decodeURIComponent(escape(atob(m[1].replace(/-/g,'+').replace(/_/g,'/')))))}catch(_){throw new Error("That theme code is broken.")}
+  const ok=Object.entries(o||{}).filter(([k,v])=>CODE_KEYS[k]?.(v));
+  if(!ok.length)throw new Error("That theme code has nothing in it.");
+  for(const [k,v] of ok)S[k]=v;
+  S.autotheme=false;set('wallpaper',S.wallpaper);paintPresets();
+  return ok.length;
+}
+$('#theme-share')?.addEventListener('click',()=>{
+  const c=themeCode();$('#theme-code').value=c;$('#theme-code').select();
+  navigator.clipboard?.writeText(c).then(()=>toast('Theme code copied. Send it to a friend!','ok'),()=>toast('Copy the code from the box','ok'));
+});
+const useBox=()=>{try{const n=useThemeCode($('#theme-code').value);toast(`Theme applied (${n} settings)`,'ok');$('#theme-code').value=''}catch(e){toast(e.message,'err')}};
+$('#theme-use')?.addEventListener('click',useBox);
+$('#theme-code')?.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();useBox()}});
+window.desk={apply,reload,applyPreset,themeCode,useThemeCode,presets:()=>PRESETS.map(p=>({id:p.id,name:p.name})),
   addTodo,todos:()=>desk.todos.map(t=>({...t})),setCity,
   widget:(w,v)=>{if(!WIDGETS.includes(w))return false;set('w'+w[0].toUpperCase()+w.slice(1),!!v);return true}};
 apply();

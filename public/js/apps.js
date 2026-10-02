@@ -74,30 +74,162 @@
     el.className = 'aw';
     el.dataset.win = id; // not data-app: that attribute launches apps on click (app.js), which reopened a window as you closed it
     const n = wins.size;
+    el.dataset.desk = desk; // opened on the desktop you're looking at
     const W = Math.min(w, innerWidth - 16), H = Math.min(h, innerHeight - 90);
-    Object.assign(el.style, { width: `${W}px`, height: `${H}px`, left: `${Math.max(8, (innerWidth - W) / 2 + n * 26 - 60)}px`, top: `${Math.max(8, (innerHeight - H) / 2 + n * 26 - 70)}px`, zIndex: ++z });
+    // each new window steps down and right from the last, starting over every 8 so none open off the screen
+    const step = (n % 8) * 26;
+    Object.assign(el.style, { width: `${W}px`, height: `${H}px`, left: `${Math.max(8, Math.min(innerWidth - W - 8, (innerWidth - W) / 2 + step - 60))}px`, top: `${Math.max(8, Math.min(innerHeight - H - 64, (innerHeight - H) / 2 + step - 70))}px`, zIndex: ++z });
     const a = app || { icon, color };
-    el.innerHTML = `<div class="aw-bar"><span class="aw-ic${tileClass(a)}" style="${tileStyle(a)}">${iconHtml(a)}</span><b>${esc(title)}</b><span class="sp"></span><span class="aw-extra"></span><button class="aw-min" title="Minimize">–</button><button class="aw-max" title="Maximize">▢</button><button class="aw-x" title="Close">✕</button></div><div class="aw-body"></div>`;
+    el.innerHTML = `<div class="aw-bar"><span class="aw-ic${tileClass(a)}" style="${tileStyle(a)}">${iconHtml(a)}</span><b>${esc(title)}</b><span class="sp"></span><span class="aw-extra"></span><button class="aw-desk" title="Move to another desktop">⧉</button><button class="aw-min" title="Minimize">–</button><button class="aw-max" title="Maximize">▢</button><button class="aw-x" title="Close">✕</button></div><div class="aw-body"></div>`;
     document.body.appendChild(el);
     const win = { el, body: $('.aw-body', el), extra: $('.aw-extra', el), cleanup: [] };
     wins.set(id, win);
     el.addEventListener('pointerdown', () => focus(win), true);
     $('.aw-x', el).onclick = () => close(id);
-    $('.aw-max', el).onclick = () => el.classList.toggle('max');
+    $('.aw-max', el).onclick = () => { unsnap(el); el.classList.toggle('max'); };
+    $('.aw-desk', el).onclick = (e) => deskMenu(id, e.currentTarget);
     $('.aw-min', el).onclick = () => minimize(id);
     const bar = $('.aw-bar', el);
-    bar.ondblclick = (e) => { if (!e.target.closest('button')) el.classList.toggle('max'); };
+    bar.ondblclick = (e) => { if (!e.target.closest('button')) { unsnap(el); el.classList.toggle('max'); } };
     bar.onpointerdown = (e) => {
-      if (e.target.closest('button') || el.classList.contains('max')) return;
+      if (e.target.closest('button')) return;
+      // dragging a maximized or snapped window out: it goes back to its own size, under the pointer
+      if (el.classList.contains('max') || el.dataset.snap) {
+        const r = el.getBoundingClientRect(), fx = (e.clientX - r.left) / r.width;
+        el.classList.remove('max'); unsnap(el);
+        el.style.left = `${e.clientX - el.offsetWidth * fx}px`; el.style.top = `${Math.max(0, e.clientY - 18)}px`;
+      }
       const sx = e.clientX - el.offsetLeft, sy = e.clientY - el.offsetTop;
       el.classList.add('dragging');
-      const mv = (ev) => { el.style.left = `${Math.min(innerWidth - 80, Math.max(-el.offsetWidth + 80, ev.clientX - sx))}px`; el.style.top = `${Math.min(innerHeight - 40, Math.max(0, ev.clientY - sy))}px`; };
-      const up = () => { el.classList.remove('dragging'); removeEventListener('pointermove', mv); removeEventListener('pointerup', up); };
+      let zone = null;
+      const mv = (ev) => {
+        el.style.left = `${Math.min(innerWidth - 80, Math.max(-el.offsetWidth + 80, ev.clientX - sx))}px`; el.style.top = `${Math.min(innerHeight - 40, Math.max(0, ev.clientY - sy))}px`;
+        zone = snapZone(ev.clientX, ev.clientY); showSnap(zone);
+      };
+      const up = () => { el.classList.remove('dragging'); removeEventListener('pointermove', mv); removeEventListener('pointerup', up); showSnap(null); if (zone) snapTo(el, zone); };
       addEventListener('pointermove', mv); addEventListener('pointerup', up);
     };
     try { build(win); } catch (e) { win.body.textContent = `Couldn't open: ${e.message}`; }
+    drawDesks();
     return win;
   }
+  /* ---------- snapping: drag to an edge for half the screen, a corner for a quarter, the top to fill it ---------- */
+  const EDGE = 14;
+  const area = () => {
+    const tb = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--tb-h')) || 56;
+    const top = document.documentElement.dataset.tbside === 'top' ? tb : 0;
+    const hide = document.documentElement.dataset.tbhide === 'on';
+    return { x: 0, y: top, w: innerWidth, h: innerHeight - (hide ? 0 : tb) };
+  };
+  function snapZone(x, y) {
+    const l = x <= EDGE, r = x >= innerWidth - EDGE, t = y <= EDGE + area().y, b = y >= innerHeight - EDGE - (innerHeight - area().h - area().y);
+    if (l && t) return 'tl'; if (r && t) return 'tr'; if (l && b) return 'bl'; if (r && b) return 'br';
+    if (l) return 'l'; if (r) return 'r'; if (t) return 'max';
+    return null;
+  }
+  function zoneRect(z) {
+    const a = area(), hw = Math.round(a.w / 2), hh = Math.round(a.h / 2);
+    return { l: [a.x, a.y, hw, a.h], r: [a.x + hw, a.y, a.w - hw, a.h], tl: [a.x, a.y, hw, hh], tr: [a.x + hw, a.y, a.w - hw, hh], bl: [a.x, a.y + hh, hw, a.h - hh], br: [a.x + hw, a.y + hh, a.w - hw, a.h - hh], max: [a.x, a.y, a.w, a.h] }[z];
+  }
+  let preview = null;
+  function showSnap(z) {
+    if (!z) { preview?.classList.remove('on'); return; }
+    if (!preview) { preview = document.createElement('div'); preview.id = 'aw-snap'; document.body.appendChild(preview); }
+    const [x, y, w, h] = zoneRect(z);
+    Object.assign(preview.style, { left: `${x + 6}px`, top: `${y + 6}px`, width: `${w - 12}px`, height: `${h - 12}px`, zIndex: z + 1 });
+    preview.classList.add('on');
+  }
+  function snapTo(el, zn) {
+    if (zn === 'max') { unsnap(el); el.classList.add('max'); return; }
+    if (!el.dataset.snap) el.dataset.was = [el.style.left, el.style.top, el.style.width, el.style.height].join('|');
+    const [x, y, w, h] = zoneRect(zn);
+    Object.assign(el.style, { left: `${x}px`, top: `${y}px`, width: `${w}px`, height: `${h}px` });
+    el.dataset.snap = zn;
+  }
+  function unsnap(el) {
+    if (!el.dataset.snap) return;
+    const [l, t, w, h] = (el.dataset.was || '').split('|');
+    Object.assign(el.style, { width: w || '', height: h || '' });
+    if (l) Object.assign(el.style, { left: l, top: t });
+    delete el.dataset.snap; delete el.dataset.was;
+  }
+  // the screen changed size: snapped windows keep their share of it
+  addEventListener('resize', () => { for (const w of wins.values()) if (w.el.dataset.snap) { const z = w.el.dataset.snap; delete w.el.dataset.snap; snapTo(w.el, z); } });
+  // Ctrl+Alt+arrows snap the window in front
+  addEventListener('keydown', (e) => {
+    if (!e.ctrlKey || !e.altKey || !/^Arrow/.test(e.key)) return;
+    const top = [...wins.values()].filter((w) => !w.el.hidden && w.el.dataset.desk == desk).sort((a, b) => b.el.style.zIndex - a.el.style.zIndex)[0];
+    if (!top) return;
+    e.preventDefault();
+    const el = top.el;
+    if (e.key === 'ArrowUp') { unsnap(el); el.classList.add('max'); }
+    else if (e.key === 'ArrowDown') { el.classList.contains('max') ? el.classList.remove('max') : el.dataset.snap ? unsnap(el) : minimize(el.dataset.win); }
+    else { el.classList.remove('max'); snapTo(el, e.key === 'ArrowLeft' ? 'l' : 'r'); }
+  });
+
+  /* ---------- desktops: up to four, each with its own windows ---------- */
+  const MAX_DESKS = 4;
+  let desk = 1, desks = Math.min(MAX_DESKS, Math.max(1, Number(localStorage.getItem('wvm.desks')) || 2));
+  function showDesk() {
+    for (const w of wins.values()) w.el.classList.toggle('other-desk', w.el.dataset.desk != desk);
+    for (const c of $$('#tb-min .tb-chip')) c.classList.toggle('other-desk', wins.get(c.dataset.win)?.el.dataset.desk != desk);
+    drawDesks();
+  }
+  function switchDesk(n) {
+    n = Math.max(1, Math.min(desks, n));
+    if (n === desk) return;
+    const dir = n > desk ? 1 : -1;
+    desk = n; showDesk();
+    document.documentElement.dataset.deskdir = dir > 0 ? 'next' : 'prev';
+    clearTimeout(switchDesk.t); switchDesk.t = setTimeout(() => delete document.documentElement.dataset.deskdir, 400);
+    toast(`Desktop ${n}`);
+  }
+  function drawDesks() {
+    let box = $('#tb-desks');
+    if (!box) { box = document.createElement('div'); box.id = 'tb-desks'; box.setAttribute('role', 'tablist'); box.title = 'Desktops (Ctrl+Alt+1 to 4)'; $('#tb-center')?.prepend(box); }
+    const count = (n) => [...wins.values()].filter((w) => w.el.dataset.desk == n).length;
+    box.innerHTML = Array.from({ length: desks }, (_, i) => i + 1).map((n) => `<button type="button" role="tab" class="tb-desk${n === desk ? ' on' : ''}" data-desk="${n}" aria-selected="${n === desk}" title="Desktop ${n}${count(n) ? ` (${count(n)} window${count(n) > 1 ? 's' : ''})` : ''}">${n}${count(n) ? '<i></i>' : ''}</button>`).join('')
+      + (desks < MAX_DESKS ? '<button type="button" class="tb-desk add" title="Add a desktop">+</button>' : '');
+  }
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest('#tb-desks .tb-desk'); if (!b) return;
+    click();
+    if (b.classList.contains('add')) { desks = Math.min(MAX_DESKS, desks + 1); localStorage.setItem('wvm.desks', desks); switchDesk(desks); drawDesks(); return; }
+    switchDesk(+b.dataset.desk);
+  });
+  // right-click a desktop to remove the last one; its windows move to the one before
+  document.addEventListener('contextmenu', (e) => {
+    const b = e.target.closest('#tb-desks .tb-desk:not(.add)'); if (!b) return;
+    e.preventDefault();
+    if (desks <= 1 || +b.dataset.desk !== desks) return toast('Right-click the last desktop to remove it');
+    for (const w of wins.values()) if (w.el.dataset.desk == desks) w.el.dataset.desk = desks - 1;
+    desks--; localStorage.setItem('wvm.desks', desks);
+    if (desk > desks) desk = desks;
+    showDesk();
+  });
+  addEventListener('keydown', (e) => {
+    if (!e.ctrlKey || !e.altKey) return;
+    if (/^[1-4]$/.test(e.key)) { e.preventDefault(); if (+e.key > desks) { desks = +e.key; localStorage.setItem('wvm.desks', desks); } switchDesk(+e.key); }
+  });
+  function moveTo(id, n) {
+    const w = wins.get(id); if (!w) return;
+    if (n > desks) { desks = n; localStorage.setItem('wvm.desks', desks); }
+    w.el.dataset.desk = n; showDesk();
+    toast(`Moved to desktop ${n}`);
+  }
+  function deskMenu(id, anchor) {
+    $('#aw-desk-pop')?.remove();
+    const pop = document.createElement('div'); pop.id = 'aw-desk-pop'; pop.className = 'aw-desk-pop';
+    const cur = +wins.get(id).el.dataset.desk;
+    pop.innerHTML = '<small>Move to</small>' + Array.from({ length: Math.min(MAX_DESKS, desks + 1) }, (_, i) => i + 1).filter((n) => n !== cur).map((n) => `<button type="button" data-n="${n}">${n > desks ? `New desktop ${n}` : `Desktop ${n}`}</button>`).join('');
+    document.body.appendChild(pop);
+    const r = anchor.getBoundingClientRect();
+    Object.assign(pop.style, { left: `${Math.min(innerWidth - pop.offsetWidth - 8, r.left)}px`, top: `${r.bottom + 6}px`, zIndex: z + 2 });
+    pop.onclick = (e) => { const b = e.target.closest('button'); if (b) { click(); moveTo(id, +b.dataset.n); pop.remove(); } };
+    setTimeout(() => document.addEventListener('pointerdown', function off(ev) { if (!pop.contains(ev.target)) { pop.remove(); document.removeEventListener('pointerdown', off, true); } }, true));
+  }
+  setTimeout(drawDesks, 0);
+
   /* minimized windows wait as chips on the taskbar */
   function minimize(id) {
     const w = wins.get(id);
@@ -112,11 +244,12 @@
     chip.innerHTML = $('.aw-ic', w.el).outerHTML;
     chip.onclick = () => restore(id);
     tray.appendChild(chip);
+    showDesk();
   }
   function restore(id) {
     const w = wins.get(id);
     $(`#tb-min [data-win="${id}"]`)?.remove();
-    if (w) { w.el.hidden = false; focus(w); }
+    if (w) { w.el.hidden = false; if (w.el.dataset.desk != desk) switchDesk(+w.el.dataset.desk); focus(w); }
   }
   function close(id) {
     $(`#tb-min [data-win="${id}"]`)?.remove();
@@ -125,6 +258,7 @@
     for (const f of w.cleanup) { try { f(); } catch (_) {} }
     w.el.remove();
     wins.delete(id);
+    drawDesks();
   }
 
   async function openWeb(app) {
@@ -585,5 +719,5 @@
 
   addEventListener('keydown', (e) => { if (e.altKey && !e.ctrlKey && e.key.toLowerCase() === 'p') { e.preventDefault(); launcher(); } });
 
-  window.apps = { win: (o) => openWin(o), addTool: (t) => { if (!T.some((x) => x.id === t.id)) T.unshift({ ...t, glyph: t.glyph || GLYPH[t.id] }); }, games: loadGames, play: openGame, open: launcher, tool: (id) => { const t = T.find((x) => x.id === id); if (t) openTool(t); }, web: (id) => { const a = WEB.find((x) => x.id === id); if (a) openWeb(a); }, close, list: () => ({ web: WEB.map((a) => a.id), tools: T.map((t) => t.id) }), windows: () => [...wins.keys()] };
+  window.apps = { desk: () => desk, desks: () => desks, switchDesk, moveTo, snap: (id, zn) => snapTo(wins.get(id).el, zn), win: (o) => openWin(o), addTool: (t) => { if (!T.some((x) => x.id === t.id)) T.unshift({ ...t, glyph: t.glyph || GLYPH[t.id] }); }, games: loadGames, play: openGame, open: launcher, tool: (id) => { const t = T.find((x) => x.id === id); if (t) openTool(t); }, web: (id) => { const a = WEB.find((x) => x.id === id); if (a) openWeb(a); }, close, list: () => ({ web: WEB.map((a) => a.id), tools: T.map((t) => t.id) }), windows: () => [...wins.keys()] };
 })();

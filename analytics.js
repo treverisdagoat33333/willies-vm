@@ -78,11 +78,20 @@ const qe = {
 };
 const cleanText = (v, max) => String(v ?? "").replace(/[\u0000-\u001f\u007f]+/g, " ").replace(/\s+/g, " ").trim().slice(0, max);
 
+/* the last few problems as they happened, for the owner's live dashboard (in memory) */
+const recent = [];
+const watchers = new Set();
+export const recentErrors = () => recent.slice(-30);
+export function onError(fn) { watchers.add(fn); return () => watchers.delete(fn); }
 export function recordError(kind, msg, place = "", who = "") {
   kind = String(kind);
   msg = cleanText(msg, 240);
   if (!ERROR_KINDS.includes(kind) || !msg) return false;
   const now = Date.now();
+  const e = { kind, msg, place: cleanText(place, 160), at: now };
+  recent.push(e);
+  if (recent.length > 60) recent.splice(0, recent.length - 60);
+  for (const fn of watchers) { try { fn(e); } catch (_) {} }
   qe.bump.run(kind, msg, cleanText(place, 160), now, now);
   if (who && qe.seen.run(kind, msg, crypto.createHmac("sha256", SALT).update(who).digest("hex").slice(0, 16)).changes) qe.person.run(kind, msg);
   const { n } = qe.count.get();

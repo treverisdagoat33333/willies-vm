@@ -349,3 +349,54 @@ html[data-motion="off"] .dc-thread,html[data-perf="on"] .dc-thread{animation:non
 .cx-em{display:flex;align-items:center;gap:10px;padding:6px 8px;border-radius:9px;background:var(--glass-2)}
 .cx-em .dc-cemoji{width:28px;height:28px}
 .cx-em code{flex:1}
+
+/* profile pages (js/chat-extras.js) */
+.cx-pf-card{position:relative;width:min(440px,94vw);padding:0!important;overflow:hidden}
+.cx-pf-banner{height:120px}
+.cx-pf-x{position:absolute;top:10px;right:10px;width:30px;height:30px;border-radius:50%;background:rgba(0,0,0,.5);color:#fff}
+.cx-pf-top{display:flex;align-items:flex-end;justify-content:space-between;gap:10px;padding:0 18px;margin-top:-42px}
+.cx-pf-av .cx-av{width:84px;height:84px;font-size:2em;border:6px solid var(--bg0);border-radius:50%;position:relative}
+.cx-pf-av .cx-av.on::after{content:'';position:absolute;right:2px;bottom:2px;width:18px;height:18px;border-radius:50%;background:#22c55e;border:4px solid var(--bg0)}
+.cx-pf-btns{display:flex;gap:6px;padding-bottom:8px}
+.cx-pf-name{margin:10px 18px 0;font-size:1.35em}
+.cx-pf-user{margin:0 18px;color:var(--text-3);font-size:.88em}
+.cx-pf-badges{display:flex;flex-wrap:wrap;gap:6px;margin:12px 18px 0}
+.cx-badge{padding:4px 10px;border-radius:999px;background:var(--glass-2);border:1px solid var(--border);font-size:.78em;font-weight:600}
+.cx-pf-bio{margin:12px 18px 0;color:var(--text-2);white-space:pre-wrap;line-height:1.5}
+.cx-pf-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:16px 18px 18px;padding:12px;border-radius:12px;background:var(--glass-2)}
+.cx-pf-stats div{display:flex;flex-direction:column;align-items:center;gap:2px;text-align:center}
+.cx-pf-stats small{color:var(--text-3);font-size:.74em}
+.cx-banners label{display:block;font-size:.85em;font-weight:600;color:var(--text-2);margin:8px 0 6px}
+.cx-sw{display:flex;flex-wrap:wrap;gap:6px}
+.cx-swatch{width:44px;height:26px;border-radius:8px;border:2px solid transparent}
+.cx-swatch.on{border-color:var(--text)}
+
+/* the owner's live card */
+.ad-livecard h3{display:flex;align-items:center;gap:8px}
+.ad-livecard h3 small{margin-left:auto;font-weight:400;color:var(--text-3);font-size:.72em}
+.ad-live-dot{width:9px;height:9px;border-radius:50%;background:#22c55e;box-shadow:0 0 0 0 rgba(34,197,94,.6);animation:ad-pulse 1.6s infinite}
+.ad-live-dot.off{background:var(--bad);animation:none}
+@keyframes ad-pulse{70%{box-shadow:0 0 0 8px rgba(34,197,94,0)}100%{box-shadow:0 0 0 0 rgba(34,197,94,0)}}
+html[data-motion="off"] .ad-live-dot,html[data-perf="on"] .ad-live-dot{animation:none}
+.ad-live-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin:10px 0}
+.ad-lt{padding:10px 12px;border-radius:12px;background:var(--glass-2);border:1px solid var(--border)}
+.ad-lt b{display:block;font-size:1.4em;font-variant-numeric:tabular-nums}
+.ad-lt span{font-size:.75em;color:var(--text-3)}
+.ad-live-apps{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.ad-la{padding:4px 10px;border-radius:999px;background:var(--glass-2);border:1px solid var(--border);font-size:.8em}
+.ad-la b{margin-left:4px}
+.ad-live-cols{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.ad-live-cols h4{margin:0 0 6px;font-size:.8em;color:var(--text-2)}
+.ad-live-list,.ad-live-errs{display:flex;flex-direction:column;gap:4px;max-height:260px;overflow:auto;scrollbar-width:thin}
+.ad-lv{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 10px;padding:7px 10px;border-radius:9px;background:var(--glass-2);font-size:.84em}
+.ad-lv.away{opacity:.6}
+.ad-lv .nm{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ad-lv small{grid-column:1/-1;color:var(--text-3);font-size:.78em}
+.ad-le{display:flex;gap:8px;align-items:flex-start;padding:7px 10px;border-radius:9px;background:var(--glass-2);font-size:.82em}
+.ad-le div{min-width:0}
+.ad-le b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ad-le small{color:var(--text-3);font-size:.8em}
+.ad-le.fresh{animation:ad-flash 1.6s var(--ease)}
+@keyframes ad-flash{from{background:rgba(239,68,68,.3)}}
+html[data-motion="off"] .ad-le.fresh,html[data-perf="on"] .ad-le.fresh{animation:none}
+@media (max-width:720px){.ad-live-cols{grid-template-columns:minmax(0,1fr)}}

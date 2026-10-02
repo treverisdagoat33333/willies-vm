@@ -190,6 +190,7 @@
           <h3>Theme presets</h3>
           <p class="card-sub">One click sets the colors, mode and a matching wallpaper. Tweak anything below after.</p>
           <div class="presets" id="presets"></div>
+          <div class="theme-code"><button type="button" class="btn sm" id="theme-share">Share my theme</button><input class="field" id="theme-code" placeholder="Paste a theme code" autocomplete="off" spellcheck="false"><button type="button" class="btn sm primary" id="theme-use">Use code</button></div>
         </div>
         <div class="card">
           <h3>Theme</h3>
@@ -457,6 +458,15 @@ https://discord.com/</textarea><div class="ctl"><button class="btn sm" id="st-ru
     <button class="btn sm" data-close="admin-panel">Close</button>
   </div>
   <div class="pbody">
+    <section class="ad-card ad-wide ad-livecard" id="ad-livecard">
+      <h3>Live now <span class="ad-live-dot" id="ad-live-dot"></span><small id="ad-live-sub"></small></h3>
+      <div class="ad-live-tiles" id="ad-live-tiles"></div>
+      <div class="ad-live-apps" id="ad-live-apps"></div>
+      <div class="ad-live-cols">
+        <div><h4>Who's here</h4><div class="ad-live-list" id="ad-live-list"></div></div>
+        <div><h4>Problems, as they happen</h4><div class="ad-live-errs" id="ad-live-errs"></div></div>
+      </div>
+    </section>
     <div class="ad-stats" id="ad-stats"></div>
     <section class="an" id="an" aria-labelledby="an-title">
       <div class="an-head">
@@ -1015,6 +1025,7 @@ https://discord.com/</textarea><div class="ctl"><button class="btn sm" id="st-ru
 <script src="/js/remote-extra.js"></script>
 <script src="/js/tour.js"></script>
 <script src="/js/apps.js"></script>
+<script src="/js/files-app.js"></script>
 <script src="/js/arcade.js"></script>
 </body>
 </html>

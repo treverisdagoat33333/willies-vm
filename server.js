@@ -70,9 +70,10 @@ import { clientIp, createLimiter, limitByIp, formatWait } from "./security.js";
 import { musicRouter } from "./music.js";
 import { aiRouter } from "./ai.js";
 import { moviesRouter } from "./movies.js";
-import { analyticsRouter, record } from "./analytics.js";
+import { analyticsRouter, record, recentErrors, onError } from "./analytics.js";
 import { filesRouter } from "./files.js";
 import { emojiRouter } from "./emoji.js";
+import { driveRouter, forgetDrive } from "./drive.js";
 import { hasBadWords } from "./profanity.js";
 import { fastnetHandler } from "./fastnet.js";
 
@@ -610,7 +611,7 @@ function getVmSeconds(req) {
  * The per-address limits are generous on purpose: a whole school or house
  * shares one address, and the per-username limit does the real work.
  */
-const registerLimiter = createLimiter({ windowMs: 60 * 60_000, max: 20 });
+const registerLimiter = createLimiter({ windowMs: 60 * 60_000, max: Number(process.env.REGISTER_PER_HOUR) || 20 }); // the test suite raises it: it signs up dozens
 const loginIpLimiter = createLimiter({ windowMs: 15 * 60_000, max: 60 });
 const passwordFailLimiter = createLimiter({ windowMs: 15 * 60_000, max: 8 });
 const guestLimiter = createLimiter({ windowMs: 60 * 60_000, max: 120 });
@@ -782,6 +783,7 @@ app.post("/api/account/delete", requireAccount, async (req, res) => {
 
   kickUser(username, 4005, "deleted");
   deleteUser(username);
+  forgetDrive(username);
   logEvent("account", `${username} deleted their account`);
   res.clearCookie("vm_session", cookieOptions());
   res.json({ ok: true });
@@ -902,6 +904,8 @@ app.use(
 );
 
 app.use("/api/emoji", emojiRouter({ requireSession, requireAccount }));
+const driveLimiter = createLimiter({ windowMs: 10 * 60_000, max: 120 }); // uploads to Files per person (and network)
+app.use("/api/drive", driveRouter({ requireAccount, limiter: limitByIp(driveLimiter, "You're uploading a lot. Wait a few minutes.", (req) => req.vmSession?.username || "") }));
 
 /*
 |--------------------------------------------------------------------------
@@ -967,6 +971,42 @@ app.get("/api/admin/overview", requireOwner, (_req, res) => {
     remote: remoteDetail(),
     activity: activity.slice(-120).reverse(),
   });
+});
+
+/*
+|--------------------------------------------------------------------------
+| Live: every open page says what it's doing every 20 s (POST /api/live/beat),
+| and the owner's dashboard gets a stream (GET /api/admin/live, server-sent
+| events) of who's here right now and each problem the moment it happens.
+| In memory only; a visitor is "here" for 50 s after their last beat.
+|--------------------------------------------------------------------------
+*/
+const LIVE_MS = 50_000;
+const liveVisitors = new Map(); // label -> {name, account, app, since, at}
+const LIVE_APPS = new Set(["desktop", "browser", "vm", "cloud", "remote", "movies", "music", "ai", "chat", "arcade", "apps", "settings", "files"]);
+app.post("/api/live/beat", requireSession, (req, res) => {
+  const label = sessionLabel(req.vmSession);
+  const appName = LIVE_APPS.has(req.body?.app) ? req.body.app : "desktop";
+  const prev = liveVisitors.get(label);
+  liveVisitors.set(label, { name: label, account: req.vmSession.type === "account", app: appName, hidden: !!req.body?.hidden, since: prev?.since || Date.now(), at: Date.now() });
+  res.status(204).end();
+});
+function liveSnapshot() {
+  const now = Date.now();
+  for (const [k, v] of liveVisitors) if (now - v.at > LIVE_MS) liveVisitors.delete(k);
+  const visitors = [...liveVisitors.values()].sort((a, b) => a.since - b.since);
+  const byApp = {};
+  for (const v of visitors) byApp[v.app] = (byApp[v.app] || 0) + 1;
+  return { at: now, visitors, byApp, counts: { visitors: visitors.length, accounts: visitors.filter((v) => v.account).length, chat: onlineCount(), vms: vmList().length }, errors: recentErrors(), rssMb: Math.round(process.memoryUsage().rss / 1048576) };
+}
+app.get("/api/admin/live", requireOwner, (req, res) => {
+  res.status(200).set({ "content-type": "text/event-stream; charset=utf-8", "cache-control": "no-store, no-transform", "x-accel-buffering": "no", connection: "keep-alive" });
+  res.flushHeaders?.();
+  const push = (type, data) => { if (!res.writableEnded) res.write(`event: ${type}\ndata: ${JSON.stringify(data)}\n\n`); };
+  push("live", liveSnapshot());
+  const tick = setInterval(() => push("live", liveSnapshot()), 2000);
+  const stop = onError((e) => push("problem", e));
+  req.on("close", () => { clearInterval(tick); stop(); });
 });
 
 app.post("/api/admin/vms/:id/kill", requireOwner, async (req, res) => {
@@ -1045,6 +1085,7 @@ app.delete("/api/admin/users/:name", requireOwner, (req, res) => {
   if (user.role === "owner") return res.status(400).json({ error: "The owner account can't be deleted." });
   kickUser(name, 4005, "deleted");
   deleteUser(name);
+  forgetDrive(name);
   refreshMembers();
   logEvent("admin", `${name}'s account was deleted`);
   res.json({ ok: true });

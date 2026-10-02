@@ -2761,6 +2761,7 @@ function dcUserMenu(name,anchor){
     pop.appendChild(el);return el;
   };
 
+  if(!name.startsWith('guest-')&&window.chatx)item('View profile',()=>window.chatx.profile(name));
   if(!me&&!name.startsWith('guest-')){
     item(chatMeAccount?'Message':'Message (account needed)',()=>dcSend({type:'dm.open',name}),false,!chatMeAccount);
     item(chatMeAccount?'Voice call':'Voice call (account needed)',()=>window.calls?.start(name),false,!chatMeAccount);
@@ -2897,8 +2898,9 @@ $('#dc-me-edit').onclick=()=>{
     fields:[{key:'displayName',label:'Display name',value:p.displayName||chatMe,maxlength:24},
             {key:'color',label:'Color',type:'color',value:p.color||'#4f8cff'},
             {key:'bio',label:'About you',type:'textarea',value:p.bio||'',maxlength:160}],
-    onOk:v=>dcSend({type:'profile.set',displayName:v.displayName,color:v.color,bio:v.bio})
+    onOk:v=>dcSend({type:'profile.set',displayName:v.displayName,color:v.color,bio:v.bio,banner:$('#cx-banner-v')?.value??undefined})
   });
+  window.chatx?.bannerPicker(p.banner||'');
 };
 
 /* composer ---------------------------------------------------- */
@@ -3175,7 +3177,7 @@ $('#dc-toggle-members').onclick=()=>$('#chat-window').classList.toggle('hide-mem
 let adData=null,adTimer=null,adFilter='';
 function openAdmin(){
   if(currentRole!=='owner')return toast('The admin dashboard is for the owner.','err');
-  openPanel('admin-panel');adRefresh();window.adStats?.load();adErrors();
+  openPanel('admin-panel');adRefresh();window.adStats?.load();adErrors();adLiveStart();
   clearInterval(adTimer);
   adTimer=setInterval(()=>{if($('#admin-panel').classList.contains('show')&&!document.hidden)adRefresh();else if(!$('#admin-panel').classList.contains('show'))clearInterval(adTimer)},5000);
 }
@@ -3201,6 +3203,38 @@ $('#ad-backup-file').onchange=async e=>{
     toast('Backup restored. Reloading…','ok');setTimeout(()=>{leaveQuietly();location.reload()},1200);
   }});
 };
+/* the live card: a stream from the server (/api/admin/live) while the panel is open */
+let adLive=null;
+const LIVE_APP={desktop:['🖥️','Desktop'],browser:['🌐','Browser'],vm:['💻','VM'],cloud:['☁️','Cloud'],remote:['🖱️','Remote PC'],movies:['🎬','Movies'],music:['🎵','Music'],ai:['✨','AI'],chat:['💬','Chat'],arcade:['🕹️','Arcade'],apps:['▦','Apps'],settings:['⚙️','Settings'],files:['📁','Files']};
+function adLiveStart(){
+  if(adLive||!window.EventSource)return;
+  adLive=new EventSource('/api/admin/live');
+  adLive.addEventListener('live',e=>{try{adLiveDraw(JSON.parse(e.data))}catch(_){}});
+  adLive.addEventListener('problem',e=>{try{adLiveErr(JSON.parse(e.data),true)}catch(_){}});
+  adLive.onerror=()=>{$('#ad-live-dot').classList.add('off')};
+  adLive.onopen=()=>{$('#ad-live-dot').classList.remove('off')};
+  // stop streaming once the panel closes
+  const stop=setInterval(()=>{if(!$('#admin-panel').classList.contains('show')){clearInterval(stop);adLive?.close();adLive=null}},1500);
+}
+function adLiveDraw(d){
+  const tiles=[['Here now',d.counts.visitors],['Signed in',d.counts.accounts],['In chat',d.counts.chat],['Live VMs',d.counts.vms],['Server memory',d.rssMb+' MB']];
+  $('#ad-live-tiles').innerHTML=tiles.map(([k,v])=>`<div class="ad-lt"><b>${esc(String(v))}</b><span>${k}</span></div>`).join('');
+  $('#ad-live-sub').textContent=`updated ${new Date(d.at).toLocaleTimeString([],{hour:'numeric',minute:'2-digit',second:'2-digit'})}`;
+  const apps=Object.entries(d.byApp).sort((a,b)=>b[1]-a[1]);
+  $('#ad-live-apps').innerHTML=apps.length?apps.map(([a,n])=>`<span class="ad-la">${(LIVE_APP[a]||['•',a])[0]} ${esc((LIVE_APP[a]||['',a])[1])} <b>${n}</b></span>`).join(''):'';
+  $('#ad-live-list').innerHTML=d.visitors.length?d.visitors.map(v=>`<div class="ad-lv${v.hidden?' away':''}"><span class="nm">${esc(v.name)}</span><span class="ap">${(LIVE_APP[v.app]||['•',v.app]).join(' ')}</span><small>${v.hidden?'tab in background · ':''}here ${adAgo(v.since).replace(' ago','')}</small></div>`).join(''):'<div class="ad-empty">Nobody else is here right now.</div>';
+  const box=$('#ad-live-errs');
+  if(!box.dataset.init){box.dataset.init='1';box.innerHTML='';(d.errors||[]).forEach(e=>adLiveErr(e))}
+  if(!box.children.length)box.innerHTML='<div class="ad-empty">No problems since the server started. 🎉</div>';
+}
+function adLiveErr(e,fresh){
+  const box=$('#ad-live-errs');box.querySelector('.ad-empty')?.remove();
+  const row=document.createElement('div');row.className='ad-le'+(fresh?' fresh':'');
+  row.innerHTML=`<span class="ad-err-k k-${esc(e.kind)}">${esc(ERR_KIND[e.kind]||e.kind)}</span><div><b></b><small></small></div>`;
+  row.querySelector('b').textContent=e.msg;row.querySelector('small').textContent=`${new Date(e.at).toLocaleTimeString()}${e.place?' · '+e.place:''}`;
+  box.prepend(row);while(box.children.length>30)box.lastChild.remove();
+  if(fresh){adErrors();window.motion?.pop?.(row)}
+}
 async function adRefresh(){
   const live=$('#ad-live');
   try{
@@ -3366,3 +3400,28 @@ requestIdleCallback?.(()=>{fetchPlayerCount();setInterval(fetchPlayerCount,30000
 function leaveQuietly(){quietLeave=true}
 function askBeforeLeaving(e){if(quietLeave||!(S.confirmLeave||containerId))return;e.preventDefault();e.returnValue=''}
 window.addEventListener('beforeunload',askBeforeLeaving);
+
+/* ═══ live presence: every 20 s, which app this page is in (for the owner's "Live now") ═══ */
+function liveApp(){
+  const vis=s=>{const el=$(s);return !!el&&getComputedStyle(el).display!=='none'&&!el.classList.contains('minimized')};
+  if($('#chat-window')?.classList.contains('show'))return 'chat';
+  if($('#ai-window')?.classList.contains('show'))return 'ai';
+  if($('#music-window')?.classList.contains('show'))return 'music';
+  for(const [s,a] of [['#browser-wrap','browser'],['#vm-wrap','vm'],['#cloud-wrap','cloud'],['#remote-wrap','remote'],['#movies-wrap','movies']])if(vis(s))return a;
+  if($('#settings-panel')?.classList.contains('show'))return 'settings';
+  const top=[...document.querySelectorAll('.aw:not([hidden]):not(.other-desk)')].sort((a,b)=>b.style.zIndex-a.style.zIndex)[0];
+  if(top)return top.dataset.win==='files'?'files':top.dataset.win==='arcade'?'arcade':'apps';
+  return 'desktop';
+}
+let liveLast=0;
+function liveBeat(force){
+  if(document.querySelector('#auth-wrap:not(.hidden)'))return;
+  if(!force&&Date.now()-liveLast<15000)return;
+  liveLast=Date.now();
+  fetch('/api/live/beat',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({app:liveApp(),hidden:document.hidden}),keepalive:true}).catch(()=>{});
+}
+setInterval(()=>liveBeat(),20000);
+setTimeout(()=>liveBeat(true),3000);
+document.addEventListener('visibilitychange',()=>liveBeat(true));
+// changing apps shows up within a few seconds
+let liveWas='';setInterval(()=>{const a=liveApp();if(a!==liveWas){liveWas=a;liveBeat(true)}},4000);

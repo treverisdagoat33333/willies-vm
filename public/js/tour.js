@@ -14,6 +14,12 @@
   const NEWS_KEY = 'wvm.news.seen';
   /* add new entries at the top; the id only has to grow */
   const NEWS = [
+    { id: 11, date: 'Oct 2026', items: [
+      ['🖤', 'Welcome to Willie OS', 'A new name and an all-black look. Share your theme with a code from Settings.'],
+      ['🗂️', 'Files, desktops and snapping', 'Your own cloud storage, up to four desktops (Ctrl+Alt+1–4), and windows that snap to the edges.'],
+      ['💬', 'Threads, polls, voice messages', 'Plus custom emoji and profile pages with banners and badges.'],
+      ['✨', 'AI that compares and reads pages', 'Chats sync to your account, Compare two models, and ask about any page in the browser.'],
+    ] },
     { id: 10, date: 'Oct 2026', items: [
       ['🖼️', 'Send pictures to the AI', 'Add, paste or drop a picture and ask about it.'],
       ['🎨', 'The AI can draw', 'Type /image and what you want, or just ask it to draw something.'],
