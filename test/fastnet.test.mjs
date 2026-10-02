@@ -18,6 +18,11 @@ for (const [url, label] of [["http://127.0.0.1:9/", "loopback IP"], ["http://169
   r = await post(url);
   ok(r.status === 403 && /private/.test(decodeURIComponent(r.headers.get("x-wj-error") || "")), `${label} is refused`, `${r.status} ${r.headers.get("x-wj-error")}`);
 }
+// IPv4 hidden inside IPv6: the URL parser rewrites [::ffff:127.0.0.1] as ::ffff:7f00:1
+for (const [url, label] of [["http://[::ffff:127.0.0.1]:9/", "IPv4-mapped loopback"], ["http://[::ffff:a9fe:a9fe]/", "IPv4-mapped cloud metadata"], ["http://[::127.0.0.1]:9/", "IPv4-compatible loopback"], ["http://[2002:7f00:1::]:9/", "6to4 loopback"], ["http://[64:ff9b::a00:5]/", "NAT64 private"]]) {
+  r = await post(url);
+  ok(r.status === 403 && /private/.test(decodeURIComponent(r.headers.get("x-wj-error") || "")), `${label} is refused`, `${r.status} ${r.headers.get("x-wj-error")}`);
+}
 r = await post("http://localhost:9/");
 ok(r.status === 502 && /private address/.test(decodeURIComponent(r.headers.get("x-wj-error") || "")), "a hostname that resolves to loopback is refused after DNS", `${r.status} ${decodeURIComponent(r.headers.get("x-wj-error") || "")}`);
 r = await post("file:///etc/passwd");

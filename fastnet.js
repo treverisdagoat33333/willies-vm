@@ -37,7 +37,10 @@ import dns from "node:dns";
 import net from "node:net";
 import zlib from "node:zlib";
 
-export const fastnetOptions = { allowPrivate: false }; // tests flip this to reach a local site
+/* Reaching private addresses is for the test suite only (test/preload.mjs). A
+   function, not an exported object, so no other module can flip it by accident. */
+let allowPrivate = false;
+export function setAllowPrivate(on) { allowPrivate = Boolean(on); }
 
 const MAX_META = 1024 * 1024;
 const HEADER_BUDGET = 24 * 1024;
@@ -51,18 +54,41 @@ function v4Private(ip) {
     (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) ||
     (a === 192 && b === 0) || (a === 198 && (b === 18 || b === 19));
 }
+/* An IPv6 address as its 8 16-bit groups, or null. Works on the numbers, not the
+   text: the URL parser writes [::ffff:127.0.0.1] as ::ffff:7f00:1, which a text
+   match for the dotted form let straight through to the server itself. */
+function v6Groups(ip) {
+  let s = ip.toLowerCase().split("%")[0];
+  const tail = s.match(/(\d+\.\d+\.\d+\.\d+)$/);
+  if (tail) {
+    const [a, b, c, d] = tail[1].split(".").map(Number);
+    s = s.slice(0, -tail[1].length) + ((a << 8) | b).toString(16) + ":" + ((c << 8) | d).toString(16);
+  }
+  const [head, rest] = s.split("::");
+  const h = head ? head.split(":") : [], r = rest ? rest.split(":") : [];
+  const fill = s.includes("::") ? 8 - h.length - r.length : 0;
+  const g = [...h, ...Array(Math.max(0, fill)).fill("0"), ...r].map((x) => parseInt(x || "0", 16));
+  return g.length === 8 && g.every((x) => x >= 0 && x <= 0xffff) ? g : null;
+}
+const v4Of = (hi, lo) => `${hi >> 8}.${hi & 255}.${lo >> 8}.${lo & 255}`;
 export function isPrivateIp(ip) {
   if (net.isIPv4(ip)) return v4Private(ip);
-  const v6 = ip.toLowerCase();
-  const mapped = v6.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
-  if (mapped) return v4Private(mapped[1]);
-  return v6 === "::" || v6 === "::1" || /^f[cd]/.test(v6) || /^fe[89ab]/.test(v6) || /^ff/.test(v6) || v6.startsWith("64:ff9b:");
+  const g = v6Groups(ip);
+  if (!g) return true; // not an address we understand: refuse it
+  const zero = (n) => g.slice(0, n).every((x) => x === 0);
+  if (zero(8) || (zero(7) && g[7] === 1)) return true; // :: and ::1
+  // IPv4 inside IPv6: mapped (::ffff:a.b.c.d), compatible (::a.b.c.d), NAT64 (64:ff9b::a.b.c.d), 6to4 (2002:aabb:ccdd::)
+  if (zero(5) && g[5] === 0xffff) return v4Private(v4Of(g[6], g[7]));
+  if (zero(6)) return v4Private(v4Of(g[6], g[7]));
+  if (g[0] === 0x64 && g[1] === 0xff9b) return true;
+  if (g[0] === 0x2002) return v4Private(v4Of(g[1], g[2]));
+  return (g[0] & 0xfe00) === 0xfc00 || (g[0] & 0xffc0) === 0xfe80 || (g[0] & 0xff00) === 0xff00; // unique-local, link-local, multicast
 }
 
 function safeLookup(hostname, options, callback) {
   dns.lookup(hostname, { ...options, all: true }, (err, addresses) => {
     if (err) return callback(err);
-    const ok = fastnetOptions.allowPrivate ? addresses : addresses.filter((a) => !isPrivateIp(a.address));
+    const ok = allowPrivate ? addresses : addresses.filter((a) => !isPrivateIp(a.address));
     if (!ok.length) return callback(Object.assign(new Error(`${hostname} is a private address`), { code: "EPRIVATE" }));
     if (options.all) callback(null, ok);
     else callback(null, ok[0].address, ok[0].family);
@@ -119,7 +145,7 @@ export async function fastnetHandler(req, res) {
     return fail(res, 400, e.message);
   }
   const host = target.hostname.replace(/^\[|\]$/g, "");
-  if (net.isIP(host) && !fastnetOptions.allowPrivate && isPrivateIp(host)) return fail(res, 403, `${host} is a private address`);
+  if (net.isIP(host) && !allowPrivate && isPrivateIp(host)) return fail(res, 403, `${host} is a private address`);
 
   const method = String(meta.method || "GET").toUpperCase();
   const headers = {};

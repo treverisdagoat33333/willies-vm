@@ -92,7 +92,7 @@ Each WS module creates `WebSocketServer({ noServer: true })` and exports a `hand
 - **Fast mode's server side (`fastnet.js`):**
   - Framing: the request body is a uint32 length, JSON `{url, method, headers}`, then the body. The reply carries `x-wj-status`, `x-wj-status-text` and `x-wj-headers`, and keeps the upstream compression.
   - Replies with over 24 KB of headers, or an unusual encoding, come back framed and decompressed (`x-wj-framed`). Upstream headers can be up to 256 KB.
-  - Private, loopback and link-local addresses are refused, both as literal IPs and after DNS. `fastnetOptions.allowPrivate` exists only for the tests.
+  - Private, loopback and link-local addresses are refused, both as literal IPs and after DNS. IPv6 is checked by its numbers (`v6Groups`), so IPv4 hidden inside it (mapped `::ffff:7f00:1`, which is how the URL parser writes `[::ffff:127.0.0.1]`, compatible, NAT64, 6to4) is caught too. `setAllowPrivate()` exists only for the tests (`test/preload.mjs`).
   - It needs a session and is limited to 6000 requests a minute per IP.
 - **All engines, in `app.js`:**
   - **Following the page:** `realUrl()` reads the real address from the frame's Scramjet client (`Symbol.for('scramjet client global')`, which v2, WillieJet and v1 share) or decodes Ultraviolet's path. `syncTab()` updates the address bar, tab title, history and bookmarks on each load, and every 1.5 s for sites that change the address without reloading. `navigate()` marks the document it's leaving (`t.leaving`), and `syncTab()` skips a tab while that document is still showing (up to 30 s), or it would read the old page's address back.
