@@ -30,7 +30,8 @@
     mediapipe: "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-genai@0.10.29",
   };
   const HF = "https://huggingface.co";
-  const MAX_TOKENS = 768;
+  // room for a whole small program; more would overflow the 4k context these models load with
+  const MAX_TOKENS = 1536;
 
   /* ---- the models (sizes are the download) ---- */
   const MODELS = [

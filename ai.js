@@ -43,8 +43,15 @@ import { getAiChats, putAiChats } from "./db.js";
 
 const MAX_MESSAGES = 40; // of history sent per request
 const MAX_CHARS = 120_000; // across those messages (one message alone can be 39,213)
-const MAX_TOKENS = 2048; // per reply
-const IDLE_MS = 60_000; // a reply that stalls this long is cut off
+// per request to the API. Code runs long, and reasoning models spend part of it thinking,
+// so 2048 cut answers off mid-file; an API that refuses this many gets FALLBACK_TOKENS
+const MAX_TOKENS = 16_384;
+const FALLBACK_TOKENS = 4096;
+// a reply that hit the token limit is carried on in a follow-up request, this many times
+const MAX_ROUNDS = 6;
+const CONTINUE = "Continue exactly where your last message stopped, mid-word or mid-line if that's where it ended. Don't repeat anything, don't add a preamble, and stay inside any code block you were in.";
+const IDLE_MS = 180_000; // a reply that stalls this long is cut off (reasoning models can think quietly for minutes)
+const PING_MS = 15_000; // keeps proxies from closing a quiet stream while the model thinks
 const MAX_CONTEXT = 1500; // characters of "what's on screen" from the page
 const SYSTEM = "You are a helpful, friendly assistant inside Willie OS. Answer clearly and concisely. Use Markdown for code and lists.";
 // what the page (public/js/ai.js, ACTIONS) knows how to do; keep the two in step
@@ -199,36 +206,45 @@ async function fetchImage(url, signal, headers = {}) {
 }
 
 /* Reads the API's server-sent events and calls onText for each piece of the reply. */
+/* Reads one streamed reply. Resolves with why it ended: the API's finish_reason
+   ("stop", "length", …), "done" for a bare [DONE], or "eof" when the stream simply
+   stopped, which means the connection dropped mid-answer. */
 async function readStream(body, onText, signal, onThink = () => {}) {
   const reader = body.getReader(), dec = new TextDecoder();
-  let buf = "";
-  for (;;) {
-    let timer;
-    const idle = new Promise((_, no) => { timer = setTimeout(() => no(new Error("The AI stopped answering.")), IDLE_MS); });
-    const { value, done } = await Promise.race([reader.read(), idle]).finally(() => clearTimeout(timer));
-    if (done || signal.aborted) return;
-    buf += dec.decode(value, { stream: true });
-    let nl;
-    while ((nl = buf.indexOf("\n")) >= 0) {
-      const line = buf.slice(0, nl).trim();
-      buf = buf.slice(nl + 1);
-      if (!line.startsWith("data:")) continue;
-      const data = line.slice(5).trim();
-      if (data === "[DONE]") return;
-      try {
-        const j = JSON.parse(data);
-        if (j.error) throw new Error(j.error.message || String(j.error));
-        // reasoning models: some APIs send the thinking in its own field, before the answer
-        const d = j.choices?.[0]?.delta || {};
-        const think = d.reasoning_content || d.reasoning;
-        if (typeof think === "string" && think) onThink(think);
-        if (d.content) onText(d.content);
-      } catch (e) {
-        if (e instanceof SyntaxError) continue;
-        throw e;
+  let buf = "", finish = null;
+  const line = (raw) => {
+    const l = raw.trim();
+    if (!l.startsWith("data:")) return false;
+    const data = l.slice(5).trim();
+    if (data === "[DONE]") return true;
+    let j;
+    try { j = JSON.parse(data); } catch (_) { return false; }
+    if (j.error) throw new Error(j.error.message || String(j.error));
+    const c = j.choices?.[0] || {};
+    // reasoning models: some APIs send the thinking in its own field, before the answer
+    const d = c.delta || c.message || {};
+    const think = d.reasoning_content || d.reasoning;
+    if (typeof think === "string" && think) onThink(think);
+    if (typeof d.content === "string" && d.content) onText(d.content);
+    if (c.finish_reason) finish = c.finish_reason;
+    return false;
+  };
+  try {
+    for (;;) {
+      let timer;
+      const idle = new Promise((_, no) => { timer = setTimeout(() => no(new Error("The AI stopped answering.")), IDLE_MS); });
+      const { value, done } = await Promise.race([reader.read(), idle]).finally(() => clearTimeout(timer));
+      if (signal.aborted) return "aborted";
+      if (done) { buf += dec.decode(); if (buf && line(buf)) return finish || "done"; return finish || "eof"; }
+      buf += dec.decode(value, { stream: true });
+      let nl;
+      while ((nl = buf.indexOf("\n")) >= 0) {
+        const raw = buf.slice(0, nl);
+        buf = buf.slice(nl + 1);
+        if (line(raw)) return finish || "done";
       }
     }
-  }
+  } finally { reader.cancel().catch(() => {}); }
 }
 
 export function aiRouter({ requireSession, limiter, userLimiter, isOwner = () => false }) {
@@ -264,21 +280,39 @@ export function aiRouter({ requireSession, limiter, userLimiter, isOwner = () =>
 
     const abort = new AbortController();
     res.on("close", () => abort.abort());
-    let upstream;
-    try {
-      upstream = await fetch(`${base}/chat/completions`, {
+    const system = { role: "system", content: systemFor(req.body?.actions === true, cleanContext(req.body?.context), cleanCustom(req.body?.custom), isOwner(req.vmSession)) };
+    // the page carrying on a reply whose connection dropped: what it already has goes back as
+    // the assistant's, and the model is asked to go on from there
+    const partial = typeof req.body?.partial === "string" ? req.body.partial.slice(-MAX_CHARS / 2) : "";
+    let tokens = MAX_TOKENS;
+    const call = async (msgs) => {
+      const go = (n) => fetch(`${base}/chat/completions`, {
         method: "POST",
         headers: { authorization: `Bearer ${key}`, "content-type": "application/json", accept: "text/event-stream" },
-        body: JSON.stringify({ model, stream: true, max_tokens: MAX_TOKENS, messages: [{ role: "system", content: systemFor(req.body?.actions === true, cleanContext(req.body?.context), cleanCustom(req.body?.custom), isOwner(req.vmSession)) }, ...messages] }),
+        body: JSON.stringify({ model, stream: true, max_tokens: n, messages: [system, ...msgs] }),
         signal: abort.signal,
       });
+      let up = await go(tokens);
+      // some APIs refuse a max_tokens above the model's own limit; ask again for less
+      if (up.status === 400 && tokens > FALLBACK_TOKENS) {
+        const why = await up.text().catch(() => "");
+        if (/max_tokens|max_completion_tokens|maximum|context|too (large|long)/i.test(why)) { tokens = FALLBACK_TOKENS; up = await go(tokens); }
+        else up = new Response(why, { status: 400 });
+      }
+      return up;
+    };
+    const withPartial = (text) => text ? [...messages, { role: "assistant", content: text }, { role: "user", content: CONTINUE }] : messages;
+
+    let upstream;
+    try {
+      upstream = await call(withPartial(partial));
     } catch (e) {
       if (abort.signal.aborted) return;
       return res.status(502).json({ error: "Couldn't reach the AI. Try again in a moment." });
     }
     if (!upstream.ok || !upstream.body) {
       let why = "";
-      try { const d = await upstream.json(); why = d?.error?.message || d?.error || ""; } catch (_) {}
+      try { const t = await upstream.text(); try { const d = JSON.parse(t); why = d?.error?.message || d?.error || ""; } catch (_) { why = t; } } catch (_) {}
       const status = upstream.status === 429 ? 429 : 502;
       return res.status(status).json({ error: status === 429 ? "The AI is busy. Wait a moment and try again." : `The AI answered with an error${why ? `: ${String(why).slice(0, 200)}` : ` (HTTP ${upstream.status})`}.` });
     }
@@ -287,15 +321,28 @@ export function aiRouter({ requireSession, limiter, userLimiter, isOwner = () =>
     // as they come instead of holding the reply back until it's whole
     res.status(200).set({ "content-type": "text/event-stream; charset=utf-8", "cache-control": "no-store, no-transform", "x-accel-buffering": "no" });
     res.flushHeaders?.();
-    const send = (o) => { if (!res.writableEnded) res.write(JSON.stringify(o) + "\n"); };
+    const send = (o) => { if (!res.writableEnded && !res.destroyed) res.write(JSON.stringify(o) + "\n"); };
+    // a quiet line now and then, so nothing between here and the page closes a stream that's
+    // only waiting on the model to think
+    const ping = setInterval(() => send({ t: "ping" }), PING_MS);
     send({ t: "model", v: model });
     record("ai");
+    let text = partial;
     try {
-      await readStream(upstream.body, (v) => send({ t: "text", v }), abort.signal, (v) => send({ t: "think", v }));
-      send({ t: "done" });
+      for (let round = 0; ; round++) {
+        const finish = await readStream(upstream.body, (v) => { text += v; send({ t: "text", v }); }, abort.signal, (v) => send({ t: "think", v }));
+        if (finish === "aborted") break;
+        // hit the token limit (or the API dropped us mid-answer): carry on in a new request
+        const cut = finish === "length" || (finish === "eof" && text.length > partial.length);
+        if (!cut) { send({ t: "done", finish }); break; }
+        if (round + 1 >= MAX_ROUNDS) { send({ t: "done", finish: "length" }); break; }
+        send({ t: "continue" });
+        upstream = await call(withPartial(text));
+        if (!upstream.ok || !upstream.body) throw new Error(`The AI stopped partway (HTTP ${upstream.status}).`);
+      }
     } catch (e) {
       if (!abort.signal.aborted) send({ t: "error", error: String(e?.message || "The reply was cut off.").slice(0, 200) });
-    }
+    } finally { clearInterval(ping); }
     res.end();
   });
 

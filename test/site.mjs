@@ -219,6 +219,7 @@ function aiMock(req, res, u) {
     const raw = b.messages?.[b.messages.length - 1]?.content || "";
     const said = typeof raw === "string" ? raw : raw.find?.((p) => p.type === "text")?.text || "";
     if (/fail/.test(said)) return json(500, { error: { message: "mock failure" } });
+    if (/big tokens/.test(said) && b.max_tokens > 4096) return json(400, { error: { message: "max_tokens is too large for this model" } });
     res.writeHead(200, { "content-type": "text/event-stream" });
     // replies that act on the site (public/js/ai.js carries the actions out); the
     // chat log comes back as "(From the site…", and what it answers mustn't act
@@ -238,6 +239,22 @@ function aiMock(req, res, u) {
       let j = 0;
       const t2 = () => { if (res.destroyed) return; if (j >= steps.length) { res.write("data: [DONE]\n\n"); return res.end(); } res.write(`data: ${JSON.stringify({ choices: [{ delta: steps[j++] }] })}\n\n`); setTimeout(t2, 30); };
       return t2();
+    }
+    // replies that get cut off: by the token limit (finish_reason "length"), or by the
+    // stream just stopping; the server must carry each on in a follow-up request
+    const asked = [...(b.messages || [])].reverse().find((m) => m.role === "user" && typeof m.content === "string" && !/^Continue exactly/.test(m.content))?.content || "";
+    const going = /^Continue exactly/.test(said);
+    const chunk = (o) => res.write(`data: ${JSON.stringify({ choices: [o] })}\n\n`);
+    if (/long code/.test(asked)) {
+      // how far it got: what the server sends back as the assistant's text so far
+      const sofar = going ? b.messages[b.messages.length - 2]?.content || "" : "";
+      const n = sofar.includes("line2") ? 2 : sofar ? 1 : 0;
+      if (n < 2) { chunk({ delta: { content: n ? "line2();\n" : "```js\nline1();\n" } }); chunk({ delta: {}, finish_reason: "length" }); res.write("data: [DONE]\n\n"); return res.end(); }
+      chunk({ delta: { content: "line3();\n```\nAll done." } }); chunk({ delta: {}, finish_reason: "stop" }); res.write("data: [DONE]\n\n"); return res.end();
+    }
+    if (/drop me/.test(asked)) {
+      if (!going) { chunk({ delta: { content: "First half, " } }); return setTimeout(() => res.destroy(), 30); }
+      chunk({ delta: { content: "second half." } }); res.write("data: [DONE]\n\n"); return res.end();
     }
     const parts = hit ? hit[1] : /slow/.test(said) ? Array.from({ length: 20 }, (_, i) => `word${i} `) : ["Hello ", "**there**", "\n\n```js\nconsole.log(1)\n```\n", `You said: ${said}`];
     let i = 0;

@@ -210,6 +210,7 @@ function bubble(m){
       for(const a of m.acts){const c=document.createElement('span');c.className='ai-act '+(a.ok?'ok':'bad');c.textContent=a.label;box.appendChild(c)}
       d.appendChild(box);
     }
+    if(m.note&&!m.error){const n=document.createElement('div');n.className='ai-note';n.textContent=m.note;d.appendChild(n)}
     if(m.error){const e=document.createElement('div');e.className='ai-err';e.innerHTML='<span></span><button type="button" class="btn sm ai-retry">Try again</button>';e.firstChild.textContent=m.error;d.appendChild(e)}
     // when it's done: copy, read aloud, try again (the last one), and which model said it, how fast
     if(m.done&&full&&text.length===full.length){
@@ -356,23 +357,39 @@ function noteTiming(r){
    wasn't picked (side b), and with a page's text where "Ask about this page" put it */
 const historyOf=list=>list.filter(m=>(m.content||m.imgs?.length)&&m.side!=='b');
 async function askOnline(reply,model,canAct,signal,base){
-  const r=await fetch('/api/ai/chat',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({model,actions:canAct,context:siteContext(),
-    custom:customText(),messages:await Promise.all(historyOf(base).map(async({role,content,imgs})=>({role,content:role==='assistant'?answerOf(content):content,
-      ...(imgs?.length?{images:(await Promise.all(imgs.map(async id=>{const b=await imgGet(id);return b?dataUrl(b):null}))).filter(Boolean)}:{})})))}),signal});
-  if(!r.ok){const d=await r.json().catch(()=>({}));throw new Error(d.error||`HTTP ${r.status}`)}
-  const reader=r.body.getReader(),dec=new TextDecoder();let buf='';
-  for(;;){
-    const{value,done}=await reader.read();if(done)break;
-    buf+=dec.decode(value,{stream:true});
-    let nl;
-    while((nl=buf.indexOf('\n'))>=0){
-      const line=buf.slice(0,nl).trim();buf=buf.slice(nl+1);if(!line)continue;
-      const m=JSON.parse(line);
-      if(m.t==='text'){reply.content+=m.v;noteTiming(reply);paintLast()}
-      else if(m.t==='think'){reply.think=(reply.think||'')+m.v;noteTiming(reply);paintLast()}
-      else if(m.t==='model')reply.modelName=m.v;
-      else if(m.t==='error')throw new Error(m.error);
-    }
+  const msgs=await Promise.all(historyOf(base).map(async({role,content,imgs})=>({role,content:role==='assistant'?answerOf(content):content,
+    ...(imgs?.length?{images:(await Promise.all(imgs.map(async id=>{const b=await imgGet(id);return b?dataUrl(b):null}))).filter(Boolean)}:{})})));
+  // a dropped connection (Wi-Fi blips, a phone sleeping, a proxy giving up) used to end the
+  // answer where it was; now the page asks the server to carry on from what it already has
+  for(let tries=0;;tries++){
+    const partial=tries?answerOf(reply.content):'';
+    let finished=false,failed=null;
+    try{
+      const r=await fetch('/api/ai/chat',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({model,actions:canAct,context:siteContext(),custom:customText(),messages:msgs,...(partial?{partial}:{})}),signal});
+      if(!r.ok){const d=await r.json().catch(()=>({}));const e=new Error(d.error||`HTTP ${r.status}`);e.final=r.status<500||r.status===503;throw e}
+      const reader=r.body.getReader(),dec=new TextDecoder();let buf='';
+      const take=line=>{
+        line=line.trim();if(!line)return;
+        let m;try{m=JSON.parse(line)}catch(_){return} // a torn line is skipped, never the whole answer
+        if(m.t==='text'){reply.content+=m.v;noteTiming(reply);paintLast()}
+        else if(m.t==='think'){reply.think=(reply.think||'')+m.v;noteTiming(reply);paintLast()}
+        else if(m.t==='model')reply.modelName=m.v;
+        else if(m.t==='done'){finished=true;if(m.finish==='length')reply.note='This answer was very long, so it stopped here. Say "continue" for the rest.'}
+        else if(m.t==='error')failed=new Error(m.error);
+      };
+      for(;;){
+        const{value,done}=await reader.read();
+        if(done){take(buf+dec.decode());break}
+        buf+=dec.decode(value,{stream:true});
+        let nl;while((nl=buf.indexOf('\n'))>=0){take(buf.slice(0,nl));buf=buf.slice(nl+1)}
+      }
+    }catch(e){if(signal.aborted||e.final)throw e;failed=e}
+    if(finished)return;
+    if(signal.aborted)return;
+    // nothing written yet and the server said why: show that rather than retrying blind
+    if(failed&&!answerOf(reply.content).trim()&&tries>=1)throw failed;
+    if(tries>=3)throw failed||new Error('The connection kept dropping, so the answer stopped here. Say "continue" for the rest.');
+    await new Promise(r=>setTimeout(r,800*(tries+1)));
   }
 }
 /* one answer from one model; its errors stay on its own bubble */

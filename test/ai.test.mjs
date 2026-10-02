@@ -40,7 +40,7 @@ const bot = await page.$("#ai-log .ai-msg.bot");
 ok(/Hello there/.test(await bot.textContent()) && await bot.$eval("b", (b) => b.textContent) === "there", "the reply streams in, with Markdown", await bot.textContent());
 ok(await bot.$eval(".ai-code code", (c) => c.textContent) === "console.log(1)" && !!(await bot.$(".ai-copy")), "code comes in a block with a Copy button");
 let got = await last();
-ok(got.auth === "Bearer test-ai-key" && got.stream === true && got.model === "gpt-4o-mini" && got.max_tokens === 2048, "our server sends the key, model and limits to the API", JSON.stringify({ ...got, messages: undefined }));
+ok(got.auth === "Bearer test-ai-key" && got.stream === true && got.model === "gpt-4o-mini" && got.max_tokens === 16384, "our server sends the key, model and limits to the API", JSON.stringify({ ...got, messages: undefined }));
 ok(got.messages[0].role === "system" && got.messages.at(-1).content === "hi there", "…with its own system message first");
 
 // the conversation goes along with the next message
@@ -120,6 +120,17 @@ const sent = (await last()).messages.at(-1).content;
 ok(/Summary of 2 messages/.test(lb.text) && /alice: movie night friday\?/.test(sent) && /bob: yes! 8pm/.test(sent), "catching up sends the chat back and answers from it", sent.slice(0, 200));
 ok(await page.evaluate(() => S.wallpaper === "live-synth") && lb.chips.length === 0, "…and that answer can't act (someone's chat message can't steer your AI)", JSON.stringify(lb.chips));
 ok(await page.$$eval("#ai-log .ai-msg.me", (m) => m.every((x) => !/From the site/.test(x.textContent))), "…and the chat log isn't shown as something you said");
+
+// answers that get cut off are carried on, never left half-written
+const botText = () => page.$eval("#ai-log .ai-msg.bot:last-child", (b) => b.textContent);
+await ask("write me long code", () => /All done\./.test(document.querySelector("#ai-log .ai-msg.bot:last-child")?.textContent || ""));
+let bt = await botText();
+ok(/line1\(\);[\s\S]*line2\(\);[\s\S]*line3\(\);[\s\S]*All done\./.test(bt) && !/Continue exactly/.test(bt), "an answer that hits the token limit carries on until it's finished", bt.slice(0, 200));
+await ask("drop me halfway", () => /second half\./.test(document.querySelector("#ai-log .ai-msg.bot:last-child")?.textContent || ""));
+bt = await botText();
+ok(/First half, second half\./.test(bt) && !/stopped|error/i.test(bt), "…and one whose stream drops mid-answer is picked back up", bt.slice(0, 200));
+await ask("big tokens please", () => /You said: big tokens/.test(document.querySelector("#ai-log .ai-msg.bot:last-child")?.textContent || ""));
+ok(/You said: big tokens/.test(await botText()), "an API that refuses a big reply limit is asked again with a smaller one");
 
 // a reasoning model's thinking isn't shown, and an action inside it isn't carried out
 await ask("think it over", () => /Thought about it\./.test(document.querySelector("#ai-log .ai-msg.bot:last-child")?.textContent || ""));
