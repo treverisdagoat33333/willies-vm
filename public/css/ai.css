@@ -219,3 +219,15 @@ html[data-motion="off"] .ai-making,html[data-perf="on"] .ai-making{animation:non
 .ai-drop{position:absolute;inset:12px;z-index:9;display:grid;place-items:center;border:2px dashed rgba(var(--accent-rgb),.8);border-radius:20px;background:rgba(var(--accent-rgb),.12);font-weight:700;font-size:1.1em;pointer-events:none}
 .ai-lightbox{position:absolute;inset:0;z-index:11;display:grid;place-items:center;padding:24px;background:rgba(0,0,0,.8);cursor:zoom-out}
 .ai-lightbox img{max-width:100%;max-height:100%;border-radius:12px;box-shadow:var(--shadow)}
+
+/* Compare: two answers side by side */
+.ai-pair{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;align-self:stretch}
+.ai-pair-col{min-width:0;padding:12px;border-radius:14px;border:1px solid var(--border);background:var(--glass-2);display:flex;flex-direction:column;gap:8px}
+.ai-pair-head{display:flex;align-items:center;gap:8px;font-size:.8em;color:var(--text-2)}
+.ai-pair-head b{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ai-cmp-btn{display:flex;align-items:center;gap:6px;max-width:220px}
+.ai-cmp-btn span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ai-cmp-btn .i{width:14px;height:14px}
+.ai-cmp-btn.on{border-color:rgba(var(--accent-rgb),.6);color:var(--accent)}
+.ai-page{margin-top:6px;font-size:.78em;color:var(--text-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:420px}
+@media (max-width:720px){.ai-pair{grid-template-columns:minmax(0,1fr)}.ai-cmp-btn span{display:none}}

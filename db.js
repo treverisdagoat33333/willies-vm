@@ -143,6 +143,24 @@ db.exec(`
     created_at INTEGER NOT NULL
   );
 `);
+/* AI chats, per account (ai.js /api/ai/chats); pictures stay on the device that has them */
+db.exec(`
+  CREATE TABLE IF NOT EXISTS ai_chats (
+    username   TEXT PRIMARY KEY,
+    data       TEXT NOT NULL,
+    updated_at INTEGER NOT NULL
+  )
+`);
+export function getAiChats(username) {
+  const r = db.prepare("SELECT data, updated_at FROM ai_chats WHERE username = ?").get(username);
+  if (!r) return null;
+  try { return { data: JSON.parse(r.data), updatedAt: r.updated_at }; } catch (_) { return null; }
+}
+export function putAiChats(username, json) {
+  const now = Date.now();
+  db.prepare("INSERT INTO ai_chats (username, data, updated_at) VALUES (?, ?, ?) ON CONFLICT(username) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at").run(username, json, now);
+  return now;
+}
 /* the owner's custom emoji pictures (emoji.js) */
 export const EMOJI_DIR = path.join(DATA_DIR, "emoji");
 fs.mkdirSync(EMOJI_DIR, { recursive: true });
@@ -347,6 +365,7 @@ export function deleteUser(username) {
     q.deleteUserReactions.run(username);
     q.deleteUserSanctions.run(username);
     q.deleteUserSettings.run(username);
+    db.prepare("DELETE FROM ai_chats WHERE username = ?").run(username);
     q.deleteUser.run(username);
     db.exec("COMMIT");
   } catch (err) {

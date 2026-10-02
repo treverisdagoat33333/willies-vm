@@ -618,6 +618,7 @@ https://discord.com/</textarea><div class="ctl"><button class="btn sm" id="st-ru
     <button id="b-home" title="Home"><svg class="i" viewBox="0 0 24 24"><path d="M3 11l9-8 9 8v10a2 2 0 0 1-2 2h-4v-7H9v7H5a2 2 0 0 1-2-2z"/></svg></button>
     <div class="omni"><img id="browser-favicon" alt="" style="display:none"><input id="browser-address" type="text" placeholder="Search or enter a URL" autocomplete="off" spellcheck="false"><button id="b-key" class="b-engine b-key" title="Fill a saved login" aria-haspopup="menu" hidden><svg class="i i-sm" viewBox="0 0 24 24"><circle cx="7.5" cy="15.5" r="4.5"/><path d="M10.7 12.3L21 2M16 7l3 3M18.5 4.5l2 2"/></svg></button><button id="b-engine" class="b-engine" title="Proxy engine for this site" aria-haspopup="menu">WJ</button></div>
     <button id="b-bm" title="Bookmark"><svg class="i" viewBox="0 0 24 24"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg></button>
+    <button id="b-ai" title="Ask the AI about this page"><svg class="i" viewBox="0 0 24 24"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg></button>
     <button id="b-hist" title="History"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></button>
     <button id="b-fs" title="Fullscreen"><svg class="i" viewBox="0 0 24 24"><path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"/></svg></button>
     <button id="b-close" class="close" title="Close browser"><svg class="i" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
@@ -838,6 +839,10 @@ https://discord.com/</textarea><div class="ctl"><button class="btn sm" id="st-ru
           <input class="field ai-mp-q" id="ai-mp-q" type="search" placeholder="Search models" autocomplete="off">
           <div class="ai-mp-list" id="ai-mp-list"></div>
         </div>
+      </div>
+      <div class="ai-mp ai-cmp" id="ai-cmp" hidden>
+        <button type="button" class="btn sm ai-cmp-btn" id="ai-cmp-btn" aria-haspopup="listbox" aria-expanded="false" title="Ask two models at once, side by side"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="8" height="16" rx="2"/><rect x="13" y="4" width="8" height="16" rx="2"/></svg><span>Compare</span></button>
+        <div class="ai-mp-pop" id="ai-cmp-pop" role="listbox" hidden><div class="ai-mp-g">Answer each question with a second model too</div><div class="ai-mp-list" id="ai-cmp-list"></div></div>
       </div>
       <span class="sp"></span>
       <button type="button" class="mu-iconbtn" id="ai-export" title="Download this chat" aria-label="Download this chat"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg></button>

@@ -7,6 +7,7 @@
  */
 import express from "express";
 import { record } from "./analytics.js";
+import { getAiChats, putAiChats } from "./db.js";
 
 /*
 |--------------------------------------------------------------------------
@@ -287,6 +288,21 @@ export function aiRouter({ requireSession, limiter, userLimiter }) {
       if (!abort.signal.aborted) send({ t: "error", error: String(e?.message || "The reply was cut off.").slice(0, 200) });
     }
     res.end();
+  });
+
+  /* an account's chats, so they follow it to every device (js/ai.js merges them) */
+  const MAX_SYNC = 3 * 1024 * 1024;
+  router.get("/chats", requireSession, (req, res) => {
+    if (req.vmSession.type !== "account") return res.status(403).json({ error: "Sign in to sync your chats." });
+    res.set("Cache-Control", "no-store").json(getAiChats(req.vmSession.username) || { data: null, updatedAt: 0 });
+  });
+  router.put("/chats", requireSession, (req, res) => {
+    if (req.vmSession.type !== "account") return res.status(403).json({ error: "Sign in to sync your chats." });
+    const d = req.body?.data;
+    if (!d || !Array.isArray(d.chats) || !Array.isArray(d.gone || [])) return res.status(400).json({ error: "That isn't a chat list." });
+    const json = JSON.stringify({ chats: d.chats.slice(0, 50), gone: (d.gone || []).slice(-300).map(String) });
+    if (json.length > MAX_SYNC) return res.status(413).json({ error: "Your chats are too big to sync. Delete some old ones." });
+    res.json({ updatedAt: putAiChats(req.vmSession.username, json) });
   });
 
   router.post("/image", requireSession, limiter, userLimiter, async (req, res) => {

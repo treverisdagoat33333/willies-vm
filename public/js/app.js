@@ -1655,6 +1655,15 @@ function realUrl(t){
   try{const c=self.__uv$config,p=w.location.pathname;if(t.engine==='uv'&&c&&p.startsWith(c.prefix))return c.decodeUrl(p.slice(c.prefix.length))}catch(_){}
   return null;
 }
+/* "Ask the AI about this page": the page's own text, read from its frame (our origin, through the proxy) */
+$('#b-ai').onclick=()=>{
+  const t=getTab();if(!t)return;
+  let text='',title='';
+  try{const d=t.frame.contentDocument;text=(d?.body?.innerText||'').replace(/\n{3,}/g,'\n\n').trim();title=(d?.title||'').trim()}catch(_){}
+  const url=realUrl(t)||t.url||'';
+  if(!text)return toast("Couldn't read this page. Wait for it to load, or try another engine.",'err');
+  click();window.ai?.askAbout({url,title:title||t.title||url,text});
+};
 function renameHistory(url,title){const h=historyData.find(x=>x.url===url);if(h&&h.title!==title){h.title=title;put('history',historyData)}}
 /* clicking around inside a site: the address bar, tab, history and bookmarks follow along */
 function syncTab(t){
