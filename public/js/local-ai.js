@@ -83,11 +83,13 @@
   let caps = null;
   async function capabilities() {
     if (caps) return caps;
-    let gpu = false, f16 = false;
+    let gpu = false, f16 = false, gpuMb = 0;
     try {
       const a = navigator.gpu && (await navigator.gpu.requestAdapter());
       gpu = !!a;
       f16 = !!a?.features?.has("shader-f16");
+      // the biggest single buffer the chip will hand out: a rough guide to how big a model fits
+      gpuMb = a ? Math.round(Number(a.limits?.maxBufferSize || 0) / 1048576) : 0;
     } catch (_) {}
     let nano = "unavailable";
     try {
@@ -96,9 +98,22 @@
       else if (LM?.capabilities) { const c = await LM.capabilities(); nano = c.available === "readily" ? "available" : c.available === "after-download" ? "downloadable" : "unavailable"; }
     } catch (_) {}
     const mem = navigator.deviceMemory || 4;
-    return (caps = { gpu, f16, nano, mem, wasm: typeof WebAssembly === "object" });
+    return (caps = { gpu, f16, gpuMb, nano, mem, cores: navigator.hardwareConcurrency || 2, wasm: typeof WebAssembly === "object" });
   }
+  /* A model that took the tab down while loading or answering, remembered so it isn't
+     picked again: the key is written before it loads and cleared once it has answered,
+     so one still there on the next visit is one the tab died on. */
+  const CRASH_KEY = "wvm.localai.loading", CRASHED_KEY = "wvm.localai.crashed";
+  const getJSON = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch (_) { return d; } };
+  const setJSON = (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, JSON.stringify(v)); } catch (_) {} };
+  (() => {
+    const was = getJSON(CRASH_KEY, null);
+    if (was && Date.now() - was.at < 30 * 60_000) { const c = getJSON(CRASHED_KEY, {}); c[was.key] = Date.now(); setJSON(CRASHED_KEY, c); }
+    setJSON(CRASH_KEY, null);
+  })();
+  const crashed = (key) => { const t = getJSON(CRASHED_KEY, {})[key]; return t && Date.now() - t < 14 * 86_400_000; }; // forgiven after two weeks
   function why(m, c) {
+    if (crashed(keyOf(m))) return "Crashed on this device last time (too big for it)";
     if (m.engine === "webllm" || m.engine === "mediapipe") return c.gpu ? "" : "Needs WebGPU, which this browser doesn't have";
     if (m.engine === "transformers") return m.gpuOnly && !c.gpu ? "Needs WebGPU, which this browser doesn't have" : "";
     if (m.engine === "wllama") return c.wasm ? "" : "This browser can't run WebAssembly";
@@ -120,9 +135,13 @@
     const all = (await list()).filter((m) => !m.why && m.tier >= 0);
     const c = await capabilities();
     // the strongest the device can hold: memory decides the size
+    // Browsers say at most 8 GB of memory, so a Chromebook looks like a gaming PC; the
+    // graphics chip's own limit and the core count tell them apart. Auto stays modest:
+    // the big ones are there to pick by hand.
+    const strong = c.mem >= 8 && c.cores >= 8 && c.gpuMb >= 2048;
     const order = [
-      c.gpu && c.mem >= 8 && all.find((m) => m.engine === "webllm" && /Qwen3\.5-4B/.test(m.id)),
-      c.gpu && c.mem >= 4 && all.find((m) => m.engine === "webllm" && /Qwen3\.5-2B/.test(m.id)),
+      c.gpu && strong && all.find((m) => m.engine === "webllm" && /Qwen3\.5-2B/.test(m.id)),
+      c.gpu && c.mem >= 4 && c.gpuMb >= 1024 && all.find((m) => m.engine === "webllm" && /Qwen3\.5-0\.8B/.test(m.id)),
       c.nano === "available" && all.find((m) => m.engine === "chrome"),
       c.gpu && all.find((m) => m.engine === "webllm" && /Qwen3\.5-0\.8B/.test(m.id)),
       c.mem >= 8 && all.find((m) => m.engine === "wllama" && /Qwen3-1\.7B/.test(m.id)),
@@ -313,12 +332,29 @@
     return p;
   }
   async function chat({ key, messages, onToken, onStatus = () => {}, signal, file }) {
-    const eng = await load(key, onStatus, file);
-    if (signal?.aborted) return;
-    onStatus("", 1);
-    await eng.chat(messages, onToken, signal);
+    setJSON(CRASH_KEY, { key, at: Date.now() });
+    let answered = false;
+    try {
+      const eng = await load(key, onStatus, file);
+      if (signal?.aborted) return;
+      onStatus("", 1);
+      await eng.chat(messages, (t) => { if (!answered) { answered = true; setJSON(CRASH_KEY, null); } onToken(t); }, signal);
+    } catch (e) {
+      // the graphics chip ran out of memory or gave up: the model is too big for this device
+      const msg = String(e?.message || e);
+      if (/device (was )?lost|out of memory|OOM|allocat|exceed|GPUBuffer|maxBufferSize|createBuffer|Aborted\(\)/i.test(msg)) {
+        const c = getJSON(CRASHED_KEY, {}); c[key] = Date.now(); setJSON(CRASHED_KEY, c);
+        caps = null; // ask the chip again next time
+        if (loaded?.key === key) { await loaded.unload?.().catch?.(() => {}); loaded = null; }
+        throw new Error("This model is too big for this device's graphics chip. Pick a smaller one, or Auto.");
+      }
+      throw e;
+    } finally {
+      setJSON(CRASH_KEY, null); // finished or failed normally: only a dead tab leaves it behind
+    }
   }
   async function forget() {
+    setJSON(CRASHED_KEY, null); // a fresh start: everything may be tried again
     if (loaded) { await loaded.unload().catch(() => {}); loaded = null; }
     try { await caches.delete("wvm-local-ai"); } catch (_) {}
     // WebLLM, Transformers.js and wllama keep their downloads under these names

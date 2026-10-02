@@ -92,6 +92,17 @@ ok(/Willie OS/.test(sys.system) && /\[\[action/.test(sys.actions) && !/key/i.tes
 const src = await (await fetch(BASE + "/js/local-ai.js")).text();
 ok(/web-llm@0\.2\.\d+/.test(src) && /wllama@3\.\d+\.\d+/.test(src) && /tasks-genai@0\.10\.\d+/.test(src) && /transformers@4\.\d+\.\d+\/\+esm/.test(await (await fetch(BASE + "/js/local-ai-tf.js")).text()), "each engine's library is pinned to a version");
 
+/* a model that took the tab down while loading is remembered, left out of Auto and labelled */
+const crashKey = await p.evaluate(() => localAI.list().then((l) => l.find((m) => m.engine === "wllama").key));
+await p.evaluate((key) => localStorage.setItem("wvm.localai.loading", JSON.stringify({ key, at: Date.now() })), crashKey);
+await p.reload();
+await p.waitForFunction(() => !!window.localAI, null, { timeout: 10000 });
+const after = await p.evaluate((key) => localAI.list().then((l) => l.find((m) => m.key === key)), crashKey);
+ok(/Crashed on this device/.test(after?.why || ""), "a model the tab died on is marked as crashed and not offered again", JSON.stringify(after?.why));
+ok(await p.evaluate(() => localStorage.getItem("wvm.localai.loading")) === null, "…and the marker is cleared");
+await p.evaluate(() => localAI.forget());
+ok(!(await p.evaluate((key) => localAI.list().then((l) => l.find((m) => m.key === key).why), crashKey)), "Delete downloaded models gives it another chance");
+
 ok(!errors.length, "no page errors", errors.join("\n"));
 console.log(`\n${pass} passed, ${fail} failed`);
 await browser.close();
