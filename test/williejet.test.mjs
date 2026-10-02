@@ -15,6 +15,7 @@ const ctx = await browser.newContext({ baseURL: BASE, viewport: { width: 1280, h
 const page = await ctx.newPage();
 const errors = [];
 page.on("pageerror", (e) => errors.push(e.message));
+const clog = []; page.on("console", (m) => { if (/WillieJet|helper|restart/i.test(m.text())) clog.push(`${((Date.now() % 1e6) / 1000).toFixed(1)} [${m.type()}] ${m.text().slice(0, 140)}`); });
 const frame = async () => (await page.$("#browser-frames iframe.active"))?.contentFrame();
 async function text(sel, want, ms = 15000) {
   const end = Date.now() + ms; let last = null;
@@ -140,13 +141,15 @@ await page.waitForTimeout(8000);
 ok((await page.$eval("#browser-frames iframe.active", (f) => f.getAttribute("src"))).includes("/~/wj/"), "a normal page is left alone");
 
 // ---- crash recovery: kill the worker; it comes back and the tab reloads
-const w = page.workers().find((x) => x.url().includes("/wj/worker.mjs"));
+// the main worker, not one of its helpers (they share the file)
+let w = null;
+for (const x of page.workers().filter((x) => x.url().includes("/wj/worker.mjs"))) if ((await x.evaluate(() => self.name).catch(() => "")) === "WillieJet") w = x;
 ok(!!w, "found the WillieJet worker");
 await w.evaluate(() => setTimeout(() => { for (;;) {} }, 50)).catch(() => {});
 const t0 = Date.now();
 await page.waitForFunction(() => [...document.querySelectorAll(".toast, #toasts *")].some((e) => /restarted itself/.test(e.textContent)), null, { timeout: 40000 }).catch(() => {});
 const took = Math.round((Date.now() - t0) / 1000);
-ok(took < 35, "a stuck engine is restarted automatically", took + "s");
+ok(took < 35, "a stuck engine is restarted automatically", took + "s\n" + clog.slice(-12).join("\n"));
 ok(await text("h1", (t) => t === "Proxy test home", 20000) === "Proxy test home", "…and the tab reloads and works", await text("h1"));
 await (await frame()).click("#next");
 ok(await text("h1", (t) => t === "Page two") === "Page two", "…links work on the new engine");

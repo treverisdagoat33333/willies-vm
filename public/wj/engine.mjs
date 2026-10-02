@@ -48,6 +48,27 @@ export async function start({ wisp, cache = true, fast = false, fastSkip = [], a
   const waiting = new Map(); // request id -> resolve, for stats/clear
   let lastPong = Date.now();
   const restarts = [];
+  /* helpers rewrite scripts and stylesheets in parallel with the main worker, one per
+     spare core (at most 3, and 1 on a device short of memory) */
+  const cores = navigator.hardwareConcurrency || 2;
+  const HELPERS = (navigator.deviceMemory || 4) <= 2 ? Math.min(1, cores - 1) : Math.max(0, Math.min(3, cores - 1));
+  let helpers = [];
+  const toAll = (msg) => { worker?.postMessage(msg); for (const h of helpers) h.postMessage(msg); };
+  function spawnHelpers() {
+    for (const h of helpers) { try { h.terminate(); } catch (_) {} }
+    helpers = [];
+    worker.postMessage({ t: "helpers-reset" }); // anything sent to the old ones is done by the main worker instead
+    for (let i = 0; i < HELPERS; i++) {
+      const h = new Worker("/wj/worker.mjs", { type: "module", name: `WillieJet helper ${i + 1}` });
+      h.lastPong = Date.now();
+      h.addEventListener("message", ({ data }) => { if (data?.t === "pong") h.lastPong = Date.now(); });
+      h.postMessage({ t: "init", page, wisp, cache, fast: fastOn, fastSkip: skip, ads: adsOn, adsSkip: [...adsOff], preload: false, helper: true });
+      const ch = new MessageChannel();
+      h.postMessage({ t: "serve" }, [ch.port2]);
+      worker.postMessage({ t: "helper" }, [ch.port1]);
+      helpers.push(h);
+    }
+  }
 
   function spawn() {
     const w = new Worker("/wj/worker.mjs", { type: "module", name: "WillieJet" });
@@ -61,10 +82,12 @@ export async function start({ wisp, cache = true, fast = false, fastSkip = [], a
       });
       w.addEventListener("error", (e) => reject(new Error(e.message || "WillieJet worker failed to start")), { once: true });
     });
-    w.postMessage({ t: "init", page, wisp, cache, fast: fastOn, fastSkip: skip, ads: adsOn, adsSkip: [...adsOff], preload: preloadOn });
+    w.postMessage({ t: "init", page, wisp, cache, fast: fastOn, fastSkip: skip, ads: adsOn, adsSkip: [...adsOff], preload: preloadOn, restarted: !!worker });
     worker = w;
     lastPong = Date.now();
     register();
+    // the helpers start once the main worker is up, so they never slow its start
+    booted.then(spawnHelpers, () => {});
     return booted;
   }
 
@@ -104,6 +127,9 @@ export async function start({ wisp, cache = true, fast = false, fastSkip = [], a
   let restarting = false;
   setInterval(async () => {
     if (restarting) return;
+    // a helper stuck on some script: start a fresh set (the main worker covers meanwhile)
+    if (helpers.some((h) => Date.now() - h.lastPong > DEAD_AFTER)) { console.warn("A WillieJet helper stopped answering; replacing the helpers"); spawnHelpers(); }
+    for (const h of helpers) h.postMessage({ t: "ping", n: Date.now() });
     if (Date.now() - lastPong < DEAD_AFTER) return worker.postMessage({ t: "ping", n: Date.now() });
     const now = Date.now();
     while (restarts.length && now - restarts[0] > 300000) restarts.shift();
@@ -135,12 +161,15 @@ export async function start({ wisp, cache = true, fast = false, fastSkip = [], a
       };
     },
     /* fast mode on or off; `hosts` are sites it stays off for */
-    setFast(on, hosts = skip) { fastOn = !!on; skip = [...hosts]; worker.postMessage({ t: "fast", on: fastOn, skip }); },
+    setFast(on, hosts = skip) { fastOn = !!on; skip = [...hosts]; toAll({ t: "fast", on: fastOn, skip }); },
     /* the ad blocker on or off; `hosts` are sites it stays off for */
-    setAds(on, hosts = [...adsOff]) { adsOn = !!on; adsOff = new Set(hosts); worker.postMessage({ t: "ads", on: adsOn, skip: [...adsOff] }); },
+    setAds(on, hosts = [...adsOff]) { adsOn = !!on; adsOff = new Set(hosts); toAll({ t: "ads", on: adsOn, skip: [...adsOff] }); },
+    helpers: () => helpers.length,
     /* preloading pages' files on or off (on unless you're comparing) */
     setPreload(on) { preloadOn = !!on; worker.postMessage({ t: "preload", on: preloadOn }); },
     warm(url) { worker.postMessage({ t: "warm", url }); },
+    /* where each request's time goes: trace(true) starts, trace(false) returns the rows */
+    async trace(on) { if (on) { worker.postMessage({ t: "trace", on: true }); return null; } return (await ask({ t: "trace", on: false }))?.rows ?? null; },
     async stats() { return (await ask({ t: "stats" }))?.stats ?? null; },
     async clear() { await ask({ t: "clear" }); },
     debugLog(sinceMs = 10 * 60 * 1000) { return debug.filter((e) => Date.now() - e.at < sinceMs); },

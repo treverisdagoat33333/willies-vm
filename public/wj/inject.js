@@ -146,6 +146,24 @@
     }
   }
 
+  /* Data in <script> tags that aren't code (type="application/json", ld+json,
+     templates) read as "undefined": the core hooks textContent and innerText on
+     HTMLScriptElement.prototype, where browsers don't define them (scripts inherit
+     them from Node and HTMLElement), so its "original" getter is missing and a tag
+     whose text it didn't save itself comes back empty. Instagram, Facebook and many
+     React apps start up from such tags and stayed blank. Giving scripts their own
+     pass-through copies first means the core wraps real getters instead. */
+  function giveScriptsOwnText(global) {
+    const Script = global.HTMLScriptElement?.prototype;
+    if (!Script) return;
+    for (const [name, base] of [["textContent", global.Node.prototype], ["innerText", global.HTMLElement.prototype]]) {
+      if (Object.prototype.hasOwnProperty.call(Script, name)) continue;
+      const d = Object.getOwnPropertyDescriptor(base, name);
+      if (!d?.get) continue;
+      Object.defineProperty(Script, name, { configurable: true, enumerable: d.enumerable, get() { return d.get.call(this); }, set(v) { d.set.call(this, v); } });
+    }
+  }
+
   /* With the ad blocker on, the boxes blocked ads leave behind are hidden. A
      constructed sheet, so the page's own DOM stays as the site built it. */
   function hideAdBoxes(client, global) {
@@ -240,6 +258,7 @@
       initHeaders: init.initHeaders,
       history: init.history,
     });
+    giveScriptsOwnText(global);
     client.hook();
     keepUrlOnHistory(client, global);
     hideAdBoxes(client, global);

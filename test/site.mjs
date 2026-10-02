@@ -62,6 +62,9 @@ window.report = { plays: n, origin: self.origin, parentReadable: ours !== "block
       R.blank=b.contentDocument.getElementById("w")?.textContent;
       document.getElementById("f").onload=()=>{try{R.child=document.getElementById("f").contentDocument.getElementById("c").textContent;R.childHost=document.getElementById("f").contentWindow.location.host}catch(e){R.child="err "+e}done()};</script>`);
     case "/t/child": return page("child", `<p id="c">child ok</p>`);
+    // startup data in a <script> that isn't code (Instagram, Facebook, React apps)
+    case "/t/jsondata": return page("jsondata", `<script type="application/json" id="d">{"a":42,"b":"two"}</script><script type="application/ld+json" id="l">{"@type":"Thing"}</script><script>
+      try{const d=document.getElementById("d");R.a=JSON.parse(d.textContent).a;R.b=JSON.parse(d.text).b;R.ld=JSON.parse(document.getElementById("l").textContent)["@type"];R.code=typeof document.currentScript.textContent}catch(e){R.err=String(e);try{R.raw=String(document.getElementById("d").textContent).slice(0,40);R.rawText=String(document.getElementById("d").text).slice(0,40)}catch(_){}}done()</script>`);
     case "/t/history": return page("history", `<script>const here=()=>location.pathname+location.search+location.hash;
       history.replaceState({key:1},"");R.omitted=here();
       history.pushState({key:2},"",null);R.nulled=here();

@@ -19,6 +19,7 @@ const TESTS = {
   xhr: (r) => /^200 /.test(r.xhr || ""),
   sse: (r) => r.sse === "one,two",
   big: (r) => r.big === 20000,
+  jsondata: (r) => r.a === 42 && r.b === "two" && r.ld === "Thing" && r.code === "string", // data <script> tags keep their text (Instagram)
   history: (r) => r.omitted === "/t/history" && r.nulled === "/t/history" && r.given === "/t/history?q=1#h" && r.state === 3, // replaceState/pushState with no URL stay put (claude.ai)
 };
 const FINAL_TITLE = { form: "echo", redirect: "landed" }; // tests that end on another page

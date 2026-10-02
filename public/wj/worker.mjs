@@ -58,13 +58,15 @@ function idb() {
     r.onerror = () => reject(r.error);
   }));
 }
+/* A read that never answers (a worker that froze mid-write still holds the store
+   until the browser tears it down) must not stop the engine starting: give up after 3 s. */
 async function kvGet(key) {
-  const db = await idb();
-  return new Promise((resolve) => {
+  const read = idb().then((db) => new Promise((resolve) => {
     const q = db.transaction("kv").objectStore("kv").get(key);
     q.onsuccess = () => resolve(q.result);
     q.onerror = () => resolve(undefined);
-  });
+  }));
+  return Promise.race([read, new Promise((resolve) => setTimeout(() => resolve(undefined), 3000))]);
 }
 let saveT = null;
 function saveCookies() {
@@ -81,19 +83,28 @@ function saveCookies() {
    For subresources, wait until one window has them, so a script that reads
    document.cookie right after its fetch resolves sees them. Navigations don't
    wait: the new page gets the jar inside its inject script. */
+const COOKIE_READERS = new Set(["script", "worker", "sharedworker", "serviceworker", "empty", ""]);
+const COOKIE_WAIT = 50;
 async function shareCookies(cookies, options = {}) {
   saveCookies();
   const id = me + ":" + Math.random().toString(36).slice(2);
   const list = cookies.map(({ url, cookie }) => ({ url: String(url), cookie }));
-  const nav = options.destination === "document" || options.destination === "iframe";
-  const acked = nav ? null : new Promise((resolve) => { acks.set(id, resolve); setTimeout(resolve, 1000); });
+  // Only something that runs and could read document.cookie straight away (a script, a
+  // worker, a fetch or XHR) waits for the page to take the cookie, and only briefly: the
+  // message gets there in a few ms. Waiting up to a second here cost every file with a
+  // cookie a full second while a page was still loading and nothing was listening yet.
+  const waits = COOKIE_READERS.has(options.destination ?? "empty");
+  const acked = waits ? new Promise((resolve) => { acks.set(id, resolve); setTimeout(resolve, COOKIE_WAIT); }) : null;
   channel.postMessage({ wj: "cookie", src: me, id, cookies: list, options });
   if (acked) await acked;
   acks.delete(id);
 }
 
+let jarWanted = null;
 channel.onmessage = ({ data }) => {
   if (!data || typeof data !== "object") return;
+  if (data.wj === "jar?" && data.src !== me && jar) return channel.postMessage({ wj: "jar", to: data.src, dump: jar.dump() });
+  if (data.wj === "jar" && data.to === me) return jarWanted?.(data.dump);
   if (data.wj === "ack") return acks.get(data.id)?.();
   if (data.wj === "cookie" && data.src !== me && jar) {
     if (data.options?.clear) jar.clear();
@@ -164,9 +175,17 @@ class LazyCurl {
   }
 }
 
-async function init({ page: p, wisp, cache, fast: fastOn, fastSkip, ads: adsOn, adsSkip, preload: preloadAtStart = true }) {
+/* Helpers: extra copies of this worker that rewrite scripts and stylesheets in
+   parallel, one per spare CPU core (engine.mjs starts them). The main worker
+   stays the only way in: it owns the preload lists and the rewrite cache, and
+   hands a file to the least busy helper, or does it itself if none answers. */
+let isHelper = false;
+const helpers = []; // {port, busy, waiting: Map(id -> resolve)}
+let helperN = 0;
+async function init({ page: p, wisp, cache, fast: fastOn, fastSkip, ads: adsOn, adsSkip, preload: preloadAtStart = true, helper = false, restarted = false }) {
   page = p;
-  preloadOn = !!preloadAtStart;
+  isHelper = !!helper;
+  preloadOn = !!preloadAtStart && !isHelper;
   ads.on = !!adsOn;
   ads.skip = new Set(adsSkip || []);
   prefix = `/~/wj/${page}/`;
@@ -174,18 +193,28 @@ async function init({ page: p, wisp, cache, fast: fastOn, fastSkip, ads: adsOn, 
   const [wasmBytes, saved, learned] = await Promise.all([
     fetch(WASM).then((r) => r.arrayBuffer()),
     kvGet("cookies").catch(() => null),
-    cache ? kvGet("preload").catch(() => null) : null,
+    cache && !helper ? kvGet("preload").catch(() => null) : null,
   ]);
   SJ.setWasm(wasmBytes);
 
   jar = new SJ.CookieJar();
   if (typeof saved === "string") jar.load(saved);
+  // a restarted worker, or a helper: the running ones hold the live jar, newer than the saved
+  // copy (the very first start has nobody to ask, so it doesn't wait)
+  const live = !helper && !restarted ? null : await new Promise((resolve) => {
+    jarWanted = resolve;
+    channel.postMessage({ wj: "jar?", src: me });
+    setTimeout(() => resolve(null), 250);
+  });
+  jarWanted = null;
+  if (typeof live === "string") jar.load(live);
   if (Array.isArray(learned)) manifests = new Map(learned);
 
   const curl = new LazyCurl(wisp);
-  if (fastOn) curl.load().catch(() => {});
+  if (fastOn && !helper) curl.load().catch(() => {}); // a helper only needs libcurl if fast mode turns a request down
   else await curl.load();
   fast = new FastTransport(curl, !!fastOn, fastSkip || [], (origin) => self.postMessage({ t: "fastBlocked", origin }));
+  traceNet(fast);
   httpCache = cache ? new CachingTransport(fast) : null;
   transport = httpCache || fast;
   if (!transport.ready) await transport.init();
@@ -537,6 +566,20 @@ async function fetchOne(req) {
       if (hit) { preloadFrom(req, hit); return hit; }
     }
   }
+  const t0 = tracing ? performance.now() : 0;
+  // the rewrite itself is the slow part of a big script: a helper does it, in parallel with the rest
+  let helped = real;
+  if (!helped && helpers.length && req.method === "GET" && REWRITABLE.has(req.destination)) { try { helped = SJ.unrewriteUrl(req.url, context); } catch (_) {} }
+  if (helped && helpers.length && !req.body) {
+    const got = await onHelper(req);
+    if (got) {
+      const out = got.out;
+      if (tracing && tracing.rows.length < 2000) tracing.rows.push({ url: String(helped).slice(0, 160), d: req.destination, at: Math.round(t0 - tracing.start), total: Math.round(performance.now() - t0), net: got.net ?? null, size: null, status: out.status, helper: got.h });
+      if (got.version && rewrites) out.body = rewrites.keep(rewriteKey(req.url), got.version, out, page);
+      preloadFrom(req, out);
+      return out;
+    }
+  }
   try {
     const res = await handler.handleFetch({
       initialHeaders: SJ.ScramjetHeaders.fromRawHeaders(req.headers),
@@ -557,6 +600,10 @@ async function fetchOne(req) {
       statusText: res.statusText,
       headers: res.headers.toRawHeaders(),
     };
+    if (tracing && tracing.rows.length < 2000) {
+      let r2 = null; try { r2 = SJ.unrewriteUrl(req.url, context); } catch (_) {}
+      tracing.rows.push({ url: String(r2 || req.url).slice(0, 160), d: req.destination, at: Math.round(t0 - tracing.start), total: Math.round(performance.now() - t0), net: tracing.net.get(String(r2)) ?? null, size: Number(headerOf(out, "content-length")) || null, status: res.status });
+    }
     const version = real && res.status === 200 ? httpCache.versionOf(real) : null;
     if (version) out.body = rewrites.keep(rewriteKey(req.url), version, out, page);
     preloadFrom(req, out);
@@ -570,6 +617,58 @@ async function fetchOne(req) {
     }
     throw e;
   }
+}
+
+/* an opt-in trace of where each request's time goes ({t:'trace'}), for tuning: network
+   wait (until headers), the whole request with the rewrite, and size */
+let tracing = null;
+function traceNet(transport) {
+  const real = transport.request.bind(transport);
+  transport.request = async (remote, method, ...rest) => {
+    const t0 = performance.now();
+    const r = await real(remote, method, ...rest);
+    if (tracing) tracing.net.set(remote.href, Math.round(performance.now() - t0));
+    return r;
+  };
+}
+
+/* main worker: a file to the least busy helper; null if it fails or takes too long (then we do it) */
+function onHelper(req) {
+  const h = helpers.reduce((a, b) => (b.busy < a.busy ? b : a));
+  const id = ++helperN;
+  h.busy++;
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => { h.waiting.delete(id); h.busy--; resolve(null); }, 30000);
+    h.waiting.set(id, (data) => { clearTimeout(timer); h.busy--; resolve(data.error ? null : { out: data.out, version: data.version, net: data.net, h: helpers.indexOf(h) }); });
+    h.port.postMessage({ t: "rw", id, req });
+  });
+}
+function attachHelper(port) {
+  const h = { port, busy: 0, waiting: new Map() };
+  port.onmessage = ({ data }) => { const done = h.waiting.get(data?.id); h.waiting.delete(data?.id); done?.(data); };
+  helpers.push(h);
+}
+/* helper worker: rewrite what the main worker sends */
+function serveMain(port) {
+  port.onmessage = async ({ data }) => {
+    if (data?.t !== "rw") return;
+    await ready;
+    const t0 = performance.now();
+    try {
+      const res = await handler.handleFetch({
+        initialHeaders: SJ.ScramjetHeaders.fromRawHeaders(data.req.headers),
+        rawClientUrl: data.req.clientUrl ? new URL(data.req.clientUrl) : undefined,
+        rawUrl: new URL(data.req.url), rawReferrer: data.req.referrer, rawDestination: data.req.destination,
+        method: data.req.method, mode: data.req.mode, referrer: data.req.referrer, body: null, cache: data.req.cache, clientId: data.req.clientId,
+      });
+      const out = { body: NULL_BODY.has(res.status) ? null : res.body, status: res.status, statusText: res.statusText, headers: res.headers.toRawHeaders() };
+      let real = null; try { real = SJ.unrewriteUrl(data.req.url, context); } catch (_) {}
+      const version = real && res.status === 200 && httpCache ? httpCache.versionOf(real) : null;
+      port.postMessage({ t: "rw", id: data.id, out, version, net: Math.round(performance.now() - t0) }, transferOf(out.body));
+    } catch (e) {
+      port.postMessage({ t: "rw", id: data.id, error: String(e?.message || e) });
+    }
+  };
 }
 
 const transferOf = (body) => (body instanceof ReadableStream || body instanceof ArrayBuffer ? [body] : []);
@@ -663,6 +762,11 @@ self.onmessage = ({ data, ports }) => {
     return;
   }
   if (data?.t === "preload") { preloadOn = !!data.on; return; }
+  if (data?.t === "trace") {
+    if (data.on) { tracing = { start: performance.now(), rows: [], net: new Map() }; return; }
+    const rows = tracing?.rows || []; tracing = null;
+    return self.postMessage({ t: "trace", id: data.id, rows });
+  }
   if (data?.t === "ads") {
     ads.on = !!data.on;
     if (Array.isArray(data.skip)) ads.skip = new Set(data.skip);
@@ -704,5 +808,10 @@ self.onmessage = ({ data, ports }) => {
       (e) => { self.postMessage({ t: "error", error: String(e?.message || e) }); throw e; }
     );
   } else if (data?.t === "sw") attachServiceWorker(ports[0]);
+  else if (data?.t === "helper") attachHelper(ports[0]);
+  else if (data?.t === "helpers-reset") {
+    for (const h of helpers.splice(0)) for (const done of h.waiting.values()) done({ error: "replaced" });
+  }
+  else if (data?.t === "serve") serveMain(ports[0]);
   else if (data?.t === "transport") attachWindow(ports[0]);
 };
