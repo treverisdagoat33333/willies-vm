@@ -1316,7 +1316,7 @@ function acceptAuth(d,fresh){
   // Willie AI (/ai, installed on its own): just the AI, open and full-screen, no chat socket
   if(SOLO_AI){(function go(){window.ai?window.ai.open():setTimeout(go,50)})()}else connectChat();
   // the AI app has no desktop to sign out from, so a guest gets a way back to the sign-in screen there
-  if(SOLO_AI&&!d.account){const b=$('#ai-signin');b.hidden=false;b.onclick=()=>{leaveQuietly();fetch('/api/auth/logout',{method:'POST'}).catch(()=>{}).finally(()=>location.reload())};if(!$('#ai-window').classList.contains('side-open'))setTimeout(()=>toast('You\'re a guest. Open the menu (☰) and tap "Sign in to your account" to use your account.'),1500)}
+  if(SOLO_AI&&!d.account){const b=$('#ai-signin'),t=$('#ai-signin-top');b.hidden=t.hidden=false;t.onclick=()=>b.click();b.onclick=()=>{leaveQuietly();fetch('/api/auth/logout',{method:'POST'}).catch(()=>{}).finally(()=>location.reload())};if(!$('#ai-window').classList.contains('side-open'))setTimeout(()=>toast('You\'re a guest. Tap Sign in at the top to use your account.'),1500)}
   viewAsBanner(d);
   // viewing as someone: their settings must not overwrite the owner's on this device
   if(d.account&&!d.viewedBy)syncStart(currentUsername);
@@ -3526,6 +3526,8 @@ function checkBuild(b){
   if(!pageBuild){pageBuild=b;const v=$('#ad-ver');if(v)v.textContent='Version '+b;return}
   if(b===pageBuild)return;
   if(liveApp()==='desktop'&&!document.hidden&&!document.querySelector('.panel.show,.aw')){leaveQuietly();location.reload();return}
+  // the installed AI app is never on the desktop: it reloads itself once no answer is being written
+  if(SOLO_AI&&!window.ai?.busy?.()){leaveQuietly();location.reload();return}
   if(Date.now()-buildToast>600000){buildToast=Date.now();toast('Willie OS was updated. Reload the page to get the new version.')}
 }
 setInterval(()=>liveBeat(),20000);

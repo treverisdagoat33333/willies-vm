@@ -343,3 +343,6 @@ html[data-solo="ai"] #ai-window:not(.show){display:none}
   html[data-solo="ai"] #toasts{left:12px;right:12px;bottom:calc(env(safe-area-inset-bottom) + 64px);align-items:center}
 }
 html[data-solo="ai"] .ai-signin{width:100%;height:40px;border-radius:10px;font-weight:600}
+/* a guest's way back to the sign-in screen, right in the bar (the AI app has no desktop) */
+html[data-solo="ai"] .ai-top #ai-signin-top{width:auto;min-width:0;padding:0 12px;font-size:14px;font-weight:600;color:#fff;background:#0a84ff;border-radius:15px}
+html:not([data-solo="ai"]) #ai-signin-top{display:none}
