@@ -848,6 +848,7 @@ https://discord.com/</textarea><div class="ctl"><button class="btn sm" id="st-ru
     <div class="ai-brand"><div class="ic c9"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg></div><b>AI</b></div>
     <button type="button" class="btn sm ai-signin" id="ai-signin" hidden>Sign in to your account</button>
     <button type="button" class="btn sm primary ai-new" id="ai-new"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>New chat</button>
+    <div class="ai-folders" id="ai-folders" hidden></div>
     <input class="field ai-search" id="ai-search" type="search" placeholder="Search chats" autocomplete="off" aria-label="Search chats">
     <div class="ai-chats" id="ai-chats"></div>
   </aside>
@@ -862,6 +863,7 @@ https://discord.com/</textarea><div class="ctl"><button class="btn sm" id="st-ru
           <div class="ai-mp-list" id="ai-mp-list"></div>
         </div>
       </div>
+      <span class="ai-health" id="ai-health" hidden title="Model status"></span>
       <div class="ai-mp ai-cmp" id="ai-cmp" hidden>
         <button type="button" class="btn sm ai-cmp-btn" id="ai-cmp-btn" aria-haspopup="listbox" aria-expanded="false" title="Ask two models at once, side by side"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="8" height="16" rx="2"/><rect x="13" y="4" width="8" height="16" rx="2"/></svg><span>Compare</span></button>
         <div class="ai-mp-pop" id="ai-cmp-pop" role="listbox" hidden><div class="ai-mp-g">Answer each question with a second model too</div><div class="ai-mp-list" id="ai-cmp-list"></div></div>
@@ -870,7 +872,7 @@ https://discord.com/</textarea><div class="ctl"><button class="btn sm" id="st-ru
         <button type="button" class="btn sm ai-cmp-btn" id="ai-eff-btn" aria-haspopup="listbox" aria-expanded="false" title="How hard the AI thinks before answering"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg><span>Effort: Auto</span></button>
         <div class="ai-mp-pop" id="ai-eff-pop" role="listbox" hidden><div class="ai-mp-g">How hard should it think?</div><div class="ai-mp-list" id="ai-eff-list"></div></div>
       </div>
-      <button type="button" class="btn sm ai-ultra" id="ai-ultra" hidden aria-pressed="false" title="ULTRACODE: the most effort the AI can give, on every message"><span class="ai-ultra-bolt">⚡</span><span>ULTRACODE</span></button>
+      <button type="button" class="btn sm ai-ultra" id="ai-ultra" hidden aria-pressed="false" title="ULTRACODE: the most effort the AI can give, on every message"><span class="ai-ultra-bolt"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 4.5 13.5H11L10 22l8.5-11.5H12z"/></svg></span><span>ULTRACODE</span></button>
       <button type="button" class="btn sm ai-cmp-btn ai-codemode" id="ai-codemode" aria-pressed="false" title="Code mode: answers come back as complete files you can run and download"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="m8 7-5 5 5 5M16 7l5 5-5 5"/></svg><span>Code</span></button>
       <span class="sp"></span>
       <button type="button" class="btn sm primary ai-signin-top" id="ai-signin-top" hidden>Sign in</button>
@@ -886,6 +888,8 @@ https://discord.com/</textarea><div class="ctl"><button class="btn sm" id="st-ru
       <button type="button" class="ai-mic ai-attach" id="ai-attach" title="Add files or pictures (or paste, or drop them here)" aria-label="Add files or pictures"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M21.4 11.6 12.2 20.8a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.8-2.8l8.5-8.5"/></svg></button>
       <input type="file" id="ai-file" multiple hidden>
       <button type="button" class="ai-mic" id="ai-mic" title="Talk instead of typing" aria-label="Talk instead of typing" hidden><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v4"/></svg></button>
+      <button type="button" class="ai-mic ai-web" id="ai-web" title="Search the web for each message" aria-label="Search the web" aria-pressed="false" hidden><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg></button>
+      <button type="button" class="ai-mic ai-talk" id="ai-talk" title="Talk mode: speak, hear the answer, keep talking" aria-label="Talk mode" aria-pressed="false" hidden><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10v4M8 7v10M12 4v16M16 7v10M20 10v4"/></svg></button>
       <textarea id="ai-input" rows="1" placeholder="Ask anything, or type / for shortcuts" maxlength="39213" aria-label="Message"></textarea>
       <button class="ai-send" id="ai-send" type="submit" aria-label="Send" title="Send (Enter)"><svg class="i isd" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg><svg class="i ist" viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"/></svg></button>
     </form>
@@ -909,6 +913,7 @@ https://discord.com/</textarea><div class="ctl"><button class="btn sm" id="st-ru
       <label>How should it answer?<textarea id="ai-c-style" maxlength="36332" rows="3" placeholder="e.g. Use bullet points. Always give an example."></textarea></label>
       <div class="ai-c-tags" id="ai-c-tags"></div>
       <label class="ai-c-row"><span><b>Show thinking</b><small>See how thinking models reason before they answer.</small></span><input type="checkbox" id="ai-c-think"></label>
+      <div class="ai-c-row ai-c-owner"><span><b>Lock dawvq chats with a PIN</b><small id="ai-c-pin-sub">Chats with the dawvq models stay hidden on this device until the PIN is typed.</small></span><span class="ai-c-pinbtns"><button type="button" class="btn sm" id="ai-c-pin">Set PIN</button><button type="button" class="btn sm" id="ai-c-pin-lock" hidden>Lock now</button></span></div>
       <label class="ai-c-row"><span><b>Read answers aloud</b><small>Speaks each answer when it's done.</small></span><input type="checkbox" id="ai-c-speak"></label>
       <div class="ai-c-btns"><button type="button" class="btn sm" id="ai-c-cancel">Cancel</button><button type="submit" class="btn sm primary">Save</button></div>
     </form>

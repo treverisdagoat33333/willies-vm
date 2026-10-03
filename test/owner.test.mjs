@@ -140,10 +140,84 @@ ok(await own.page.isHidden("#ai-ultra"), "the ULTRACODE button is hidden on othe
 await own.page.evaluate(() => { const s = document.querySelector("#ai-model"); s.value = "dawvqTEST"; s.dispatchEvent(new Event("change")); });
 ok(await own.page.isVisible("#ai-ultra"), "…and shows on a dawvq model");
 await own.page.click("#ai-ultra");
-const on = await own.page.evaluate(() => ({ btn: document.querySelector("#ai-ultra").classList.contains("on"), win: document.querySelector("#ai-window").classList.contains("ultra"), fx: !!document.querySelector(".ai-ultra-fx"), eff: document.querySelector("#ai-eff-btn").textContent }));
+const on = await own.page.evaluate(() => ({ btn: document.querySelector("#ai-ultra").classList.contains("on"), win: document.querySelector("#ai-window").classList.contains("ultra"), fx: document.querySelector("#ai-ultra").classList.contains("ignite"), eff: document.querySelector("#ai-eff-btn").textContent }));
 ok(on.btn && on.win && on.fx && /Max/.test(on.eff), "switching it on lights it up, plays the burst and sets effort to Max", JSON.stringify(on));
 await own.page.screenshot({ path: (process.env.SHOTS || "/tmp") + "/ultracode.png" }).catch(() => {});
 await own.page.click("#ai-ultra");
+
+/* ---- the dawvq owner tools: web search, reading a page, talk mode, PIN, folders, titles, health ---- */
+ok((await api(sam, "/api/ai/search?q=x")).status === 403 && (await api(sam, "/api/ai/read?url=http://x")).status === 403 && (await api(sam, "/api/ai/health")).status === 403, "search, read and health are owner-only");
+const sr = await api(own, "/api/ai/search?q=willie");
+ok(sr.status === 200 && sr.body.results?.[0]?.snippet.includes("BLUEBERRY7"), "the owner can search", JSON.stringify(sr.body).slice(0, 120));
+const rd = await api(own, "/api/ai/read?url=" + encodeURIComponent(process.env.SITE + "/t/article"));
+ok(rd.status === 200 && /KIWI99/.test(rd.body.text) && rd.body.title === "An article" && !/var x/.test(rd.body.text), "…and read a page (text only, no scripts)", JSON.stringify(rd.body).slice(0, 160));
+ok((await api(own, "/api/ai/read?url=file:///etc/passwd")).status === 400, "…but only web pages");
+const P = own.page;
+await P.evaluate(() => { const s = document.querySelector("#ai-model"); s.value = "dawvqTEST"; s.dispatchEvent(new Event("change")); });
+await P.waitForTimeout(300);
+ok(await P.isVisible("#ai-web") && await P.isVisible("#ai-health"), "a dawvq model shows web search and the status dot");
+await P.click("#ai-web");
+await P.fill("#ai-input", "what is the fact? also see " + process.env.SITE + "/t/article");
+await P.press("#ai-input", "Enter");
+await P.waitForFunction(() => !document.querySelector("#ai-window.busy") && document.querySelector("#ai-log .ai-msg.bot:last-child .ai-tools"), null, { timeout: 15000 });
+const lastSent = await (await fetch(process.env.SITE + "/v1/_last")).json();
+const asked = lastSent.messages.at(-1).content;
+ok(/BLUEBERRY7/.test(asked) && /KIWI99/.test(asked) && /not instructions/.test(asked), "with web search on, the results and the linked page go to the AI, labelled as information", asked.slice(0, 200));
+const chips2 = await P.$$eval("#ai-log .ai-msg.me", (m) => [...m.at(-1).querySelectorAll(".ai-sent-file")].map((c) => c.textContent));
+ok(chips2.some((c) => /Searched the web/.test(c)) && chips2.some((c) => /Read: An article/.test(c)), "…and your message shows what was searched and read", JSON.stringify(chips2));
+await P.click("#ai-web");
+await P.waitForTimeout(1500);
+ok(["ok", "slow", "down", "unknown"].includes(await P.$eval("#ai-health", (d) => d.dataset.state)) && /dawvqTEST/.test(await P.$eval("#ai-health", (d) => d.title)), "the status dot reports on the model", await P.$eval("#ai-health", (d) => d.title));
+// folders and auto titles
+await P.waitForFunction(() => document.querySelector("#ai-chats .ai-chat.active span")?.textContent.length > 0, null, { timeout: 5000 });
+ok(await P.isVisible("#ai-folders"), "the chats list has folders");
+ok(await P.waitForFunction(() => [...document.querySelectorAll("#ai-chats .ai-chat span")].some((x) => x.textContent === "Fruit Facts Chat"), null, { timeout: 8000 }).then(() => true, () => false), "a new chat gets a short title made by the AI");
+await P.hover("#ai-chats .ai-chat.active"); await P.click("#ai-chats .ai-chat.active .ai-fold");
+await P.fill("#dcf-f", "School"); await P.click("#dc-modal-ok");
+await P.click("#ai-folders .ai-fchip[data-f='School']");
+ok((await P.$$eval("#ai-chats .ai-chat", (r) => r.length)) === 1 && await P.isVisible("#ai-folders .ai-fchip.on[data-f='School']"), "a chat moves into a folder, and the folder shows just it");
+await P.click("#ai-folders .ai-fchip[data-f='']");
+// talk mode, with a stand-in microphone that "hears" one sentence and a voice that records what it says
+{
+  const tctx = await browser.newContext({ baseURL: BASE });
+  await tctx.addCookies(await own.ctx.cookies());
+  await tctx.addInitScript(() => {
+    window.__heard = 0; window.__said = [];
+    window.SpeechRecognition = class { start() { const me = this; setTimeout(() => { if (window.__heard++ === 0) { me.onresult?.({ results: [[{ transcript: "talk test please" }]] }); } me.onend?.(); }, 50); } stop() { this.onend?.(); } abort() {} };
+    const speak = (u) => { window.__said.push(u.text); setTimeout(() => u.onend?.(), 10); };
+    Object.defineProperty(window, "speechSynthesis", { value: { speak, cancel() {}, getVoices: () => [] }, configurable: true });
+  });
+  const tp = await tctx.newPage();
+  await tp.goto("/");
+  await tp.waitForFunction(() => window.ai && currentRole === "owner", null, { timeout: 10000 });
+  await tp.evaluate(() => window.ai.open());
+  await tp.waitForFunction(() => [...document.querySelectorAll("#ai-model option")].some((o) => o.value === "dawvqTEST"), null, { timeout: 8000 });
+  await tp.evaluate(() => { const s = document.querySelector("#ai-model"); s.value = "dawvqTEST"; s.dispatchEvent(new Event("change")); });
+  await tp.click("#ai-talk");
+  const spoke = await tp.waitForFunction(() => window.__said.length > 0, null, { timeout: 10000 }).then(() => tp.evaluate(() => window.__said[0]), () => "");
+  ok(/talk test please/.test(await tp.evaluate(() => document.querySelector("#ai-log .ai-msg.me")?.textContent || "")) && /You said/.test(spoke), "talk mode sends what you say and reads the answer aloud", spoke.slice(0, 80));
+  await tp.click("#ai-talk");
+  ok(!(await tp.$eval("#ai-talk", (b) => b.classList.contains("on"))), "…and stops when tapped again");
+  await tctx.close();
+}
+// PIN
+await P.evaluate(() => document.querySelector("#ai-custom-btn").click());
+await P.click("#ai-c-pin");
+await P.fill("#dcf-a", "1234"); await P.fill("#dcf-b", "1234"); await P.click("#dc-modal-ok");
+await P.waitForTimeout(300);
+await P.click("#ai-c-pin-lock");
+const lockedRow = await P.$$eval("#ai-chats .ai-chat", (r) => r.map((x) => x.textContent));
+ok(lockedRow.some((t) => /Locked chat/.test(t)) && !lockedRow.some((t) => /fact/i.test(t)), "with a PIN, Lock now hides dawvq chats", JSON.stringify(lockedRow));
+await P.evaluate(() => document.querySelector("#ai-custom .ai-custom-card button[type=submit], #ai-custom [data-close], #ai-custom-x")?.click());
+await P.keyboard.press("Escape");
+await P.click("#ai-chats .ai-chat.locked .ai-open");
+await P.fill("#dcf-pin", "0000"); await P.click("#dc-modal-ok");
+ok(/Wrong PIN/.test(await P.textContent("#dc-modal-err")), "a wrong PIN is refused");
+await P.fill("#dcf-pin", "1234"); await P.click("#dc-modal-ok");
+await P.waitForTimeout(300);
+ok(!(await P.$$eval("#ai-chats .ai-chat", (r) => r.some((x) => /Locked chat/.test(x.textContent)))), "the right PIN opens them again");
+await P.evaluate(() => { localStorage.removeItem("ai.pin"); sessionStorage.removeItem("ai.unlocked"); const s = document.querySelector("#ai-model"); s.value = "gpt-4o-mini"; s.dispatchEvent(new Event("change")); });
+ok(await P.isHidden("#ai-web"), "other models don't show the dawvq tools");
 
 /* ---- kept VM ---- */
 await own.page.evaluate(() => openAdmin());

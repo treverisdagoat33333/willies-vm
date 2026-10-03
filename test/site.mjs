@@ -30,6 +30,9 @@ fetch("/api").then(r=>r.json()).then(j=>{document.getElementById("fetched").text
 try{const ws=new WebSocket("ws://"+location.host+"/ws");ws.onopen=()=>ws.send("ping");ws.onmessage=e=>{document.getElementById("ws").textContent=e.data};ws.onerror=()=>{document.getElementById("ws").textContent="ws error"}}catch(e){document.getElementById("ws").textContent="ws threw "+e}`);
   }
   if (u.pathname === "/api") { res.writeHead(200, { "content-type": "application/json" }); return res.end(JSON.stringify({ cookie: req.headers.cookie || "" })); }
+  // a pretend search engine and a page to read, for the AI's owner tools
+  if (u.pathname === "/search") { res.writeHead(200, { "content-type": "application/json" }); return res.end(JSON.stringify({ results: [{ title: "Willie facts", url: "https://example.com/willie", snippet: "The test fact is BLUEBERRY7." }] })); }
+  if (u.pathname === "/t/article") { res.writeHead(200, { "content-type": "text/html" }); return res.end("<html><head><title>An article</title><style>p{}</style></head><body><script>var x=1</script><p>The article says KIWI99.</p></body></html>"); }
   if (u.pathname === "/hits") { res.writeHead(200, { "content-type": "application/json" }); return res.end(JSON.stringify(hits)); }
   const page = (title, body) => { res.writeHead(200, { "content-type": "text/html" }); res.end(`<!doctype html><html><head><meta charset="utf-8"><title>${title}</title></head><body><pre id="r">waiting</pre><script>const R={};const done=()=>{document.getElementById("r").textContent=JSON.stringify(R)};</script>${body}</body></html>`); };
   const js = (code, extra = {}) => { res.writeHead(200, { "content-type": "application/javascript", ...extra }); res.end(code); };
@@ -219,6 +222,8 @@ function aiMock(req, res, u) {
     const raw = b.messages?.[b.messages.length - 1]?.content || "";
     const said = typeof raw === "string" ? raw : raw.find?.((p) => p.type === "text")?.text || "";
     if (/fail/.test(said)) return json(500, { error: { message: "mock failure" } });
+    // not streamed: the owner's chat titles
+    if (b.stream !== true && /You name chats/.test(b.messages?.[0]?.content || "")) return json(200, { choices: [{ message: { content: "Fruit Facts Chat" } }] });
     // effort: echoes what it was asked for, and one model that refuses it
     if (/what effort/.test(said)) {
       if (b.model === "gpt-4o" && b.reasoning_effort) return json(400, { error: { message: "reasoning_effort is not supported by this model" } });

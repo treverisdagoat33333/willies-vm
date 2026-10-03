@@ -8,6 +8,82 @@
 import express from "express";
 import { record } from "./analytics.js";
 import { getAiChats, putAiChats } from "./db.js";
+import dns from "node:dns/promises";
+import { isPrivateIp } from "./fastnet.js";
+
+/*
+|--------------------------------------------------------------------------
+| Owner tools for the AI: web search, reading a page, chat titles, model health
+|
+| Search tries Brave's API when BRAVE_API_KEY is set (free tier), then DuckDuckGo's
+| HTML page, then Wikipedia, so something always comes back. Reading a page fetches it
+| on our server (public addresses only, checked after DNS like fast mode) and keeps the
+| text. Health is what recent answers measured: time to the first word, and errors.
+|--------------------------------------------------------------------------
+*/
+const SEARCH_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128 Safari/537.36";
+const htmlText = (s) => String(s || "").replace(/<[^>]+>/g, "").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#x?([0-9a-f]+);/gi, (_, n) => { try { return String.fromCodePoint(/^[0-9]+$/.test(n) ? +n : parseInt(n, 16)); } catch (_) { return ""; } }).replace(/\s+/g, " ").trim();
+async function searchWeb(q) {
+  // tests only: a pretend search engine on the test site
+  if (process.env.SEARCH_TEST_URL) { const d = await (await fetch(`${process.env.SEARCH_TEST_URL}?q=${encodeURIComponent(q)}`)).json(); return { source: "Test", results: d.results || [] }; }
+  const key = process.env.BRAVE_API_KEY;
+  if (key) {
+    try {
+      const r = await fetch(`https://api.search.brave.com/res/v1/web/search?count=6&q=${encodeURIComponent(q)}`, { headers: { "X-Subscription-Token": key, accept: "application/json" }, signal: AbortSignal.timeout(10_000) });
+      const d = await r.json();
+      const out = (d?.web?.results || []).slice(0, 6).map((x) => ({ title: htmlText(x.title), url: x.url, snippet: htmlText(x.description) }));
+      if (out.length) return { source: "Brave", results: out };
+    } catch (_) {}
+  }
+  try {
+    const r = await fetch("https://html.duckduckgo.com/html/", { method: "POST", headers: { "user-agent": SEARCH_UA, "content-type": "application/x-www-form-urlencoded" }, body: `q=${encodeURIComponent(q)}`, signal: AbortSignal.timeout(10_000) });
+    const html = await r.text();
+    const out = [];
+    const re = /<a[^>]+class="result__a"[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>[\s\S]*?class="result__snippet"[^>]*>([\s\S]*?)<\/a>/g;
+    let m;
+    while ((m = re.exec(html)) && out.length < 6) {
+      let url = m[1].replace(/&amp;/g, "&");
+      const u = url.match(/[?&]uddg=([^&]+)/);
+      if (u) url = decodeURIComponent(u[1]);
+      if (url.startsWith("//")) url = "https:" + url;
+      if (/^https?:/.test(url) && !/duckduckgo\.com\/y\.js/.test(url)) out.push({ title: htmlText(m[2]), url, snippet: htmlText(m[3]) });
+    }
+    if (out.length) return { source: "DuckDuckGo", results: out };
+  } catch (_) {}
+  try {
+    const r = await fetch(`https://en.wikipedia.org/w/api.php?action=query&list=search&format=json&srlimit=5&srsearch=${encodeURIComponent(q)}`, { headers: { "user-agent": "WillieOS/1.0 (owner tool)" }, signal: AbortSignal.timeout(10_000) });
+    const d = await r.json();
+    const out = (d?.query?.search || []).map((x) => ({ title: x.title, url: `https://en.wikipedia.org/wiki/${encodeURIComponent(x.title.replace(/ /g, "_"))}`, snippet: htmlText(x.snippet) }));
+    if (out.length) return { source: "Wikipedia", results: out };
+  } catch (_) {}
+  return { source: null, results: [] };
+}
+/* a page's readable text: scripts, styles and markup dropped, the title kept */
+async function readPage(raw) {
+  let url;
+  try { url = new URL(raw); } catch (_) { throw new Error("That isn't a web address."); }
+  for (let hop = 0; hop < 5; hop++) {
+    if (!/^https?:$/.test(url.protocol)) throw new Error("Only http and https pages can be read.");
+    const addrs = await dns.lookup(url.hostname, { all: true }).catch(() => []);
+    // AI_READ_ALLOW_PRIVATE exists only for the tests, whose pages are on 127.0.0.1
+    if (!addrs.length || (process.env.AI_READ_ALLOW_PRIVATE !== "1" && addrs.some((a) => isPrivateIp(a.address)))) throw new Error("That address isn't on the public internet.");
+    const r = await fetch(url, { headers: { "user-agent": SEARCH_UA, accept: "text/html,text/plain,*/*;q=0.5" }, redirect: "manual", signal: AbortSignal.timeout(15_000) });
+    if (r.status >= 300 && r.status < 400 && r.headers.get("location")) { url = new URL(r.headers.get("location"), url); continue; }
+    if (!r.ok) throw new Error(`The page answered ${r.status}.`);
+    const type = r.headers.get("content-type") || "";
+    if (!/text\/|json|xml/.test(type)) throw new Error("That address isn't a page (it's " + (type.split(";")[0] || "a file") + ").");
+    const reader = r.body.getReader(); let got = 0; const parts = [];
+    for (;;) { const { value, done } = await reader.read(); if (done) break; parts.push(value); got += value.length; if (got > 3_000_000) { reader.cancel().catch(() => {}); break; } }
+    const body = new TextDecoder().decode(Buffer.concat(parts.map((p) => Buffer.from(p))));
+    const title = htmlText(body.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] || "");
+    const text = /html/.test(type) ? htmlText(body.replace(/<(script|style|noscript|svg|template)[\s\S]*?<\/\1>/gi, " ").replace(/<\/(p|div|li|h[1-6]|tr|section|article|br)>/gi, "\n")) : body;
+    return { url: url.href, title, text: text.slice(0, 20_000) };
+  }
+  throw new Error("Too many redirects.");
+}
+// what recent answers measured per model, for the owner's health dot
+const health = new Map();
+function noteHealth(model, data) { health.set(model, { ...(health.get(model) || {}), ...data, at: Date.now() }); }
 
 /*
 |--------------------------------------------------------------------------
@@ -295,6 +371,38 @@ export function aiRouter({ requireSession, limiter, userLimiter, isOwner = () =>
   // nothing secret in them, and the page adds its own "what's on screen" note the same way
   router.get("/system", (_req, res) => res.set("Cache-Control", "public, max-age=600").json({ system: SYSTEM, actions: ACTIONS }));
 
+  const ownerOnly = (req, res, next) => isOwner(req.vmSession) ? next() : res.status(403).json({ error: "Only the site's owner can use this." });
+  router.get("/search", requireSession, ownerOnly, limiter, async (req, res) => {
+    const q = String(req.query.q || "").trim().slice(0, 300);
+    if (!q) return res.status(400).json({ error: "Search for something." });
+    res.json({ q, ...(await searchWeb(q)) });
+  });
+  router.get("/read", requireSession, ownerOnly, limiter, async (req, res) => {
+    try { res.json(await readPage(String(req.query.url || ""))); }
+    catch (e) { res.status(400).json({ error: String(e?.message || "Couldn't read that page.").slice(0, 200) }); }
+  });
+  /* a short title for a chat, from its first question and answer */
+  router.post("/title", requireSession, ownerOnly, limiter, async (req, res) => {
+    const { key, base } = config();
+    const list = await models();
+    const model = typeof req.body?.model === "string" && list.includes(req.body.model) && !OWNER_ONLY.test(req.body.model) ? req.body.model : defaultModel(list.filter((m) => !OWNER_ONLY.test(m)));
+    const text = String(req.body?.text || "").slice(0, 2000);
+    if (!key || !base || !model || !text) return res.status(400).json({ error: "Nothing to title." });
+    try {
+      const r = await fetch(`${base}/chat/completions`, { method: "POST", headers: { authorization: `Bearer ${key}`, "content-type": "application/json" }, signal: AbortSignal.timeout(20_000),
+        body: JSON.stringify({ model, max_tokens: 400, messages: [{ role: "system", content: "You name chats. Reply with only a title of 2 to 6 words, no quotes, no punctuation at the end." }, { role: "user", content: text }] }) });
+      const d = await r.json();
+      const title = String(d?.choices?.[0]?.message?.content || "").replace(/<think>[\s\S]*?<\/think>/g, "").replace(/["“”*#]/g, "").trim().split("\n")[0].slice(0, 60);
+      res.json({ title });
+    } catch (_) { res.status(502).json({ error: "Couldn't make a title." }); }
+  });
+  router.get("/health", requireSession, ownerOnly, async (_req, res) => {
+    const { key, base } = config();
+    let up = null, ms = null;
+    try { const t = Date.now(); const r = await fetch(`${base}/models`, { headers: { authorization: `Bearer ${key}` }, signal: AbortSignal.timeout(8000) }); up = r.ok; ms = Date.now() - t; } catch (_) { up = false; }
+    res.json({ api: { up, ms }, models: Object.fromEntries(health) });
+  });
+
   router.get("/status", requireSession, async (req, res) => {
     const { key, base } = config();
     if (!key || !base) return res.json({ ready: false, models: [], model: "" });
@@ -355,12 +463,15 @@ export function aiRouter({ requireSession, limiter, userLimiter, isOwner = () =>
     const withPartial = (text) => text ? [...messages, { role: "assistant", content: text }, { role: "user", content: CONTINUE }] : messages;
 
     let upstream;
+    const began = Date.now();
     try {
       upstream = await call(withPartial(partial));
     } catch (e) {
       if (abort.signal.aborted) return;
+      noteHealth(model, { ok: false, error: "Couldn't reach the API" });
       return res.status(502).json({ error: "Couldn't reach the AI. Try again in a moment." });
     }
+    if (!upstream.ok) noteHealth(model, { ok: false, error: `HTTP ${upstream.status}` });
     if (!upstream.ok || !upstream.body) {
       let why = "";
       try { const t = await upstream.text(); try { const d = JSON.parse(t); why = d?.error?.message || d?.error || ""; } catch (_) { why = t; } } catch (_) {}
@@ -380,7 +491,8 @@ export function aiRouter({ requireSession, limiter, userLimiter, isOwner = () =>
     if (effort) send({ t: "effort", v: effort });
     if (ultra) send({ t: "ultracode" });
     record("ai");
-    let text = partial;
+    let text = partial, firstAt = 0;
+    const firstWord = () => { if (!firstAt) { firstAt = Date.now(); noteHealth(model, { ok: true, ttft: firstAt - began, error: null }); } };
     const used = { prompt: 0, completion: 0, cached: 0, reasoning: 0, counted: false };
     const onUsage = (u) => {
       used.counted = true;
@@ -392,7 +504,7 @@ export function aiRouter({ requireSession, limiter, userLimiter, isOwner = () =>
     const sendUsage = () => send({ t: "usage", v: usageOf(model, used) });
     try {
       for (let round = 0; ; round++) {
-        const finish = await readStream(upstream.body, (v) => { text += v; send({ t: "text", v }); }, abort.signal, (v) => send({ t: "think", v }), onUsage);
+        const finish = await readStream(upstream.body, (v) => { firstWord(); text += v; send({ t: "text", v }); }, abort.signal, (v) => { firstWord(); send({ t: "think", v }); }, onUsage);
         if (finish === "aborted") break;
         // hit the token limit (or the API dropped us mid-answer): carry on in a new request
         const cut = finish === "length" || (finish === "eof" && text.length > partial.length);
@@ -403,7 +515,7 @@ export function aiRouter({ requireSession, limiter, userLimiter, isOwner = () =>
         if (!upstream.ok || !upstream.body) throw new Error(`The AI stopped partway (HTTP ${upstream.status}).`);
       }
     } catch (e) {
-      if (!abort.signal.aborted) send({ t: "error", error: String(e?.message || "The reply was cut off.").slice(0, 200) });
+      if (!abort.signal.aborted) { noteHealth(model, { ok: false, error: String(e?.message || "cut off").slice(0, 80) }); send({ t: "error", error: String(e?.message || "The reply was cut off.").slice(0, 200) }); }
     } finally { clearInterval(ping); }
     res.end();
   });
