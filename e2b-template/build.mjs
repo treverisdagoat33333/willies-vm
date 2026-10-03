@@ -52,6 +52,8 @@ const template = Template()
     "printf '[Desktop Entry]\\nType=Application\\nName=Claude Code\\nExec=xfce4-terminal --hold -e claude\\nIcon=utilities-terminal\\n' > ~/Desktop/claude.desktop",
     "printf '[Desktop Entry]\\nType=Application\\nName=opencode\\nExec=xfce4-terminal --hold -e opencode\\nIcon=utilities-terminal\\n' > ~/Desktop/opencode.desktop",
     "chmod +x ~/Desktop/*.desktop",
+    // Continue: AI chat inside VS Code; the site writes its settings when VM #4 starts
+    "code --install-extension Continue.continue --force || true",
   ]);
 
 const info = await Template.build(template, NAME, {

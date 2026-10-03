@@ -97,6 +97,63 @@ const E2B_API_KEY = process.env.E2B_API_KEY;
 // owner's kept VM uses. Unset means E2B's plain desktop.
 const E2B_CODE_TEMPLATE = process.env.E2B_CODE_TEMPLATE || "";
 const E2B_KEPT_TEMPLATE = process.env.E2B_KEPT_TEMPLATE || "";
+// The owner's AI key for the coding VM: an OpenAI- and Anthropic-compatible API. It lives only in
+// Render's settings and is written into VM #4, which only the owner can start.
+const VM4_AI_KEY = process.env.VM4_AI_KEY || "";
+const VM4_AI_URL = (process.env.VM4_AI_URL || "").replace(/\/+$/, "");
+const VM4_CLAUDE_MODEL = process.env.VM4_CLAUDE_MODEL || "claude-fable-5-1";
+const VM4_FAST_MODEL = process.env.VM4_FAST_MODEL || "claude-haiku-4-5";
+
+let vm4Models = { at: 0, list: [] };
+async function vm4ModelList() {
+  if (Date.now() - vm4Models.at < 10 * 60_000 && vm4Models.list.length) return vm4Models.list;
+  try {
+    const r = await fetch(VM4_AI_URL + "/models", { headers: { Authorization: "Bearer " + VM4_AI_KEY }, signal: AbortSignal.timeout(10_000) });
+    const ids = ((await r.json())?.data || []).map((m) => m?.id).filter((x) => typeof x === "string" && x.length < 100);
+    if (ids.length) vm4Models = { at: Date.now(), list: ids };
+  } catch (e) { console.warn("VM #4 model list:", e.message); }
+  return vm4Models.list.length ? vm4Models.list : [VM4_CLAUDE_MODEL, VM4_FAST_MODEL];
+}
+
+// What VM #4 gets: environment variables for every terminal, plus config files so Claude Code,
+// opencode and VS Code's Continue start already pointed at the owner's API with its models.
+async function vm4Setup() {
+  if (!VM4_AI_KEY || !VM4_AI_URL) return { envs: {}, files: [] };
+  const models = await vm4ModelList();
+  // Claude Code adds /v1/messages itself, so it gets the address without /v1.
+  const anthropicBase = VM4_AI_URL.replace(/\/v1$/, "");
+  const envs = {
+    ANTHROPIC_BASE_URL: anthropicBase, ANTHROPIC_API_KEY: VM4_AI_KEY,
+    ANTHROPIC_MODEL: VM4_CLAUDE_MODEL, ANTHROPIC_SMALL_FAST_MODEL: VM4_FAST_MODEL,
+    OPENAI_BASE_URL: VM4_AI_URL, OPENAI_API_KEY: VM4_AI_KEY,
+  };
+  const sh = (v) => "'" + String(v).replace(/'/g, "'\\''") + "'";
+  const profile = Object.entries(envs).map(([k, v]) => `export ${k}=${sh(v)}`).join("\n") + "\n";
+  const claude = { hasCompletedOnboarding: true, bypassPermissionsModeAccepted: false, customApiKeyResponses: { approved: [VM4_AI_KEY.slice(-20)], rejected: [] } };
+  const opencode = {
+    $schema: "https://opencode.ai/config.json",
+    model: "owner/" + VM4_CLAUDE_MODEL,
+    small_model: "owner/" + VM4_FAST_MODEL,
+    provider: {
+      owner: {
+        npm: "@ai-sdk/openai-compatible", name: "My API",
+        options: { baseURL: VM4_AI_URL, apiKey: VM4_AI_KEY },
+        models: Object.fromEntries(models.map((id) => [id, { name: id }])),
+      },
+    },
+  };
+  const continueCfg = "name: My API\nversion: 1.0.0\nschema: v1\nmodels:\n" + models.map((id) =>
+    `  - name: ${JSON.stringify(id)}\n    provider: openai\n    model: ${JSON.stringify(id)}\n    apiBase: ${JSON.stringify(VM4_AI_URL)}\n    apiKey: ${JSON.stringify(VM4_AI_KEY)}\n    roles: [chat, edit, apply]`).join("\n") + "\n";
+  return {
+    envs,
+    files: [
+      { path: "/home/user/.vm4-env", data: profile },
+      { path: "/home/user/.claude.json", data: JSON.stringify(claude) },
+      { path: "/home/user/.config/opencode/opencode.json", data: JSON.stringify(opencode, null, 2) },
+      { path: "/home/user/.continue/config.yaml", data: continueCfg },
+    ],
+  };
+}
 const AUTH_SECRET = process.env.AUTH_SECRET;
 const XENV = "https://loremgroup.org";
 const GUEST_VM_TIMEOUT_MS = 30 * 60 * 1000;
@@ -1467,10 +1524,17 @@ app.post("/api/e2b/start", requireSession, vmStartGate, async (req, res) => {
     console.log("Creating E2B Desktop sandbox...");
     const timeoutMs = getVmTimeout(req);
     const code = req.body?.kind === "code";
+    if (code && !isOwnerSession(req.vmSession)) throw Object.assign(new Error("VM #4 is only for the owner."), { status: 403 });
     if (code && !E2B_CODE_TEMPLATE) throw Object.assign(new Error("The coding VM isn't set up yet. The owner needs to build its template (see e2b-template/)."), { status: 503 });
+    const setup = code ? await vm4Setup() : null;
     sandbox = code
-      ? await Sandbox.create(E2B_CODE_TEMPLATE, { apiKey: E2B_API_KEY, timeoutMs })
+      ? await Sandbox.create(E2B_CODE_TEMPLATE, { apiKey: E2B_API_KEY, timeoutMs, envs: setup.envs })
       : await Sandbox.create({ apiKey: E2B_API_KEY, timeoutMs });
+    if (setup?.files.length) {
+      await sandbox.files.write(setup.files);
+      // terminals opened from the desktop read .bashrc, not the sandbox's own variables
+      await sandbox.commands.run("grep -q vm4-env ~/.bashrc || echo '[ -f ~/.vm4-env ] && . ~/.vm4-env' >> ~/.bashrc; chmod 600 ~/.vm4-env ~/.claude.json ~/.config/opencode/opencode.json ~/.continue/config.yaml", { timeoutMs: 15_000 });
+    }
 
     const sandboxId = sandbox.sandboxId;
     if (!sandboxId) throw new Error("E2B created a sandbox but did not return a sandbox ID.");
