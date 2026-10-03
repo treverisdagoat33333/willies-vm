@@ -93,6 +93,10 @@ const PORT = process.env.PORT || 3000;
 const XENV_API_KEY = process.env.XENV_API_KEY;
 const DEV_ID = process.env.XENV_DEV_ID || "willie-games-vm";
 const E2B_API_KEY = process.env.E2B_API_KEY;
+// Our own E2B templates (built by e2b-template/build.mjs): the coding desktop, and which one the
+// owner's kept VM uses. Unset means E2B's plain desktop.
+const E2B_CODE_TEMPLATE = process.env.E2B_CODE_TEMPLATE || "";
+const E2B_KEPT_TEMPLATE = process.env.E2B_KEPT_TEMPLATE || "";
 const AUTH_SECRET = process.env.AUTH_SECRET;
 const XENV = "https://loremgroup.org";
 const GUEST_VM_TIMEOUT_MS = 30 * 60 * 1000;
@@ -1462,7 +1466,11 @@ app.post("/api/e2b/start", requireSession, vmStartGate, async (req, res) => {
   try {
     console.log("Creating E2B Desktop sandbox...");
     const timeoutMs = getVmTimeout(req);
-    sandbox = await Sandbox.create({ apiKey: E2B_API_KEY, timeoutMs });
+    const code = req.body?.kind === "code";
+    if (code && !E2B_CODE_TEMPLATE) throw Object.assign(new Error("The coding VM isn't set up yet. The owner needs to build its template (see e2b-template/)."), { status: 503 });
+    sandbox = code
+      ? await Sandbox.create(E2B_CODE_TEMPLATE, { apiKey: E2B_API_KEY, timeoutMs })
+      : await Sandbox.create({ apiKey: E2B_API_KEY, timeoutMs });
 
     const sandboxId = sandbox.sandboxId;
     if (!sandboxId) throw new Error("E2B created a sandbox but did not return a sandbox ID.");
@@ -1495,7 +1503,7 @@ app.post("/api/e2b/start", requireSession, vmStartGate, async (req, res) => {
       try { await sandbox.stream.stop(); } catch (_) {}
       try { await sandbox.kill(); } catch (_) {}
     }
-    return res.status(500).json({ status: "error", error: err?.message || "Failed to start E2B Desktop VM." });
+    return res.status(err?.status || 500).json({ status: "error", error: err?.message || "Failed to start E2B Desktop VM." });
   } finally {
     vmPending.delete(reservation);
   }
@@ -1556,7 +1564,9 @@ app.post("/api/vm/kept/start", requireOwner, async (req, res) => {
       }
     }
     if (!row) {
-      sbx = await KeptDesktop.create({ apiKey: E2B_API_KEY, timeoutMs: KEPT_RUN_MS });
+      sbx = E2B_KEPT_TEMPLATE
+        ? await KeptDesktop.create(E2B_KEPT_TEMPLATE, { apiKey: E2B_API_KEY, timeoutMs: KEPT_RUN_MS })
+        : await KeptDesktop.create({ apiKey: E2B_API_KEY, timeoutMs: KEPT_RUN_MS });
       fresh = true;
       db.prepare("INSERT INTO kept_vms (username, sandbox_id, created_at, used_at) VALUES (?, ?, ?, ?)").run(me, sbx.sandboxId, Date.now(), Date.now());
     }

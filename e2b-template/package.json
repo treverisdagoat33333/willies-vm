@@ -1,0 +1,13 @@
+{
+  "name": "willie-e2b-templates",
+  "private": true,
+  "license": "UNLICENSED",
+  "type": "module",
+  "description": "Builds Willie OS's E2B coding desktop. Run on any computer with Node: npm install, then E2B_API_KEY=... npm run build",
+  "scripts": {
+    "build": "node build.mjs"
+  },
+  "dependencies": {
+    "e2b": "^2.52.0"
+  }
+}
