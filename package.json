@@ -23,6 +23,7 @@
     "cookie-parser": "^1.4.7",
     "express": "^4.21.2",
     "jsonwebtoken": "^9.0.2",
+    "v86": "^0.5.469",
     "scramjet-v1": "npm:@mercuryworkshop/scramjet@^1.1.0",
     "ws": "^8.18.3",
     "youtubei.js": "^18.1.0"

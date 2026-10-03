@@ -529,13 +529,13 @@ function closeAllPanels(){['links-panel','games-panel','settings-panel','history
 /* app launcher (delegated) */
 const APPS={
   browser:()=>openBrowser(),games:()=>window.arcade?window.arcade.open():openGames(),links:()=>openLinks(),chat:()=>toggleChat(),settings:()=>openSettings(),cloud:()=>toggleCloud(),remote:()=>toggleRemote(),
-  vm1:()=>launchE2BVM(),vm2:()=>launchGPUVM(),vm:()=>(S.defaultVM==='gpu'?launchGPUVM():launchE2BVM()),
+  vm1:()=>launchE2BVM(),vm3:()=>openVM('/linux.html','Linux (in your browser)',{local:true}),vm2:()=>launchGPUVM(),vm:()=>(S.defaultVM==='gpu'?launchGPUVM():launchE2BVM()),
   admin:()=>openAdmin(),music:()=>window.music?.toggle(),ai:()=>window.ai?.toggle(),movies:()=>window.movies?.toggle(),apps:()=>window.apps?.open(),arcade:()=>{closeAllPanels();window.arcade?.open()}
 };
 /* Minimize: hides an app as it is (tabs, the VM, what's playing, the chat) and
    its taskbar button brings it back. Each app's own Close still closes it. */
 const MINIMIZE={browser:['#browser-wrap','#b-close'],vm:['#vm-wrap','#vm-close'],cloud:['#cloud-wrap','#cloud-close'],remote:['#remote-wrap','#remote-close'],movies:['#movies-wrap','#mv-close'],music:['#music-window','#mu-close'],ai:['#ai-window','#ai-close'],chat:['#chat-window','#dc-close']};
-const MIN_OF={vm1:'vm',vm2:'vm'};
+const MIN_OF={vm1:'vm',vm2:'vm',vm3:'vm'};
 const MIN_ICON='<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/></svg>';
 function minimizeApp(k){const m=MINIMIZE[k];if(!m)return;$(m[0])?.classList.add('minimized');$('#tb-'+k)?.classList.add('minimized')}
 function restoreApp(k){const m=MINIMIZE[k];if(!m)return false;const w=$(m[0]);if(!w?.classList.contains('minimized'))return false;w.classList.remove('minimized');$('#tb-'+k)?.classList.remove('minimized');return true}
@@ -1450,7 +1450,7 @@ function tickVM(){if(!vmStart)return;const e=Math.floor((Date.now()-vmStart)/100
 const crossOrigin=u=>{try{return new URL(u,location.href).origin!==location.origin}catch(_){return true}};
 // noopener makes window.open return null even when it worked, so the link back is cut by hand
 const openTab=u=>{const t=window.open(u,'_blank');if(t)try{t.opener=null}catch(_){}return !!t};
-function openVM(url,label){window.restoreApp?.('vm');vmUrl=url;const f=$('#vm-frame'),w=$('#vm-wrap'),cross=crossOrigin(url);if(cross&&!('credentialless' in HTMLIFrameElement.prototype)){const tab=openTab(url);toast(!tab?'Your browser blocked the VM tab. Allow pop-ups for this site, then press Open in a new tab.':"Opened the VM in a new tab. This browser can't show it inside the desktop.",!tab?'err':'')}f.toggleAttribute('credentialless',cross);$('#vm-label').textContent=label||'Private VM';f.src='about:blank';w.style.display='flex';w.classList.remove('closing');warned={};vmStart=Date.now();clearInterval(vmTimerI);vmTimerI=setInterval(tickVM,1000);tickVM();setTimeout(()=>f.src=url,50);setStatus('VM connected.');setLaunching(false);toast('VM launched!','ok');$('#tb-vm').classList.add('active');closeAllPanels()}
+function openVM(url,label,opts={}){window.restoreApp?.('vm');vmUrl=url;const f=$('#vm-frame'),w=$('#vm-wrap'),cross=crossOrigin(url);if(cross&&!('credentialless' in HTMLIFrameElement.prototype)){const tab=openTab(url);toast(!tab?'Your browser blocked the VM tab. Allow pop-ups for this site, then press Open in a new tab.':"Opened the VM in a new tab. This browser can't show it inside the desktop.",!tab?'err':'')}f.toggleAttribute('credentialless',cross);$('#vm-label').textContent=label||'Private VM';f.src='about:blank';w.style.display='flex';w.classList.remove('closing');warned={};clearInterval(vmTimerI);if(opts.local){vmStart=null;$('#vm-timer').textContent='No time limit';$('#vm-timer').className=''}else{vmStart=Date.now();vmTimerI=setInterval(tickVM,1000);tickVM()}setTimeout(()=>f.src=url,50);setStatus('VM connected.');setLaunching(false);toast(opts.local?'Linux opened. Pick an OS and press Start.':'VM launched!','ok');$('#tb-vm').classList.add('active');closeAllPanels()}
 async function closeVM(force){
   if(!force&&S.vmconfirm&&!confirm('Close the VM? Your session will end.'))return;
   window.restoreApp?.('vm'); // closing ends a minimized VM too (its time ran out), so drop the taskbar dot

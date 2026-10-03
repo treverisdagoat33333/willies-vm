@@ -1,0 +1,122 @@
+<!doctype html>
+<!--
+  william's vm
+  Copyright (c) 2026 William (github.com/treverisdagoat33333)
+  All rights reserved. Proprietary and confidential. See LICENSE.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Linux VM</title>
+<style>
+  :root{color-scheme:dark}
+  html,body{margin:0;height:100%;background:#0b0d12;color:#e6e8ee;font:14px system-ui,sans-serif}
+  #pick{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;height:100%;padding:16px;box-sizing:border-box;text-align:center}
+  #pick h1{margin:0;font-size:22px}
+  #pick p{margin:0;color:#9aa3b2;max-width:480px}
+  .lx-row{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+  .lx-os{background:#161a23;border:2px solid #262c3a;border-radius:12px;padding:12px 16px;width:220px;cursor:pointer;color:inherit;text-align:left;font:inherit}
+  .lx-os b{display:block;font-size:15px;margin-bottom:4px}
+  .lx-os small{color:#9aa3b2}
+  .lx-os[aria-pressed="true"]{border-color:#5b8cff;background:#1a2133}
+  select,button.go{font:inherit;border-radius:8px;border:1px solid #2d3445;background:#161a23;color:inherit;padding:8px 12px}
+  button.go{background:#5b8cff;border-color:#5b8cff;color:#fff;font-weight:600;padding:10px 22px;cursor:pointer}
+  #run{display:none;flex-direction:column;height:100%}
+  #bar{display:flex;gap:8px;align-items:center;padding:6px 10px;background:#11141b;border-bottom:1px solid #222838;font-size:13px}
+  #bar span{color:#9aa3b2;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #bar button{font:inherit;font-size:12px;border-radius:6px;border:1px solid #2d3445;background:#1a1f2b;color:inherit;padding:4px 10px;cursor:pointer}
+  #screen{flex:1;display:flex;align-items:center;justify-content:center;overflow:auto;background:#000}
+  #screen>div{white-space:pre;font:14px/1 monospace;color:#ddd}
+  #screen canvas{display:none;max-width:100%;max-height:100%;object-fit:contain;image-rendering:pixelated}
+</style>
+</head>
+<body>
+<div id="pick">
+  <h1>Linux in your browser</h1>
+  <p>Runs entirely on this computer, inside this tab. Nothing is sent to a server, and it has no time limit. Closing the VM wipes it.</p>
+  <div class="lx-row" id="oses">
+    <button class="lx-os" data-os="tinycore" aria-pressed="true"><b>Tiny Core Linux</b><small>Small desktop with windows and a mouse. Best pick for a Chromebook. Boots in about a minute.</small></button>
+    <button class="lx-os" data-os="buildroot" aria-pressed="false"><b>Buildroot Linux</b><small>Terminal only. The fastest: boots in a few seconds.</small></button>
+  </div>
+  <label>Memory
+    <select id="ram">
+      <option value="4096" selected>4 GB</option>
+      <option value="2048">2 GB</option>
+      <option value="1024">1 GB</option>
+      <option value="512">512 MB</option>
+    </select>
+  </label>
+  <button class="go" id="go">Start</button>
+</div>
+<div id="run">
+  <div id="bar"><span id="status">Starting…</span><button id="reset">Restart</button></div>
+  <div id="screen"><div></div><canvas></canvas></div>
+</div>
+<script type="module">
+import { V86 } from "/v86/libv86.mjs";
+
+// The emulator, its wasm and the BIOS are ours (/v86/, /vm-bios/). The OS images come from
+// copy.sh, v86's own host, which sends CORS headers, so our COEP header lets them load.
+const BIOS = "/vm-bios/";
+const IMAGES = "https://i.copy.sh/";
+const OSES = {
+  tinycore: { cdrom: { url: IMAGES + "TinyCore-11.0.iso", size: 19922944 } },
+  buildroot: { bzimage: { url: IMAGES + "buildroot-bzimage68.bin", size: 10068480 }, cmdline: "tsc=reliable mitigations=off random.trust_cpu=on", filesystem: {} },
+};
+
+const $ = (s) => document.querySelector(s);
+let os = "tinycore", emu = null;
+for (const b of document.querySelectorAll(".lx-os")) b.onclick = () => {
+  os = b.dataset.os;
+  for (const o of document.querySelectorAll(".lx-os")) o.setAttribute("aria-pressed", o === b);
+};
+
+// 4 GB is what was asked for, but a Chromebook with 4 GB of its own can't always hand that much
+// to one tab. Each size is tried in turn, down to 512 MB, and the bar says what it got.
+function memoryFits(mb) {
+  // wasm can address 4 GB at most (65536 pages), and v86 keeps a little of that for itself
+  const pages = Math.min((mb + 64) * 16, 65536);
+  try { new WebAssembly.Memory({ initial: pages, maximum: pages }); return true; }
+  catch (_) { return false; }
+}
+
+function start() {
+  const sizes = [4096, 2048, 1024, 512].filter((m) => m <= +$("#ram").value);
+  const mb = sizes.find(memoryFits) || 512;
+  $("#pick").style.display = "none";
+  $("#run").style.display = "flex";
+  const want = +$("#ram").value;
+  const note = mb < want ? ` (wanted ${want >= 1024 ? want / 1024 + " GB" : want + " MB"}, this device couldn't spare it)` : "";
+  const ram = mb >= 1024 ? mb / 1024 + " GB" : mb + " MB";
+  $("#status").textContent = `Downloading ${os === "tinycore" ? "Tiny Core" : "Buildroot"}… · ${ram} RAM${note}`;
+  emu = new V86({
+    wasm_path: "/v86/v86.wasm",
+    // 4 GB is the most a 32-bit guest can address; v86 needs a little under that.
+    memory_size: Math.min(mb, 4095) * 1024 * 1024,
+    vga_memory_size: 8 * 1024 * 1024,
+    screen_container: $("#screen"),
+    bios: { url: BIOS + "seabios.bin" },
+    vga_bios: { url: BIOS + "vgabios.bin" },
+    ...OSES[os],
+    acpi: false,
+    disable_speaker: true,
+    autostart: true,
+  });
+  emu.add_listener("download-progress", (e) => {
+    if (e.total) $("#status").textContent = `Downloading… ${Math.round((e.loaded / e.total) * 100)}% · ${ram} RAM${note}`;
+  });
+  emu.add_listener("emulator-ready", () => {
+    $("#status").textContent = `Running · ${ram} RAM${note} · click the screen to use the keyboard and mouse`;
+  });
+  emu.add_listener("download-error", () => {
+    $("#status").textContent = "Couldn't download the OS. Check your connection, then press Restart.";
+  });
+}
+
+$("#go").onclick = start;
+$("#reset").onclick = () => { try { emu?.destroy(); } catch (_) {} location.reload(); };
+$("#screen").addEventListener("click", () => emu?.lock_mouse?.());
+</script>
+</body>
+</html>
