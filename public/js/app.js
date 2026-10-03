@@ -1319,7 +1319,7 @@ function acceptAuth(d,fresh){
   // viewing as someone: their settings must not overwrite the owner's on this device
   if(d.account&&!d.viewedBy)syncStart(currentUsername);
   if(!acceptAuth.counted){acceptAuth.counted=true;track('visit');if(!SOLO_AI)setTimeout(()=>window.tour?.greet(RETURNING||(d.account&&d.since&&Date.now()-d.since>3600000)),1200)}
-  toast(`Welcome, ${currentUsername}! ${d.vmMinutes||30} min of VM time.`,'ok');
+  if(!SOLO_AI)toast(`Welcome, ${currentUsername}! ${d.vmMinutes||30} min of VM time.`,'ok');
   if(fresh)window.motion?.celebrate();
 }
 function setUser(){const a=currentUsername[0].toUpperCase();['#tb-avatar','#start-avatar','#acct-avatar'].forEach(s=>$(s).textContent=a);['#tb-username','#start-username','#settings-username'].forEach(s=>$(s).textContent=currentUsername);$('#settings-vmtime').textContent=`${Math.round(vmLimit/60)} min VM time per session`;updateHero()}

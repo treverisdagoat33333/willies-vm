@@ -210,7 +210,7 @@ function bubble(m){
       for(const a of m.acts){const c=document.createElement('span');c.className='ai-act '+(a.ok?'ok':'bad');c.textContent=a.label;box.appendChild(c)}
       d.appendChild(box);
     }
-    if(m.note&&!m.error){const n=document.createElement('div');n.className='ai-note';n.textContent=m.note;d.appendChild(n)}
+    if(m.note&&!m.error){const n=document.createElement('div');n.className='ai-cutnote';n.textContent=m.note;d.appendChild(n)}
     if(m.error){const e=document.createElement('div');e.className='ai-err';e.innerHTML='<span></span><button type="button" class="btn sm ai-retry">Try again</button>';e.firstChild.textContent=m.error;d.appendChild(e)}
     // when it's done: copy, read aloud, try again (the last one), and which model said it, how fast
     if(m.done&&full&&text.length===full.length){
@@ -617,6 +617,8 @@ MODEL.addEventListener('change',async()=>{
 });
 $('#ai-new').onclick=()=>{click();if(busy)stop();cur=null;W.classList.remove('side-open');render();INPUT.focus()};
 $('#ai-side-btn').onclick=()=>{click();W.classList.toggle('side-open')};
+// on a phone the drawer dims the rest; a tap on the dimmed part (the window itself) closes it
+W.addEventListener('click',e=>{if(e.target===W&&W.classList.contains('side-open'))W.classList.remove('side-open')});
 $('#ai-close').onclick=()=>{click();hide()};
 $('#ai-chats').addEventListener('click',e=>{
   const row=e.target.closest('.ai-chat');if(!row)return;
@@ -916,6 +918,8 @@ function open(){
   pull(); // anything said on another device
   setTimeout(()=>INPUT.focus(),50);
 }
+// a phone-sized hint in the installed app, where the long one wraps onto two lines
+if(document.documentElement.dataset.solo==='ai'&&matchMedia('(max-width:600px)').matches)INPUT.placeholder='Message';
 function hide(){
   // the installed Willie AI app is nothing but this window; there's nothing behind it to show
   if(document.documentElement.dataset.solo==='ai')return;

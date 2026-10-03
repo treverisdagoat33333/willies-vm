@@ -231,7 +231,7 @@ html[data-motion="off"] .ai-making,html[data-perf="on"] .ai-making{animation:non
 .ai-cmp-btn.on{border-color:rgba(var(--accent-rgb),.6);color:var(--accent)}
 .ai-page{margin-top:6px;font-size:.78em;color:var(--text-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:420px}
 @media (max-width:720px){.ai-pair{grid-template-columns:minmax(0,1fr)}.ai-cmp-btn span{display:none}}
-.ai-note{margin-top:8px;font-size:.82em;color:var(--text-3)}
+.ai-cutnote{margin-top:8px;font-size:.82em;color:var(--text-3)}
 .ai-mp-it small{color:var(--text-3);font-size:.78em}
 /* ULTRACODE: a moving fire gradient on the button, a pulsing bolt, a glow along the
    message box while it's on, and a shockwave with sparks when it's switched on */
@@ -261,3 +261,84 @@ html[data-solo="ai"] #desktop,html[data-solo="ai"] #taskbar,html[data-solo="ai"]
 html[data-solo="ai"] #ai-close,html[data-solo="ai"] [data-minimize="ai"],html[data-solo="ai"] .mu-mini,html[data-solo="ai"] #start{display:none!important}
 html[data-solo="ai"] #ai-window{inset:0!important;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);animation:none}
 html[data-solo="ai"] #ai-window:not(.show){display:none}
+
+/* ── Willie AI on an iPhone ─────────────────
+   Built for the iPhone 14 (390×844, notch 47pt, home bar 34pt) and phones like it: the
+   system font, a 44pt bar under the notch, iMessage-style bubbles and message bar, 30pt
+   buttons, and menus that open as sheets from the bottom. Only in the installed AI app. */
+@media (max-width:600px){
+  html[data-solo="ai"]{-webkit-text-size-adjust:100%;-webkit-tap-highlight-color:transparent}
+  html[data-solo="ai"] body{overscroll-behavior:none}
+  html[data-solo="ai"] #ai-window{--ios-blue:#0a84ff;--ios-fill:#1c1c1e;--ios-fill2:#2c2c2e;--ios-sep:rgba(84,84,88,.6);--ios-label2:rgba(235,235,245,.6);
+    font:16px/1.4 -apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",system-ui,sans-serif;letter-spacing:-.01em;padding:0;background:#000}
+  html[data-solo="ai"] #ai-window button{-webkit-user-select:none;user-select:none}
+
+  /* the bar under the notch: menu, model, then small icon buttons */
+  html[data-solo="ai"] .ai-top{position:relative;z-index:3;min-height:44px;gap:6px;padding:calc(env(safe-area-inset-top) + 4px) max(10px,env(safe-area-inset-right)) 4px max(10px,env(safe-area-inset-left));
+    background:rgba(0,0,0,.94);border-bottom:.5px solid var(--ios-sep)}
+  /* (no backdrop blur on the bar: it would trap the menus' fixed sheets inside it) */
+  html[data-solo="ai"] .ai-top .mu-iconbtn,html[data-solo="ai"] .ai-top .btn{width:30px;height:30px;min-width:30px;padding:0;display:grid;place-items:center;border:0;border-radius:9px;background:transparent;color:var(--ios-blue);font-size:0;gap:0;box-shadow:none}
+  html[data-solo="ai"] .ai-top .mu-iconbtn:active,html[data-solo="ai"] .ai-top .btn:active{background:var(--ios-fill2)}
+  html[data-solo="ai"] .ai-top .i{width:19px;height:19px;font-size:19px}
+  html[data-solo="ai"] .ai-cmp-btn span,html[data-solo="ai"] #ai-ultra span:not(.ai-ultra-bolt){display:none}
+  html[data-solo="ai"] #ai-export{display:none}
+  html[data-solo="ai"] .ai-top .ai-cmp-btn.on{background:rgba(10,132,255,.18)}
+  html[data-solo="ai"] #ai-ultra .ai-ultra-bolt{font-size:15px}
+  html[data-solo="ai"] #ai-ultra.on{background:linear-gradient(110deg,#f59e0b,#ef4444,#d946ef,#f59e0b);background-size:300% 100%;color:#fff}
+  html[data-solo="ai"] .ai-mp{min-width:0;flex:0 1 auto}
+  html[data-solo="ai"] .ai-mp-btn{height:30px;max-width:46vw;gap:6px;padding:0 8px 0 4px;border:0;border-radius:15px;background:var(--ios-fill);font-size:15px;font-weight:600;color:#fff}
+  html[data-solo="ai"] .ai-mp-ic{width:22px;height:22px;border-radius:7px}
+  html[data-solo="ai"] .ai-mp-chev{width:13px;height:13px;color:var(--ios-label2)}
+
+  /* menus (model, Compare, Effort) slide up as sheets */
+  html[data-solo="ai"] .ai-mp-pop{position:fixed;left:0;right:0;top:auto;bottom:0;width:auto;max-height:62vh;z-index:20;border:0;border-radius:14px 14px 0 0;
+    padding:8px 8px calc(env(safe-area-inset-bottom) + 10px);background:var(--ios-fill);box-shadow:0 -10px 40px rgba(0,0,0,.6);animation:iosSheet .28s cubic-bezier(.2,.8,.2,1)}
+  html[data-solo="ai"] .ai-mp-pop::before{content:"";display:block;width:36px;height:5px;border-radius:3px;margin:2px auto 8px;background:rgba(235,235,245,.3)}
+  html[data-solo="ai"] .ai-mp-it{padding:12px 12px;border-radius:10px;font-size:16px}
+  html[data-solo="ai"] .ai-mp-it.on{background:rgba(10,132,255,.2)}
+  html[data-solo="ai"] .ai-mp-g{font-size:13px;color:var(--ios-label2);padding:4px 12px 6px;text-transform:none}
+  html[data-solo="ai"] .ai-mp-q{height:36px;border-radius:10px;border:0;background:var(--ios-fill2);font-size:16px}
+  @keyframes iosSheet{from{translate:0 100%}}
+
+  /* the chats drawer */
+  html[data-solo="ai"] .ai-side{width:min(304px,84vw);padding:calc(env(safe-area-inset-top) + 10px) 10px calc(env(safe-area-inset-bottom) + 10px);background:var(--ios-fill);border-right:0}
+  html[data-solo="ai"] .ai-side{z-index:6}
+  html[data-solo="ai"] #ai-window.side-open::after{content:"";position:absolute;inset:0;z-index:5;background:rgba(0,0,0,.45)}
+  html[data-solo="ai"] .ai-new{height:40px;border-radius:10px;font-size:16px;font-weight:600;background:var(--ios-blue);border:0}
+  html[data-solo="ai"] .ai-open{padding:11px 12px;font-size:15px}
+  html[data-solo="ai"] .ai-del{opacity:1;width:30px;height:30px}
+
+  /* messages: your words in blue bubbles, its answers as plain text */
+  html[data-solo="ai"] .ai-log{padding:14px max(14px,env(safe-area-inset-right)) 18px max(14px,env(safe-area-inset-left));gap:12px}
+  html[data-solo="ai"] .ai-msg{font-size:16px;line-height:1.45}
+  html[data-solo="ai"] .ai-msg.me{max-width:78%;padding:8px 13px;border-radius:19px 19px 5px 19px;background:var(--ios-blue);color:#fff}
+  html[data-solo="ai"] .ai-code{border-radius:12px;font-size:13px}
+  html[data-solo="ai"] .ai-tools{opacity:.7;gap:0;margin-top:4px}
+  html[data-solo="ai"] .ai-tools button{width:30px;height:30px;border-radius:8px}
+  html[data-solo="ai"] .ai-tools .i{width:16px;height:16px}
+  html[data-solo="ai"] .ai-meta{font-size:12px}
+
+  /* the empty screen: a smaller greeting and suggestions as one grouped list */
+  html[data-solo="ai"] .ai-empty{padding:9vh 4px 0;gap:8px}
+  html[data-solo="ai"] .ai-empty h2,html[data-solo="ai"] .ai-empty h3{font-size:22px;font-weight:700;letter-spacing:-.02em}
+  html[data-solo="ai"] .ai-sugs{gap:0;margin-top:14px;border-radius:12px;overflow:hidden;background:var(--ios-fill);width:100%}
+  html[data-solo="ai"] .ai-sug{border:0;border-radius:0;background:transparent;padding:13px 16px;font-size:15px;color:#fff;border-bottom:.5px solid var(--ios-sep)}
+  html[data-solo="ai"] .ai-sug:last-child{border-bottom:0}
+  html[data-solo="ai"] .ai-sug:active{background:var(--ios-fill2)}
+
+  /* the message bar above the home bar, like iMessage */
+  html[data-solo="ai"] .ai-compose{width:auto;max-width:none;margin:0;gap:6px;align-items:flex-end;border:0;border-radius:0;
+    padding:7px max(10px,env(safe-area-inset-right)) calc(env(safe-area-inset-bottom) + 7px) max(10px,env(safe-area-inset-left));
+    background:rgba(0,0,0,.82);-webkit-backdrop-filter:saturate(180%) blur(20px);backdrop-filter:saturate(180%) blur(20px);border-top:.5px solid var(--ios-sep);box-shadow:none}
+  html[data-solo="ai"] .ai-compose .ai-mic{width:32px;height:34px;color:var(--ios-label2);flex:0 0 auto}
+  html[data-solo="ai"] .ai-compose .ai-mic .i{width:21px;height:21px}
+  /* 16px so iOS doesn't zoom the page when the box is tapped */
+  html[data-solo="ai"] #ai-input{font-size:16px;line-height:20px;min-height:34px;padding:7px 12px;border:.5px solid rgba(235,235,245,.22);border-radius:18px;background:var(--ios-fill)}
+  html[data-solo="ai"] .ai-send{width:30px;height:30px;margin:2px 0;background:var(--ios-blue)}
+  html[data-solo="ai"] .ai-send .i{width:16px;height:16px;stroke-width:2.6}
+  html[data-solo="ai"] #ai-window.ultra .ai-compose{box-shadow:none;animation:none;border-top:1px solid rgba(239,68,68,.8)}
+  html[data-solo="ai"] #ai-window.ultra #ai-input{border-color:rgba(239,68,68,.75);box-shadow:0 0 14px rgba(245,158,11,.3)}
+  html[data-solo="ai"] .ai-note{display:none}
+  html[data-solo="ai"] .ai-editbar,html[data-solo="ai"] .ai-tray,html[data-solo="ai"] .ai-slash{margin-left:10px;margin-right:10px;width:auto}
+  html[data-solo="ai"] #toasts{left:12px;right:12px;bottom:calc(env(safe-area-inset-bottom) + 64px);align-items:center}
+}
