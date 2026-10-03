@@ -1456,7 +1456,7 @@ async function closeVM(force){
   window.restoreApp?.('vm'); // closing ends a minimized VM too (its time ran out), so drop the taskbar dot
   clearInterval(pollI);pollI=null;clearInterval(vmTimerI);vmStart=null;$('#vm-timer').textContent='00:00';$('#vm-timer').className='';
   const w=$('#vm-wrap');w.classList.add('closing');onCloseDone(w,()=>{w.style.display='none';w.classList.remove('closing')});setTimeout(()=>$('#vm-frame').src='about:blank',220);
-  const id=containerId,type=vmType;containerId=vmType=vmUrl=null;
+  const id=containerId,type=vmType;containerId=vmType=vmUrl=null;$('#vm-claude').hidden=true;
   if(id&&type==='gpu')fetch(`/api/vm/${encodeURIComponent(id)}`,{method:'DELETE'}).catch(()=>{});
   if(id&&type==='e2b')fetch(`/api/e2b/${encodeURIComponent(id)}`,{method:'DELETE'}).catch(()=>{});
   // the owner's kept VM is paused, never thrown away
@@ -1464,6 +1464,30 @@ async function closeVM(force){
   setStatus('VM closed.');$('#tb-vm').classList.remove('active');
 }
 $('#vm-close').onclick=()=>closeVM();
+/* Log in to Claude Code (VM #4 and the kept VM). Claude's sign-in page won't work in the VM's
+   own browser, so the server starts the sign-in inside the VM, the page opens Claude's link in
+   a tab of this browser, and the code it shows is pasted back here (server.js, claude-login). */
+async function claudeLogin(){
+  const b=$('#vm-claude');if(!containerId||b.disabled)return;
+  b.disabled=true;b.textContent='Starting…';
+  try{
+    const r=await fetch('/api/vm/claude-login/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sandboxId:containerId})}),d=await r.json().catch(()=>({}));
+    if(!r.ok)throw new Error(d.error||`HTTP ${r.status}`);
+    const tab=openTab(d.url);
+    dcModal({title:'Log in to Claude Code',
+      sub:(tab?'A Claude tab opened.':'Your browser blocked the tab. Press Open the Claude page below.')+' Sign in there and press Authorize. Claude then shows a code: copy it, paste it here and press Log in.',
+      fields:[{key:'code',label:'Code from the Claude page',placeholder:'Paste the code',autocomplete:'off'}],okLabel:'Log in',
+      onOk:async v=>{
+        const r=await fetch('/api/vm/claude-login/finish',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code:v.code})}),d=await r.json().catch(()=>({}));
+        if(!r.ok)throw new Error(d.error||`HTTP ${r.status}`);
+        toast('Claude Code is logged in. Open a new terminal in the VM and type claude. New VM #4s start logged in too.','ok');
+      }});
+    // the dialog's own link back to the Claude page, for a blocked pop-up
+    const sub=$('#dc-modal-sub');if(sub&&!tab){const a=document.createElement('a');a.href=d.url;a.target='_blank';a.rel='noopener noreferrer';a.textContent=' Open the Claude page';sub.appendChild(a)}
+  }catch(e){toast('Claude Code login: '+e.message,'err')}
+  finally{b.disabled=false;b.textContent='Log in to Claude Code'}
+}
+$('#vm-claude').onclick=()=>{click();claudeLogin()};
 $('#vm-newtab').onclick=()=>{click();if(vmUrl&&!openTab(vmUrl))toast('Your browser blocked the tab. Allow pop-ups for this site.','err')};
 $('#vm-fs').onclick=async()=>{try{if(!document.fullscreenElement)await $('#vm-wrap').requestFullscreen();else await document.exitFullscreen()}catch(e){toast('Fullscreen failed: '+e.message,'err')}};
 /* The owner's kept VM (server.js): resumed where it was left, paused on close. */
@@ -1486,7 +1510,7 @@ async function launchKeptVM(){
     const r=await fetch('/api/vm/kept/start',{method:'POST'}),d=await r.json();
     if(!r.ok)throw new Error(d.error||`HTTP ${r.status}`);
     containerId=d.sandboxId;vmType='kept';vmLimit=(d.timeoutMinutes||60)*60;
-    openVM(d.url,d.fresh?'Kept VM · new':'Kept VM · resumed');
+    openVM(d.url,d.fresh?'Kept VM · new':'Kept VM · resumed');$('#vm-claude').hidden=false;
   }catch(e){setStatus('Error: '+e.message);toast('Kept VM: '+e.message,'err');reportError('vm',e.message,'Kept VM');containerId=vmType=null;setLaunching(false)}
   adKept();
 }
@@ -1500,7 +1524,7 @@ $('#ad-kept-del').onclick=()=>dcModal({title:'Delete your kept VM?',sub:'Everyth
   const r=await fetch('/api/vm/kept',{method:'DELETE'}),d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||'HTTP '+r.status);
   toast('Kept VM deleted','ok');adKept();
 }});
-async function launchE2BVM(kind){const code=kind==='code',name=code?'VM #4':'VM #1';if(containerId){$('#vm-wrap').style.display='flex';return}clearInterval(pollI);setLaunching(true);setStatus(code?'Starting coding desktop…':'Starting desktop sandbox…',true);try{const r=await fetch('/api/e2b/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(code?{kind:'code'}:{})}),d=await r.json();if(!r.ok)throw new Error(d.error||d.message||`HTTP ${r.status}`);if(d.status&&d.status!=='success')throw new Error(d.error||d.message||'Sandbox did not start.');if(!d.sandboxId||!d.url)throw new Error('Sandbox returned no stream URL.');containerId=d.sandboxId;vmType='e2b';openVM(d.url,code?'VM #4 · Coding':'VM #1 · Desktop')}catch(e){setStatus('Error: '+e.message);toast(name+' failed: '+e.message,'err');reportError('vm',e.message,name);containerId=vmType=null;setLaunching(false)}}
+async function launchE2BVM(kind){const code=kind==='code',name=code?'VM #4':'VM #1';if(containerId){$('#vm-wrap').style.display='flex';return}clearInterval(pollI);setLaunching(true);setStatus(code?'Starting coding desktop…':'Starting desktop sandbox…',true);try{const r=await fetch('/api/e2b/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(code?{kind:'code'}:{})}),d=await r.json();if(!r.ok)throw new Error(d.error||d.message||`HTTP ${r.status}`);if(d.status&&d.status!=='success')throw new Error(d.error||d.message||'Sandbox did not start.');if(!d.sandboxId||!d.url)throw new Error('Sandbox returned no stream URL.');containerId=d.sandboxId;vmType='e2b';openVM(d.url,code?'VM #4 · Coding':'VM #1 · Desktop');$('#vm-claude').hidden=!code}catch(e){setStatus('Error: '+e.message);toast(name+' failed: '+e.message,'err');reportError('vm',e.message,name);containerId=vmType=null;setLaunching(false)}}
 async function launchGPUVM(){if(containerId){$('#vm-wrap').style.display='flex';return}clearInterval(pollI);setLaunching(true);setStatus('Requesting GPU instance…',true);try{const r=await fetch('/api/launch?gpu=true',{signal:AbortSignal.timeout(60000)}).catch(e=>{throw new Error(e.name==='TimeoutError'?'The GPU provider didn\'t answer. Try again in a few minutes.':'Network error')}),d=await r.json().catch(()=>({error:`HTTP ${r.status}`}));if(!r.ok)throw new Error(d.error||d.message||`HTTP ${r.status}`);if(d.status==='success'){containerId=d.container_id;vmType='gpu';openVM(d.url,'VM #2 · GPU');return}if(d.status==='queued'){setStatus(`Queued — position ${d.position??'?'}…`,true);pollQueue(d.token);return}throw new Error(d.error||d.message||'Unexpected response')}catch(e){setStatus('Error: '+e.message);toast('VM #2 failed: '+e.message,'err');reportError('vm',e.message,'VM #2');setLaunching(false)}}
 /* The queue check is a long poll (the server waits up to 25 s), so ask again only after each
    answer; asking every 4 s stacked requests up. Give up after 10 minutes in the queue. */

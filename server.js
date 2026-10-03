@@ -115,20 +115,53 @@ async function vm4ModelList() {
   return vm4Models.list.length ? vm4Models.list : [VM4_CLAUDE_MODEL, VM4_FAST_MODEL];
 }
 
-// What VM #4 gets: environment variables for every terminal, plus config files so opencode and
-// VS Code's Continue start already pointed at the owner's API with its models. Claude Code is
-// left untouched on purpose: the owner signs in to their own Claude account there, as on a new
-// install, so no ANTHROPIC_* variables or ~/.claude.json are written.
-async function vm4Setup() {
-  if (!VM4_AI_KEY || !VM4_AI_URL) return { envs: {}, files: [] };
-  const models = await vm4ModelList();
-  const envs = {
-    OPENAI_BASE_URL: VM4_AI_URL, OPENAI_API_KEY: VM4_AI_KEY,
-    // the terminal apps draw boxes and symbols, which come out as "?" without UTF-8
-    LANG: "en_US.UTF-8", LC_ALL: "en_US.UTF-8",
+/* The owner's Claude Code login for VM #4. Claude.ai's sign-in page doesn't work inside the
+   VM's own browser, so "Log in to Claude Code" runs `claude setup-token` in the VM, sends its
+   sign-in link to the owner's real browser, and types the code they paste back. The year-long
+   token it prints is kept here, encrypted with a key from AUTH_SECRET, and handed to every
+   later VM #4 as CLAUDE_CODE_OAUTH_TOKEN, so it starts signed in. */
+db.exec("CREATE TABLE IF NOT EXISTS owner_secrets (name TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at INTEGER NOT NULL)");
+const secretKey = () => crypto.createHash("sha256").update("owner-secrets:" + process.env.AUTH_SECRET).digest();
+function saveSecret(name, plain) {
+  const iv = crypto.randomBytes(12), c = crypto.createCipheriv("aes-256-gcm", secretKey(), iv);
+  const enc = Buffer.concat([c.update(plain, "utf8"), c.final()]);
+  db.prepare("INSERT INTO owner_secrets (name, value, updated_at) VALUES (?, ?, ?) ON CONFLICT(name) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at")
+    .run(name, Buffer.concat([iv, c.getAuthTag(), enc]).toString("base64"), Date.now());
+}
+function readSecret(name) {
+  const row = db.prepare("SELECT value FROM owner_secrets WHERE name = ?").get(name);
+  if (!row) return "";
+  try {
+    const b = Buffer.from(row.value, "base64"), d = crypto.createDecipheriv("aes-256-gcm", secretKey(), b.subarray(0, 12));
+    d.setAuthTag(b.subarray(12, 28));
+    return Buffer.concat([d.update(b.subarray(28)), d.final()]).toString("utf8");
+  } catch (_) { return ""; } // AUTH_SECRET changed: the old token can't be read, so sign in again
+}
+const forgetSecret = (name) => db.prepare("DELETE FROM owner_secrets WHERE name = ?").run(name);
+// what goes into a VM for Claude Code: the saved login, or nothing (it then asks to sign in)
+function claudeLoginFiles() {
+  const token = readSecret("claude_code");
+  if (!token) return { envs: {}, files: [] };
+  return {
+    envs: { CLAUDE_CODE_OAUTH_TOKEN: token },
+    files: [{ path: "/home/user/.claude.json", data: JSON.stringify({ hasCompletedOnboarding: true }) }],
   };
-  const sh = (v) => "'" + String(v).replace(/'/g, "'\\''") + "'";
-  const profile = Object.entries(envs).map(([k, v]) => `export ${k}=${sh(v)}`).join("\n") + "\n";
+}
+
+// What VM #4 gets: environment variables for every terminal, plus config files so opencode and
+// VS Code's Continue start already pointed at the owner's API with its models. Claude Code never
+// gets the API key: it's signed in to the owner's own Claude account, once "Log in to Claude
+// Code" has saved that login (claudeLoginFiles), and otherwise asks to sign in like a new install.
+const shq = (v) => "'" + String(v).replace(/'/g, "'\\''") + "'";
+const profileOf = (envs) => Object.entries(envs).map(([k, v]) => `export ${k}=${shq(v)}`).join("\n") + "\n";
+async function vm4Setup() {
+  const login = claudeLoginFiles();
+  // the terminal apps draw boxes and symbols, which come out as "?" without UTF-8
+  const base = { LANG: "en_US.UTF-8", LC_ALL: "en_US.UTF-8", ...login.envs };
+  if (!VM4_AI_KEY || !VM4_AI_URL) return { envs: base, files: [{ path: "/home/user/.vm4-env", data: profileOf(base) }, ...login.files] };
+  const models = await vm4ModelList();
+  const envs = { OPENAI_BASE_URL: VM4_AI_URL, OPENAI_API_KEY: VM4_AI_KEY, ...base };
+  const profile = profileOf(envs);
   const opencode = {
     $schema: "https://opencode.ai/config.json",
     model: "owner/" + VM4_CLAUDE_MODEL,
@@ -149,6 +182,7 @@ async function vm4Setup() {
       { path: "/home/user/.vm4-env", data: profile },
       { path: "/home/user/.config/opencode/opencode.json", data: JSON.stringify(opencode, null, 2) },
       { path: "/home/user/.continue/config.yaml", data: continueCfg },
+      ...login.files,
     ],
   };
 }
@@ -1531,7 +1565,7 @@ app.post("/api/e2b/start", requireSession, vmStartGate, async (req, res) => {
     if (setup?.files.length) {
       await sandbox.files.write(setup.files);
       // terminals opened from the desktop read .bashrc, not the sandbox's own variables
-      await sandbox.commands.run("grep -q vm4-env ~/.bashrc || echo '[ -f ~/.vm4-env ] && . ~/.vm4-env' >> ~/.bashrc; chmod 600 ~/.vm4-env ~/.config/opencode/opencode.json ~/.continue/config.yaml", { timeoutMs: 15_000 });
+      await sandbox.commands.run("grep -q vm4-env ~/.bashrc || echo '[ -f ~/.vm4-env ] && . ~/.vm4-env' >> ~/.bashrc; chmod 600 ~/.vm4-env ~/.claude.json ~/.config/opencode/opencode.json ~/.continue/config.yaml 2>/dev/null; true", { timeoutMs: 15_000 });
     }
 
     const sandboxId = sandbox.sandboxId;
@@ -1547,7 +1581,7 @@ app.post("/api/e2b/start", requireSession, vmStartGate, async (req, res) => {
 
     const owner = sessionLabel(req.vmSession);
     e2bSandboxes.set(sandboxId, {
-      sandbox, owner, who: vmWho(req.vmSession), startedAt: Date.now(), expiresAt: Date.now() + timeoutMs,
+      sandbox, owner, who: vmWho(req.vmSession), startedAt: Date.now(), expiresAt: Date.now() + timeoutMs, code,
     });
     // E2B kills it on its own at the timeout; forget it then too
     setTimeout(() => e2bSandboxes.delete(sandboxId), timeoutMs).unref?.();
@@ -1600,6 +1634,85 @@ class KeptDesktop extends Sandbox {
   }
 }
 const keptRow = (u) => db.prepare("SELECT * FROM kept_vms WHERE username = ?").get(u);
+
+/*
+|--------------------------------------------------------------------------
+| Log in to Claude Code (VM #4 and the kept VM, owner only); see saveSecret
+|
+|   GET    /api/vm/claude-login            -> {saved}
+|   POST   /api/vm/claude-login/start      {sandboxId} -> {url}
+|   POST   /api/vm/claude-login/finish     {code} -> {ok}
+|   DELETE /api/vm/claude-login            forget the saved login
+|--------------------------------------------------------------------------
+*/
+const stripAnsi = (s) => s.replace(/\x1b\][^\x07]*(\x07|\x1b\\)/g, "").replace(/\x1b\[[0-9;?]*[ -\/]*[@-~]/g, "").replace(/\x1b[()][A-Z0-9]/g, "");
+let claudeLogin = null; // {sandbox, pid, out, at} while a sign-in waits for its code
+async function endClaudeLogin() {
+  const l = claudeLogin; claudeLogin = null;
+  if (l) await l.sandbox.pty.kill(l.pid).catch(() => {});
+}
+app.get("/api/vm/claude-login", requireOwner, (_req, res) => res.json({ saved: !!readSecret("claude_code") }));
+app.delete("/api/vm/claude-login", requireOwner, (_req, res) => { forgetSecret("claude_code"); res.json({ ok: true }); });
+app.post("/api/vm/claude-login/start", requireOwner, async (req, res) => {
+  const entry = e2bSandboxes.get(String(req.body?.sandboxId || ""));
+  if (!entry) return res.status(404).json({ error: "Start VM #4 first." });
+  await endClaudeLogin();
+  try {
+    const l = { sandbox: entry.sandbox, out: "", at: Date.now() };
+    // a wide terminal, so the long sign-in link comes out on one line
+    const h = await entry.sandbox.pty.create({ cols: 1000, rows: 40, timeoutMs: 10 * 60_000, envs: { LANG: "en_US.UTF-8", TERM: "xterm-256color" },
+      onData: (d) => { l.out = (l.out + new TextDecoder().decode(d)).slice(-200_000); } });
+    l.pid = h.pid; claudeLogin = l;
+    await entry.sandbox.pty.sendInput(h.pid, new TextEncoder().encode("claude setup-token\n"));
+    for (let i = 0; i < 60; i++) {
+      await new Promise((r) => setTimeout(r, 500));
+      const url = stripAnsi(l.out).match(/https:\/\/\S*oauth\/authorize\?\S+/)?.[0];
+      if (url) return res.json({ url });
+    }
+    await endClaudeLogin();
+    res.status(504).json({ error: "Claude Code didn't show a sign-in link. Try again." });
+  } catch (e) {
+    await endClaudeLogin();
+    res.status(502).json({ error: String(e?.message || e).slice(0, 200) });
+  }
+});
+app.post("/api/vm/claude-login/finish", requireOwner, async (req, res) => {
+  const code = String(req.body?.code || "").trim();
+  const l = claudeLogin;
+  if (!l) return res.status(409).json({ error: "The sign-in ran out. Press Log in to Claude Code again." });
+  if (!code || code.length > 500 || /[\r\n]/.test(code)) return res.status(400).json({ error: "Paste the code from the Claude page." });
+  try {
+    const before = l.out.length;
+    await l.sandbox.pty.sendInput(l.pid, new TextEncoder().encode(code));
+    await new Promise((r) => setTimeout(r, 300));
+    await l.sandbox.pty.sendInput(l.pid, new TextEncoder().encode("\r"));
+    for (let i = 0; i < 60; i++) {
+      await new Promise((r) => setTimeout(r, 500));
+      const after = stripAnsi(l.out.slice(before));
+      const token = after.match(/sk-ant-oat[\w-]+/)?.[0];
+      if (token) {
+        saveSecret("claude_code", token);
+        // this VM gets it now too, so `claude` works without starting a new VM
+        const login = claudeLoginFiles();
+        await l.sandbox.files.write(login.files).catch(() => {});
+        await l.sandbox.commands.run(`touch ~/.vm4-env; grep -v CLAUDE_CODE_OAUTH_TOKEN ~/.vm4-env > ~/.vm4-env.n; echo ${shq("export CLAUDE_CODE_OAUTH_TOKEN=" + token)} >> ~/.vm4-env.n; mv ~/.vm4-env.n ~/.vm4-env; chmod 600 ~/.vm4-env; grep -q vm4-env ~/.bashrc || echo '[ -f ~/.vm4-env ] && . ~/.vm4-env' >> ~/.bashrc`, { timeoutMs: 15_000 }).catch(() => {});
+        await endClaudeLogin();
+        logEvent("vm", "owner logged Claude Code in to VM #4");
+        return res.json({ ok: true });
+      }
+      if (/invalid|expired|error|failed/i.test(after)) {
+        const why = after.split("\n").map((s) => s.trim()).find((s) => /invalid|expired|error|failed/i.test(s)) || "";
+        await endClaudeLogin();
+        return res.status(400).json({ error: `Claude didn't accept that code${why ? ` (${why.slice(0, 120)})` : ""}. Press Log in to Claude Code to try again.` });
+      }
+    }
+    await endClaudeLogin();
+    res.status(504).json({ error: "Claude Code didn't finish signing in. Try again." });
+  } catch (e) {
+    await endClaudeLogin();
+    res.status(502).json({ error: String(e?.message || e).slice(0, 200) });
+  }
+});
 
 app.get("/api/vm/kept", requireOwner, async (req, res) => {
   const row = keptRow(req.vmSession.username);
