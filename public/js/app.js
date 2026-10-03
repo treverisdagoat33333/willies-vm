@@ -1489,6 +1489,25 @@ async function claudeLogin(target){
   finally{if(!ai){b.disabled=false;b.textContent='Log in to Claude Code'}}
 }
 $('#vm-claude').onclick=()=>{click();claudeLogin()};
+/* The AI's claude.login: Claude's page opens in Chrome on the AI's own cloud computer, whose
+   screen is shown in the VM window. The owner signs in there; the server spots Claude's code
+   page and finishes on its own, then the window closes. Resolves once it's signed in. */
+async function claudeLoginScreen(){
+  if(containerId){throw new Error('Close the VM you have open first, then ask again')}
+  const r=await fetch('/api/vm/claude-login/screen',{method:'POST'}),d=await r.json().catch(()=>({}));
+  if(!r.ok)throw new Error(d.error||`HTTP ${r.status}`);
+  vmType='ai-signin';openVM(d.url,'AI computer · sign in to Claude, then press Authorize',{local:true});
+  toast('Sign in to Claude on the AI\'s screen and press Authorize. It finishes by itself.');
+  const until=Date.now()+10*60*1000;
+  while(Date.now()<until){
+    await new Promise(r=>setTimeout(r,2500));
+    if(vmType!=='ai-signin'){fetch('/api/vm/claude-login',{method:'DELETE'}).catch(()=>{});throw new Error('Sign-in closed before it finished')}
+    const s=await fetch('/api/vm/claude-login').then(r=>r.json()).catch(()=>({}));
+    if(s.done&&s.saved){closeVM(true);toast('Claude Code is logged in on the AI\'s computer (and VM #4).','ok');return}
+    if(s.error){closeVM(true);throw new Error(s.error)}
+  }
+  closeVM(true);throw new Error('The sign-in timed out');
+}
 $('#vm-newtab').onclick=()=>{click();if(vmUrl&&!openTab(vmUrl))toast('Your browser blocked the tab. Allow pop-ups for this site.','err')};
 $('#vm-fs').onclick=async()=>{try{if(!document.fullscreenElement)await $('#vm-wrap').requestFullscreen();else await document.exitFullscreen()}catch(e){toast('Fullscreen failed: '+e.message,'err')}};
 /* The owner's kept VM (server.js): resumed where it was left, paused on close. */

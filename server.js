@@ -1653,70 +1653,121 @@ async function endClaudeLogin() {
   const l = claudeLogin; claudeLogin = null;
   if (l) await l.sandbox.pty.kill(l.pid).catch(() => {});
 }
-app.get("/api/vm/claude-login", requireOwner, (_req, res) => res.json({ saved: !!readSecret("claude_code") }));
-app.delete("/api/vm/claude-login", requireOwner, (_req, res) => { forgetSecret("claude_code"); res.json({ ok: true }); });
-app.post("/api/vm/claude-login/start", requireOwner, async (req, res) => {
+// starts `claude setup-token` in a computer and returns its sign-in link
+async function beginClaudeLogin(sandbox) {
   await endClaudeLogin();
+  const l = { sandbox, out: "", at: Date.now() };
+  // a wide terminal, so the long sign-in link comes out on one line
+  // no DISPLAY: on a desktop computer it would open its own browser window too, beside ours
+  const h = await sandbox.pty.create({ cols: 1000, rows: 40, timeoutMs: 10 * 60_000, envs: { LANG: "en_US.UTF-8", TERM: "xterm-256color", DISPLAY: "", BROWSER: "true" },
+    onData: (d) => { l.out = (l.out + new TextDecoder().decode(d)).slice(-200_000); } });
+  l.pid = h.pid; claudeLogin = l;
+  await sandbox.pty.sendInput(h.pid, new TextEncoder().encode("claude setup-token\n"));
+  for (let i = 0; i < 60; i++) {
+    await new Promise((r) => setTimeout(r, 500));
+    const url = stripAnsi(l.out).match(/https:\/\/\S*oauth\/authorize\?\S+/)?.[0];
+    if (url) { l.url = url; return url; }
+  }
+  await endClaudeLogin();
+  throw Object.assign(new Error("Claude Code didn't show a sign-in link. Try again."), { status: 504 });
+}
+// types the code from Claude's page into the waiting sign-in and keeps the token it prints
+async function finishClaudeLogin(code) {
+  const l = claudeLogin;
+  if (!l) throw Object.assign(new Error("The sign-in ran out. Start it again."), { status: 409 });
+  const before = l.out.length;
+  await l.sandbox.pty.sendInput(l.pid, new TextEncoder().encode(code));
+  await new Promise((r) => setTimeout(r, 300));
+  await l.sandbox.pty.sendInput(l.pid, new TextEncoder().encode("\r"));
+  for (let i = 0; i < 60; i++) {
+    await new Promise((r) => setTimeout(r, 500));
+    const after = stripAnsi(l.out.slice(before));
+    const token = after.match(/sk-ant-oat[\w-]+/)?.[0];
+    if (token) {
+      saveSecret("claude_code", token);
+      // this computer gets it now too, so `claude` works without starting a new one
+      await l.sandbox.files.write(claudeLoginFiles().files).catch(() => {});
+      await l.sandbox.commands.run(`touch ~/.vm4-env; grep -v CLAUDE_CODE_OAUTH_TOKEN ~/.vm4-env > ~/.vm4-env.n; echo ${shq("export CLAUDE_CODE_OAUTH_TOKEN=" + token)} >> ~/.vm4-env.n; mv ~/.vm4-env.n ~/.vm4-env; chmod 600 ~/.vm4-env; grep -q vm4-env ~/.bashrc || echo '[ -f ~/.vm4-env ] && . ~/.vm4-env' >> ~/.bashrc`, { timeoutMs: 15_000 }).catch(() => {});
+      await endClaudeLogin();
+      logEvent("vm", "owner logged Claude Code in");
+      return;
+    }
+    if (/invalid|expired|error|failed/i.test(after)) {
+      const why = after.split("\n").map((x) => x.trim()).find((x) => /invalid|expired|error|failed/i.test(x)) || "";
+      await endClaudeLogin();
+      throw Object.assign(new Error(`Claude didn't accept that code${why ? ` (${why.slice(0, 120)})` : ""}. Start the sign-in again.`), { status: 400 });
+    }
+  }
+  await endClaudeLogin();
+  throw Object.assign(new Error("Claude Code didn't finish signing in. Try again."), { status: 504 });
+}
+const fail = (res, e) => res.status(e?.status || 502).json({ error: String(e?.message || e).slice(0, 200) });
+
+/* Signing in on the AI's own cloud computer, on its screen: its Chrome opens Claude's page with
+   a debugging port on that machine only, the owner is shown the screen and signs in there, and
+   this watches Chrome for Claude's code page (…/oauth/code/callback?code=…&state=…) and types
+   "code#state" into the waiting sign-in itself, the way Claude's page tells people to paste it. */
+let screenLogin = null; // {stream, error, done}
+async function watchForCode(l) {
+  const box = l.sandbox, until = Date.now() + 10 * 60_000;
+  while (claudeLogin === l && Date.now() < until) {
+    await new Promise((r) => setTimeout(r, 2000));
+    const r = await box.commands.run("curl -s --max-time 3 http://127.0.0.1:9222/json", { timeoutMs: 8000 }).catch(() => null);
+    let tabs = [];
+    try { tabs = JSON.parse(r?.stdout || "[]"); } catch (_) {}
+    const hit = tabs.map((t) => { try { return new URL(t.url); } catch (_) { return null; } })
+      .find((u) => u && /\/oauth\/code\/callback$/.test(u.pathname) && u.searchParams.get("code"));
+    if (hit) return `${hit.searchParams.get("code")}#${hit.searchParams.get("state") || ""}`;
+  }
+  return null;
+}
+async function closeScreen(box) {
+  await box.commands.run("pkill -f 'remote-debugging-port=9222' || true", { timeoutMs: 8000 }).catch(() => {});
+  await box.stream?.stop?.().catch(() => {});
+}
+
+app.get("/api/vm/claude-login", requireOwner, (_req, res) => res.json({
+  saved: !!readSecret("claude_code"), pending: !!claudeLogin, error: screenLogin?.error || "", done: !!screenLogin?.done,
+}));
+app.delete("/api/vm/claude-login", requireOwner, async (_req, res) => { await endClaudeLogin(); forgetSecret("claude_code"); res.json({ ok: true }); });
+app.post("/api/vm/claude-login/start", requireOwner, async (req, res) => {
   try {
     // the AI app's cloud computer, when the AI asks (claude.login), else the open VM
-    const entry = req.body?.target === "ai"
-      ? { sandbox: await aiShellSandbox() }
-      : e2bSandboxes.get(String(req.body?.sandboxId || ""));
-    if (!entry) return res.status(404).json({ error: "Start VM #4 first." });
-    const l = { sandbox: entry.sandbox, out: "", at: Date.now() };
-    // a wide terminal, so the long sign-in link comes out on one line
-    const h = await entry.sandbox.pty.create({ cols: 1000, rows: 40, timeoutMs: 10 * 60_000, envs: { LANG: "en_US.UTF-8", TERM: "xterm-256color" },
-      onData: (d) => { l.out = (l.out + new TextDecoder().decode(d)).slice(-200_000); } });
-    l.pid = h.pid; claudeLogin = l;
-    await entry.sandbox.pty.sendInput(h.pid, new TextEncoder().encode("claude setup-token\n"));
-    for (let i = 0; i < 60; i++) {
-      await new Promise((r) => setTimeout(r, 500));
-      const url = stripAnsi(l.out).match(/https:\/\/\S*oauth\/authorize\?\S+/)?.[0];
-      if (url) return res.json({ url });
-    }
-    await endClaudeLogin();
-    res.status(504).json({ error: "Claude Code didn't show a sign-in link. Try again." });
-  } catch (e) {
-    await endClaudeLogin();
-    res.status(502).json({ error: String(e?.message || e).slice(0, 200) });
-  }
+    const sandbox = req.body?.target === "ai" ? await aiShellSandbox() : e2bSandboxes.get(String(req.body?.sandboxId || ""))?.sandbox;
+    if (!sandbox) return res.status(404).json({ error: "Start VM #4 first." });
+    res.json({ url: await beginClaudeLogin(sandbox) });
+  } catch (e) { await endClaudeLogin(); fail(res, e); }
 });
 app.post("/api/vm/claude-login/finish", requireOwner, async (req, res) => {
   const code = String(req.body?.code || "").trim();
-  const l = claudeLogin;
-  if (!l) return res.status(409).json({ error: "The sign-in ran out. Press Log in to Claude Code again." });
   if (!code || code.length > 500 || /[\r\n]/.test(code)) return res.status(400).json({ error: "Paste the code from the Claude page." });
+  try { await finishClaudeLogin(code); res.json({ ok: true }); } catch (e) { fail(res, e); }
+});
+app.post("/api/vm/claude-login/screen", requireOwner, async (_req, res) => {
   try {
-    const before = l.out.length;
-    await l.sandbox.pty.sendInput(l.pid, new TextEncoder().encode(code));
-    await new Promise((r) => setTimeout(r, 300));
-    await l.sandbox.pty.sendInput(l.pid, new TextEncoder().encode("\r"));
-    for (let i = 0; i < 60; i++) {
-      await new Promise((r) => setTimeout(r, 500));
-      const after = stripAnsi(l.out.slice(before));
-      const token = after.match(/sk-ant-oat[\w-]+/)?.[0];
-      if (token) {
-        saveSecret("claude_code", token);
-        // this VM gets it now too, so `claude` works without starting a new VM
-        const login = claudeLoginFiles();
-        await l.sandbox.files.write(login.files).catch(() => {});
-        await l.sandbox.commands.run(`touch ~/.vm4-env; grep -v CLAUDE_CODE_OAUTH_TOKEN ~/.vm4-env > ~/.vm4-env.n; echo ${shq("export CLAUDE_CODE_OAUTH_TOKEN=" + token)} >> ~/.vm4-env.n; mv ~/.vm4-env.n ~/.vm4-env; chmod 600 ~/.vm4-env; grep -q vm4-env ~/.bashrc || echo '[ -f ~/.vm4-env ] && . ~/.vm4-env' >> ~/.bashrc`, { timeoutMs: 15_000 }).catch(() => {});
-        await endClaudeLogin();
-        logEvent("vm", "owner logged Claude Code in to VM #4");
-        return res.json({ ok: true });
-      }
-      if (/invalid|expired|error|failed/i.test(after)) {
-        const why = after.split("\n").map((s) => s.trim()).find((s) => /invalid|expired|error|failed/i.test(s)) || "";
-        await endClaudeLogin();
-        return res.status(400).json({ error: `Claude didn't accept that code${why ? ` (${why.slice(0, 120)})` : ""}. Press Log in to Claude Code to try again.` });
-      }
-    }
-    await endClaudeLogin();
-    res.status(504).json({ error: "Claude Code didn't finish signing in. Try again." });
-  } catch (e) {
-    await endClaudeLogin();
-    res.status(502).json({ error: String(e?.message || e).slice(0, 200) });
-  }
+    const box = await aiShellSandbox();
+    if (!box.stream) return res.status(400).json({ error: "The AI's computer has no screen (it isn't using the coding template)." });
+    const url = await beginClaudeLogin(box);
+    const l = claudeLogin;
+    await closeScreen(box);
+    await box.commands.run(`DISPLAY=:0 google-chrome-stable --no-sandbox --no-first-run --no-default-browser-check --remote-debugging-port=9222 --remote-debugging-address=127.0.0.1 --user-data-dir=/home/user/.claude-signin --start-maximized ${shq(url)} >/dev/null 2>&1 &`, { timeoutMs: 15_000 });
+    await box.stream.start({ requireAuth: true });
+    const authKey = await box.stream.getAuthKey();
+    const stream = box.stream.getUrl({ authKey, autoConnect: true, resize: "scale", viewOnly: false });
+    screenLogin = { stream, error: "", done: false };
+    res.json({ url: stream });
+    // the rest happens while the owner signs in
+    (async () => {
+      const s = screenLogin;
+      try {
+        const code = await watchForCode(l);
+        if (!code) throw new Error(claudeLogin === l ? "The sign-in timed out after 10 minutes." : "The sign-in was stopped.");
+        await finishClaudeLogin(code);
+        s.done = true;
+      } catch (e) { s.error = String(e?.message || e).slice(0, 200); await endClaudeLogin(); }
+      finally { await closeScreen(box); }
+    })();
+  } catch (e) { await endClaudeLogin(); fail(res, e); }
 });
 
 app.get("/api/vm/kept", requireOwner, async (req, res) => {
