@@ -101,6 +101,14 @@ ok(true, "cancel closes it");
 const notOwner = await sam.page.evaluate(() => window.ai._act({ do: "admin.kick", user: "testowner" }).catch((e) => e.message));
 ok(/Only the owner/.test(notOwner), "nobody else can run them", notOwner);
 
+/* ---- owner-only models ---- */
+const st = (p) => api(p, "/api/ai/status");
+ok((await st(own)).body.models?.includes("dawvqTEST"), "the owner sees the dawvq models");
+const ss = await st(sam);
+ok(ss.body.models?.length && !ss.body.models.includes("dawvqTEST") && !/^dawvq/.test(ss.body.model), "everyone else doesn't", JSON.stringify(ss.body));
+r = await api(sam, "/api/ai/chat", "POST", { model: "dawvqTEST", messages: [{ role: "user", content: "hi" }] });
+ok(r.status === 403, "…and can't use one by asking for it", JSON.stringify(r));
+
 /* ---- kept VM ---- */
 await own.page.evaluate(() => openAdmin());
 await own.page.waitForFunction(() => /E2B isn't set up|none yet|paused|open now/.test(document.querySelector("#ad-kept-state")?.textContent || ""), null, { timeout: 8000 });

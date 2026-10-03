@@ -208,7 +208,7 @@ function aiMock(req, res, u) {
   const json = (status, o) => { res.writeHead(status, { "content-type": "application/json" }); res.end(JSON.stringify(o)); };
   if (u.pathname === "/v1/_last") return json(200, aiLast);
   if (req.headers.authorization !== "Bearer test-ai-key") return json(401, { error: { message: "bad key" } });
-  if (u.pathname === "/v1/models") return json(200, { data: [{ id: "text-embedding-3-small" }, { id: "gpt-4o" }, { id: "gpt-4o-mini" }] });
+  if (u.pathname === "/v1/models") return json(200, { data: [{ id: "text-embedding-3-small" }, { id: "gpt-4o" }, { id: "gpt-4o-mini" }, { id: "dawvqTEST" }] });
   if (u.pathname !== "/v1/chat/completions" || req.method !== "POST") return json(404, { error: { message: "no" } });
   let body = "";
   req.on("data", (c) => (body += c));

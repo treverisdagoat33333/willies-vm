@@ -139,6 +139,11 @@ async function models() {
   }
 }
 /* the default: AI_MODEL, else a sensible general chat model from the list, else the first */
+/* Models only the owner sees and can use: the provider's own "dawvq" ones, which carry a
+   large hidden prompt of the provider's and have their limits removed, so they're not for
+   everyone on the site. OWNER_MODELS (a regex) changes which. */
+const OWNER_ONLY = new RegExp(process.env.OWNER_MODELS || "^dawvq", "i");
+const forViewer = (list, owner) => owner ? list : list.filter((m) => !OWNER_ONLY.test(m));
 function defaultModel(list) {
   const { model } = config();
   if (model) return model;
@@ -286,8 +291,8 @@ export function aiRouter({ requireSession, limiter, userLimiter, isOwner = () =>
   router.get("/status", requireSession, async (req, res) => {
     const { key, base } = config();
     if (!key || !base) return res.json({ ready: false, models: [], model: "" });
-    const list = await models();
-    res.json({ ready: true, models: list, model: defaultModel(list) });
+    const list = forViewer(await models(), isOwner(req.vmSession));
+    res.json({ ready: true, models: list, model: defaultModel(list.filter((m) => !OWNER_ONLY.test(m))) });
   });
 
   router.post("/chat", requireSession, limiter, userLimiter, async (req, res) => {
@@ -295,8 +300,9 @@ export function aiRouter({ requireSession, limiter, userLimiter, isOwner = () =>
     if (!key || !base) return res.status(503).json({ error: "The AI isn't set up on this server yet." });
     const messages = cleanMessages(req.body?.messages);
     if (!messages) return res.status(400).json({ error: "Nothing to send." });
-    const list = await models();
+    const list = forViewer(await models(), isOwner(req.vmSession));
     const asked = typeof req.body?.model === "string" ? req.body.model : "";
+    if (asked && OWNER_ONLY.test(asked) && !isOwner(req.vmSession)) return res.status(403).json({ error: "That model is only for the site's owner." });
     const model = asked && (!list.length || list.includes(asked)) ? asked : defaultModel(list);
     if (!model) return res.status(503).json({ error: "The AI has no models available right now." });
 
