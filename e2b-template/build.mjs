@@ -40,14 +40,15 @@ const template = Template()
   ])
   // Chrome and VS Code refuse to start inside a sandbox without these flags.
   .runCmd([
-    "sed -i 's#^Exec=/usr/bin/google-chrome-stable#Exec=/usr/bin/google-chrome-stable --no-sandbox --no-first-run#' /usr/share/applications/google-chrome.desktop",
-    "sed -i 's#^Exec=/usr/share/code/code#Exec=/usr/share/code/code --no-sandbox#' /usr/share/applications/code.desktop",
+    // the base image may already carry its own copies under other names, so only touch what exists
+    "for f in /usr/share/applications/google-chrome*.desktop; do [ -f \"$f\" ] && sed -i 's#^Exec=/usr/bin/google-chrome-stable#Exec=/usr/bin/google-chrome-stable --no-sandbox --no-first-run#' \"$f\"; done; true",
+    "for f in /usr/share/applications/code*.desktop; do [ -f \"$f\" ] && sed -i 's#^Exec=/usr/share/code/code#Exec=/usr/share/code/code --no-sandbox#' \"$f\"; done; true",
   ])
   .setUser("user")
   // desktop shortcuts, so they're one double-click away
   .runCmd([
     "mkdir -p ~/Desktop",
-    "cp /usr/share/applications/google-chrome.desktop /usr/share/applications/code.desktop ~/Desktop/ && chmod +x ~/Desktop/*.desktop",
+    "for f in /usr/share/applications/google-chrome.desktop /usr/share/applications/code.desktop; do [ -f \"$f\" ] && cp \"$f\" ~/Desktop/; done; true",
     "printf '[Desktop Entry]\\nType=Application\\nName=Claude Code\\nExec=xfce4-terminal --hold -e claude\\nIcon=utilities-terminal\\n' > ~/Desktop/claude.desktop",
     "printf '[Desktop Entry]\\nType=Application\\nName=opencode\\nExec=xfce4-terminal --hold -e opencode\\nIcon=utilities-terminal\\n' > ~/Desktop/opencode.desktop",
     "chmod +x ~/Desktop/*.desktop",
