@@ -127,6 +127,28 @@ const meta = await page.$eval("#ai-log .ai-msg.bot:last-child .ai-meta", (m) => 
 // 1200 in at $1/M + 300 out at $4/M = $0.0024
 ok(/300 tokens/.test(meta.line) && /\$0\.0024/.test(meta.line) && /\ds/.test(meta.line), "a finished answer shows its tokens, cost and time", meta.line);
 ok(/Prompt: 1,200 tokens \(200 from cache\)/.test(meta.detail) && /Total: 1,500/.test(meta.detail) && /\$1 in \/ \$4 out/.test(meta.detail), "…with the details on hover", meta.detail);
+// Effort: picked from the header, sent as reasoning_effort, Ultra is "max"
+const lastText = () => document.querySelector("#ai-log .ai-msg.bot:last-child")?.textContent || "";
+await page.evaluate(() => { const s = document.querySelector("#ai-model"); s.value = "gpt-4o-mini"; s.dispatchEvent(new Event("change")); });
+ok(await page.isVisible("#ai-eff-btn") && /Effort: Auto/.test(await page.textContent("#ai-eff-btn")), "the Effort button shows, on Auto");
+await ask("what effort now", () => /Effort was/.test(document.querySelector("#ai-log .ai-msg.bot:last-child")?.textContent || ""));
+ok(/Effort was none\./.test(await page.evaluate(lastText)), "Auto sends no effort");
+await page.click("#ai-eff-btn");
+const opts = await page.$$eval("#ai-eff-list .ai-mp-it b", (b) => b.map((x) => x.textContent));
+ok(opts.join() === "Auto,Low,Medium,High,Extra high,Ultra", "six levels, Low to Ultra", opts.join());
+await page.click("#ai-eff-list [data-v='max']");
+ok(/Effort: Ultra/.test(await page.textContent("#ai-eff-btn")), "picking Ultra shows on the button");
+await ask("what effort is it", () => /Effort was max/.test(document.querySelector("#ai-log .ai-msg.bot:last-child")?.textContent || ""));
+ok(/Effort was max\./.test(await page.evaluate(lastText)), "…and Ultra is sent as max");
+ok(/Effort: Ultra/.test(await page.$eval("#ai-log .ai-msg.bot:last-child .ai-meta", (m) => m.title)), "…and the answer's details say so");
+await page.evaluate(() => { const s = document.querySelector("#ai-model"); s.value = "gpt-4o"; s.dispatchEvent(new Event("change")); });
+await ask("what effort for you", () => /Effort was/.test(document.querySelector("#ai-log .ai-msg.bot:last-child")?.textContent || ""));
+ok(/Effort was none\./.test(await page.evaluate(lastText)), "a model that refuses it still answers, at its own default");
+ok(await page.reload().then(() => page.waitForTimeout(1500)).then(() => page.evaluate(() => JSON.parse(localStorage.getItem("ai.effort")))) === "max", "the pick is remembered");
+await page.evaluate(() => localStorage.setItem("ai.effort", JSON.stringify("")));
+await page.reload(); await page.waitForFunction(() => window.ai, null, { timeout: 10000 }); await page.waitForTimeout(1500);
+await page.evaluate(() => window.ai.open()); await page.waitForTimeout(800);
+
 // answers that get cut off are carried on, never left half-written
 const botText = () => page.$eval("#ai-log .ai-msg.bot:last-child", (b) => b.textContent);
 await ask("write me long code", () => /All done\./.test(document.querySelector("#ai-log .ai-msg.bot:last-child")?.textContent || ""));

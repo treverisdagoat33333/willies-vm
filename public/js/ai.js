@@ -298,7 +298,7 @@ async function fillModels(){
   // with no online AI, nothing is picked until they say so: the first use downloads hundreds of MB
   MODEL.value=all.includes(saved)?saved:status?.ready?(status.model||list[0]):'';
   MODEL.hidden=true;MODEL.dataset.many=all.length>1?'1':'';
-  MP.hidden=all.length<2;renderPicker();renderCompare?.();
+  MP.hidden=all.length<2;renderPicker();renderCompare?.();renderEffort();
 }
 
 /* ═══ talking to the server ═══ */
@@ -368,7 +368,7 @@ async function askOnline(reply,model,canAct,signal,base){
     const partial=tries?answerOf(reply.content):'';
     let finished=false,failed=null;
     try{
-      const r=await fetch('/api/ai/chat',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({model,actions:canAct,context:siteContext(),custom:customText(),messages:msgs,...(partial?{partial}:{})}),signal});
+      const r=await fetch('/api/ai/chat',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({model,actions:canAct,context:siteContext(),custom:customText(),messages:msgs,...(effort?{effort}:{}),...(partial?{partial}:{})}),signal});
       if(!r.ok){const d=await r.json().catch(()=>({}));const e=new Error(d.error||`HTTP ${r.status}`);e.final=r.status<500||r.status===503;throw e}
       const reader=r.body.getReader(),dec=new TextDecoder();let buf='';
       const take=line=>{
@@ -378,6 +378,7 @@ async function askOnline(reply,model,canAct,signal,base){
         else if(m.t==='think'){reply.think=(reply.think||'')+m.v;noteTiming(reply);paintLast()}
         else if(m.t==='model')reply.modelName=m.v;
         else if(m.t==='usage')reply.usage=m.v;
+        else if(m.t==='effort')reply.effort=m.v;
         else if(m.t==='done'){finished=true;if(m.finish==='length')reply.note='This answer was very long, so it stopped here. Say "continue" for the rest.'}
         else if(m.t==='error')failed=new Error(m.error);
       };
@@ -417,6 +418,7 @@ function metaOf(m){
     if(u.rate)detail.push(`Cost: ${fmtCost(u.cost)} ($${u.rate.input} in / $${u.rate.output} out per million tokens)`);
     else detail.push('No price is set for this model');
   }else if(out)detail.push(local?'Estimated from the text; models on this device are free':'Estimated from the text: the AI sent no token count');
+  if(m.effort)detail.push(`Effort: ${effortName(m.effort)}`);
   if(m.thinkMs)detail.push(`Thought for ${(m.thinkMs/1000).toFixed(1)}s`);
   return{line:parts.join(' · '),detail:detail.join('\n')};
 }
@@ -855,6 +857,23 @@ function renderCompare(){
 $('#ai-cmp-btn').onclick=()=>{click();renderCompare();CPOP.hidden=!CPOP.hidden;$('#ai-cmp-btn').setAttribute('aria-expanded',!CPOP.hidden)};
 $('#ai-cmp-list').addEventListener('click',e=>{const b=e.target.closest('.ai-mp-it');if(!b)return;click();compareWith=b.dataset.v;put('ai.compare',compareWith);CPOP.hidden=true;renderCompare();if(compareWith)toast(`Each question now goes to ${MODEL.value} and ${compareWith}`,'ok')});
 document.addEventListener('pointerdown',e=>{if(!CPOP.hidden&&!CMP.contains(e.target))CPOP.hidden=true});
+/* Effort: how hard the online models think (the API's reasoning_effort). Auto sends nothing,
+   so each model uses its own default; Ultra is the provider's "max". Models that ignore it
+   just answer as usual, and the server drops it for an API that refuses it. */
+const EFFORTS=[['','Auto','Each model picks for itself'],['low','Low','Fastest and cheapest'],['medium','Medium','A bit of thinking'],['high','High','Thinks things through'],['xhigh','Extra high','Longer thinking for hard problems'],['max','Ultra','As much thinking as it can; slowest and costs the most']];
+let effort=store('ai.effort','');if(!EFFORTS.some(([v])=>v===effort))effort='';
+const EFF=$('#ai-eff'),EPOP=$('#ai-eff-pop');
+const effortName=v=>(EFFORTS.find(x=>x[0]===v)||EFFORTS[0])[1];
+function renderEffort(){
+  EFF.hidden=!(status?.models||[]).length||isLocal(MODEL.value);
+  $('#ai-eff-btn').classList.toggle('on',!!effort);
+  $('#ai-eff-btn span').textContent=`Effort: ${effortName(effort)}`;
+  $('#ai-eff-list').innerHTML=EFFORTS.map(([v,t,d])=>`<button type="button" role="option" class="ai-mp-it${v===effort?' on':''}" data-v="${v}"><span class="ai-mp-t"><b>${t}</b></span><small>${d}</small></button>`).join('');
+}
+$('#ai-eff-btn').onclick=()=>{click();renderEffort();EPOP.hidden=!EPOP.hidden;$('#ai-eff-btn').setAttribute('aria-expanded',!EPOP.hidden)};
+$('#ai-eff-list').addEventListener('click',e=>{const b=e.target.closest('.ai-mp-it');if(!b)return;click();effort=b.dataset.v;put('ai.effort',effort);EPOP.hidden=true;renderEffort();toast(`Effort: ${effortName(effort)}`,'ok')});
+document.addEventListener('pointerdown',e=>{if(!EPOP.hidden&&!EFF.contains(e.target))EPOP.hidden=true});
+MODEL.addEventListener('change',renderEffort);
 MODEL.addEventListener('change',renderCompare);
 document.addEventListener('keydown',e=>{if(W.classList.contains('show')&&e.key==='Escape'&&!typing())hide()});
 

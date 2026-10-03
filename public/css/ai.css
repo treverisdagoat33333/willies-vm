@@ -232,3 +232,4 @@ html[data-motion="off"] .ai-making,html[data-perf="on"] .ai-making{animation:non
 .ai-page{margin-top:6px;font-size:.78em;color:var(--text-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:420px}
 @media (max-width:720px){.ai-pair{grid-template-columns:minmax(0,1fr)}.ai-cmp-btn span{display:none}}
 .ai-note{margin-top:8px;font-size:.82em;color:var(--text-3)}
+.ai-mp-it small{color:var(--text-3);font-size:.78em}

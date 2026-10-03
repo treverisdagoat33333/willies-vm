@@ -219,6 +219,13 @@ function aiMock(req, res, u) {
     const raw = b.messages?.[b.messages.length - 1]?.content || "";
     const said = typeof raw === "string" ? raw : raw.find?.((p) => p.type === "text")?.text || "";
     if (/fail/.test(said)) return json(500, { error: { message: "mock failure" } });
+    // effort: echoes what it was asked for, and one model that refuses it
+    if (/what effort/.test(said)) {
+      if (b.model === "gpt-4o" && b.reasoning_effort) return json(400, { error: { message: "reasoning_effort is not supported by this model" } });
+      res.writeHead(200, { "content-type": "text/event-stream" });
+      res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: `Effort was ${b.reasoning_effort || "none"}.` } }] })}\n\n`);
+      res.write("data: [DONE]\n\n"); return res.end();
+    }
     if (/big tokens/.test(said) && b.max_tokens > 4096) return json(400, { error: { message: "max_tokens is too large for this model" } });
     res.writeHead(200, { "content-type": "text/event-stream" });
     // replies that act on the site (public/js/ai.js carries the actions out); the

@@ -98,6 +98,7 @@ function usageOf(model, u) {
   const cost = rate ? (u.prompt / 1e6) * rate.input + (u.completion / 1e6) * rate.output : null;
   return { ...u, total: u.prompt + u.completion, cost, rate: rate || null };
 }
+const EFFORTS = new Set(["low", "medium", "high", "xhigh", "max"]);
 const MAX_CUSTOM = 36_500; // the page allows 36,332 characters of instructions, plus its own labels
 function cleanCustom(v) {
   return typeof v === "string" ? v.replace(/[\u0000-\u0008\u000b-\u001f]/g, " ").slice(0, MAX_CUSTOM).trim() : "";
@@ -313,14 +314,21 @@ export function aiRouter({ requireSession, limiter, userLimiter, isOwner = () =>
     // the assistant's, and the model is asked to go on from there
     const partial = typeof req.body?.partial === "string" ? req.body.partial.slice(-MAX_CHARS / 2) : "";
     let tokens = MAX_TOKENS, withUsage = true;
+    // how hard it thinks (the page's Effort picker); "max" is Ultra
+    let effort = EFFORTS.has(req.body?.effort) ? req.body.effort : null;
     const call = async (msgs) => {
       const go = (n) => fetch(`${base}/chat/completions`, {
         method: "POST",
         headers: { authorization: `Bearer ${key}`, "content-type": "application/json", accept: "text/event-stream" },
-        body: JSON.stringify({ model, stream: true, max_tokens: n, ...(withUsage ? { stream_options: { include_usage: true } } : {}), messages: [system, ...msgs] }),
+        body: JSON.stringify({ model, stream: true, max_tokens: n, ...(withUsage ? { stream_options: { include_usage: true } } : {}), ...(effort ? { reasoning_effort: effort } : {}), messages: [system, ...msgs] }),
         signal: abort.signal,
       });
       let up = await go(tokens);
+      // a model that refuses this effort level: answer at its own default instead of failing
+      if (up.status === 400 && effort) {
+        const why = await up.clone().text().catch(() => "");
+        if (/reasoning|effort/i.test(why)) { effort = null; up = await go(tokens); }
+      }
       // an API that doesn't know stream_options: ask again without it (no token counts then)
       if (up.status === 400 && withUsage) {
         const why = await up.clone().text().catch(() => "");
@@ -359,6 +367,7 @@ export function aiRouter({ requireSession, limiter, userLimiter, isOwner = () =>
     // only waiting on the model to think
     const ping = setInterval(() => send({ t: "ping" }), PING_MS);
     send({ t: "model", v: model });
+    if (effort) send({ t: "effort", v: effort });
     record("ai");
     let text = partial;
     const used = { prompt: 0, completion: 0, cached: 0, reasoning: 0, counted: false };
