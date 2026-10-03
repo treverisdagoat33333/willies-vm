@@ -96,14 +96,106 @@ function blocks(text){
   endPara();endList();
   return out.join('');
 }
+/* ═══ code as files ═══
+   A fenced block that names a file (```html index.html) or runs long comes back as a file
+   card, like an attachment, instead of a wall of text: open it in the side pane, run it in
+   a sandbox (HTML, SVG and JavaScript), or download it. A message's files can also be
+   downloaded together as one HTML page. FILES/GROUPS hold what the cards point at. */
+const EXT={html:'html',htm:'html',xml:'xml',svg:'svg',css:'css',js:'js',javascript:'js',jsx:'jsx',ts:'ts',typescript:'ts',tsx:'tsx',json:'json',py:'py',python:'py',java:'java',c:'c',cpp:'cpp','c++':'cpp',cs:'cs',csharp:'cs',go:'go',rs:'rs',rust:'rs',rb:'rb',ruby:'rb',php:'php',sh:'sh',bash:'sh',shell:'sh',ps1:'ps1',powershell:'ps1',sql:'sql',md:'md',markdown:'md',yaml:'yml',yml:'yml',lua:'lua',kt:'kt',kotlin:'kt',swift:'swift',txt:'txt',text:'txt'};
+const LANG_OF={html:'html',htm:'html',svg:'svg',css:'css',js:'js',mjs:'js',jsx:'jsx',ts:'ts',json:'json',py:'python',md:'markdown'};
+const FILES=new Map(),GROUPS=new Map();
+let fileSeq=0;
+const RUNNABLE=f=>['html','svg','js'].includes(f.ext)||(f.ext==='css'&&false);
+function parseFence(info,code,n){
+  const words=info.trim().split(/\s+/).filter(Boolean);
+  let name=words.find(w=>/^[\w.\-\/]+\.[a-z0-9+]+$/i.test(w))||'',lang=(words.find(w=>w!==name)||'').toLowerCase();
+  let ext=name?name.split('.').pop().toLowerCase():EXT[lang]||'';
+  if(!ext&&/^\s*<(!doctype|html)/i.test(code))ext='html';
+  if(!lang)lang=LANG_OF[ext]||ext||'text';
+  if(!name)name=ext==='html'?'index.html':`file-${n}.${ext||'txt'}`;
+  return{name:name.split('/').pop(),lang,ext:ext||'txt',code};
+}
+function fileCard(f,live){
+  const lines=f.code.split('\n').length;
+  return `<div class="ai-file${live?' live':''}" data-f="${f.id}"><div class="ai-file-ic">${esc((f.ext||'txt').slice(0,4).toUpperCase())}</div><div class="ai-file-t"><b>${esc(f.name)}</b><small>${live?`Writing… ${lines} lines`:`${lines} line${lines===1?'':'s'} · ${esc(f.lang)}`}</small></div>${live?'':`<div class="ai-file-acts">${RUNNABLE(f)?'<button type="button" class="ai-f-run" title="Run in a sandbox">▶ Run</button>':''}<button type="button" class="ai-f-dl" title="Download">Download</button></div>`}</div>`;
+}
 function md(text){
   // odd parts are inside ``` fences; an unclosed fence (still streaming) shows as code too
-  return String(text).split('```').map((part,i)=>{
+  const parts=String(text).split('```'),open=parts.length%2===0,group=[];
+  const out=parts.map((part,i)=>{
     if(!(i%2))return blocks(part);
-    const nl=part.indexOf('\n'),lang=nl>=0?part.slice(0,nl).trim():'',code=(nl>=0?part.slice(nl+1):part).replace(/\n$/,'');
-    return `<div class="ai-code"><div class="ai-code-top"><span>${esc(lang||'code')}</span><button type="button" class="ai-copy">Copy</button></div><pre><code>${esc(code)}</code></pre></div>`;
+    const nl=part.indexOf('\n'),info=nl>=0?part.slice(0,nl):'',code=(nl>=0?part.slice(nl+1):part).replace(/\n$/,'');
+    const live=open&&i===parts.length-1,f=parseFence(info,code,group.length+1);
+    // short snippets stay inline; files and long code become cards
+    const named=/\.[a-z0-9+]+(\s|$)/i.test(info.trim());
+    if(!named&&code.split('\n').length<12)return `<div class="ai-code"><div class="ai-code-top"><span>${esc(f.lang==='text'?'code':f.lang)}</span><button type="button" class="ai-copy">Copy</button></div><pre><code>${esc(code)}</code></pre></div>`;
+    const key=f.name+'\u0000'+code;let id=null;
+    for(const [k,v] of FILES)if(v.key===key){id=k;break}
+    if(!id){id='f'+(++fileSeq);FILES.set(id,{...f,key,id});if(FILES.size>400)FILES.delete(FILES.keys().next().value)}
+    if(!live)group.push(id);
+    return fileCard(FILES.get(id),live);
   }).join('');
+  if(group.length){const g=group.join(',');for(const id of group)GROUPS.set(id,g)}
+  return out;
 }
+const groupOf=id=>(GROUPS.get(id)||id).split(',').map(x=>FILES.get(x)).filter(Boolean);
+const MIME={html:'text/html',svg:'image/svg+xml',css:'text/css',js:'text/javascript',json:'application/json',md:'text/markdown'};
+function saveFile(name,text,ext){
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type:(MIME[ext]||'text/plain')+';charset=utf-8'}));
+  a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),4000);
+}
+/* the message's files as one page: CSS and JS the HTML links to by name go inline, the rest
+   are added at the end; with no HTML at all, a page is built around them */
+function asOnePage(files){
+  let html=files.find(f=>f.ext==='html')?.code;
+  const css=files.filter(f=>f.ext==='css'),js=files.filter(f=>f.ext==='js');
+  const used=new Set();
+  if(!html)html='<!doctype html>\n<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Page</title></head><body></body></html>';
+  for(const f of css){const re=new RegExp(`<link[^>]+href=["'](?:\\./)?${f.name.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}["'][^>]*>`,'i');if(re.test(html)){html=html.replace(re,()=>`<style>\n${f.code}\n</style>`);used.add(f)}}
+  for(const f of js){const re=new RegExp(`<script[^>]+src=["'](?:\\./)?${f.name.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}["'][^>]*>\\s*</script>`,'i');if(re.test(html)){html=html.replace(re,()=>`<script>\n${f.code}\n</`+`script>`);used.add(f)}}
+  const addCss=css.filter(f=>!used.has(f)).map(f=>`<style>\n${f.code}\n</style>`).join('\n');
+  const addJs=js.filter(f=>!used.has(f)).map(f=>`<script>\n${f.code}\n</`+`script>`).join('\n');
+  if(addCss)html=/<\/head>/i.test(html)?html.replace(/<\/head>/i,()=>addCss+'\n</head>'):addCss+html;
+  if(addJs)html=/<\/body>/i.test(html)?html.replace(/<\/body>(?![\s\S]*<\/body>)/i,()=>addJs+'\n</body>'):html+addJs;
+  return html;
+}
+/* what the sandbox shows: a page as it is, an SVG as a picture, JavaScript with its
+   console.log output written on the page */
+function runnable(f,files){
+  if(f.ext==='html')return asOnePage(files.includes(f)?files:[f]);
+  if(f.ext==='svg')return `<!doctype html><body style="margin:0;display:grid;place-items:center;min-height:100vh;background:#fff">${f.code}</body>`;
+  return `<!doctype html><html><head><meta charset="utf-8"><style>body{margin:0;font:13px/1.5 ui-monospace,Consolas,monospace;background:#0b0b0d;color:#e5e5e5}#o div{padding:4px 10px;border-bottom:1px solid #222;white-space:pre-wrap}#o .e{color:#f87171}</style></head><body><div id="o"></div><script>(()=>{const o=document.getElementById('o'),w=(c,a)=>{const d=document.createElement('div');d.className=c;d.textContent=a.map(x=>typeof x==='object'?(()=>{try{return JSON.stringify(x,null,2)}catch(_){return String(x)}})():String(x)).join(' ');o.appendChild(d)};for(const k of['log','info','warn','debug'])console[k]=(...a)=>w('',a);console.error=(...a)=>w('e',a);addEventListener('error',e=>w('e',[e.message]));addEventListener('unhandledrejection',e=>w('e',['Unhandled: '+(e.reason?.message||e.reason)]))})();</`+`script><script>\n${f.code}\n</`+`script></body></html>`;
+}
+/* the pane: the file's code, or it running in a sandboxed frame (scripts only: no access to
+   this site, its cookies or storage, and it can't navigate the page) */
+const PANE=$('#ai-codepane');
+let paneFile=null;
+function openPane(id,tab){
+  const f=FILES.get(id);if(!f)return;paneFile=f;
+  const files=groupOf(id),canRun=RUNNABLE(f);
+  $('#ai-cp-name').textContent=f.name;
+  $('#ai-cp-meta').textContent=`${f.code.split('\n').length} lines · ${f.lang}`;
+  $('#ai-cp-run').hidden=!canRun;
+  $('#ai-cp-page').hidden=!(files.some(x=>['html','css','js'].includes(x.ext))&&(files.length>1||f.ext!=='html'));
+  $('#ai-cp-code').textContent=f.code;
+  showTab(canRun&&tab==='run'?'run':'code');
+  PANE.hidden=false;W.classList.add('pane-open');
+}
+function showTab(t){
+  const f=paneFile;if(!f)return;
+  $$('#ai-codepane [data-tab]').forEach(b=>b.classList.toggle('on',b.dataset.tab===t));
+  const frame=$('#ai-cp-frame');
+  if(t==='run'){frame.srcdoc=runnable(f,groupOf(f.id));frame.hidden=false;$('#ai-cp-pre').hidden=true}
+  else{frame.hidden=true;frame.srcdoc='';$('#ai-cp-pre').hidden=false}
+}
+function closePane(){PANE.hidden=true;W.classList.remove('pane-open');$('#ai-cp-frame').srcdoc='';paneFile=null}
+$('#ai-cp-x').onclick=()=>{click();closePane()};
+$$('#ai-codepane [data-tab]').forEach(b=>b.onclick=()=>{click();showTab(b.dataset.tab)});
+$('#ai-cp-run').onclick=()=>{click();showTab('run')};
+$('#ai-cp-copy').onclick=()=>{if(paneFile)navigator.clipboard?.writeText(paneFile.code).then(()=>toast('Copied','ok'),()=>toast('Copy failed','err'))};
+$('#ai-cp-dl').onclick=()=>{if(paneFile){click();saveFile(paneFile.name,paneFile.code,paneFile.ext)}};
+$('#ai-cp-page').onclick=()=>{if(!paneFile)return;click();const files=groupOf(paneFile.id);saveFile((files.find(f=>f.ext==='html')?.name||'page.html').replace(/\.html?$/i,'')+'.html',asOnePage(files),'html')};
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!PANE.hidden&&W.classList.contains('show')){e.stopPropagation();closePane()}},true);
 
 /* ═══ drawing ═══ */
 const ICON_DEL='<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>';
@@ -368,7 +460,7 @@ async function askOnline(reply,model,canAct,signal,base){
     const partial=tries?answerOf(reply.content):'';
     let finished=false,failed=null;
     try{
-      const r=await fetch('/api/ai/chat',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({model,actions:canAct,context:siteContext(),custom:customText(),messages:msgs,...(ultraOn()?{effort:'max',ultracode:true}:effort?{effort}:{}),...(partial?{partial}:{})}),signal});
+      const r=await fetch('/api/ai/chat',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({model,actions:canAct,context:siteContext(),custom:customText(),messages:msgs,...(codeMode?{code:true}:{}),...(ultraOn()?{effort:'max',ultracode:true}:effort?{effort}:{}),...(partial?{partial}:{})}),signal});
       if(!r.ok){const d=await r.json().catch(()=>({}));const e=new Error(d.error||`HTTP ${r.status}`);e.final=r.status<500||r.status===503;throw e}
       const reader=r.body.getReader(),dec=new TextDecoder();let buf='';
       const take=line=>{
@@ -634,6 +726,12 @@ $('#ai-chats').addEventListener('click',e=>{
 });
 LOG.addEventListener('click',e=>{
   const sug=e.target.closest('.ai-sug');if(sug){click();send(sug.textContent);return}
+  const card=e.target.closest('.ai-file');
+  if(card&&!card.classList.contains('live')){
+    const id=card.dataset.f,f=FILES.get(id);if(!f)return;click();
+    if(e.target.closest('.ai-f-dl')){saveFile(f.name,f.code,f.ext);return}
+    openPane(id,e.target.closest('.ai-f-run')?'run':'code');return;
+  }
   const copy=e.target.closest('.ai-copy');
   if(copy){const code=copy.closest('.ai-code').querySelector('code').textContent;navigator.clipboard?.writeText(code).then(()=>{copy.textContent='Copied';setTimeout(()=>{copy.textContent='Copy'},1500)},()=>toast('Copy failed','err'));return}
   if(e.target.closest('.ai-retry')&&cur&&!busy){
@@ -901,6 +999,12 @@ function ultraBurst(){
 }
 ULTRA.onclick=()=>{click();ultra=!ultra;put('ai.ultracode',ultra);renderEffort();renderUltra();if(ultra)ultraBurst();toast(ultra?'⚡ ULTRACODE on: maximum effort on every message':'ULTRACODE off',ultra?'ok':'')};
 MODEL.addEventListener('change',renderUltra);
+/* Code mode: the model is asked to answer with complete, named files (which show as file
+   cards with Run and Download), web things as one self-contained index.html. */
+let codeMode=store('ai.codemode',false)===true;
+function renderCode(){$('#ai-codemode').classList.toggle('on',codeMode);$('#ai-codemode').setAttribute('aria-pressed',codeMode);W.classList.toggle('code-mode',codeMode)}
+$('#ai-codemode').onclick=()=>{click();codeMode=!codeMode;put('ai.codemode',codeMode);renderCode();toast(codeMode?'Code mode on: answers come back as files you can run and download':'Code mode off',codeMode?'ok':'')};
+renderCode();
 MODEL.addEventListener('change',renderCompare);
 document.addEventListener('keydown',e=>{if(W.classList.contains('show')&&e.key==='Escape'&&!typing())hide()});
 

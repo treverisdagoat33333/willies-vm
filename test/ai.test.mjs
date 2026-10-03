@@ -166,6 +166,27 @@ await page.evaluate(() => window.ai.open()); await page.waitForTimeout(800);
   await solo.close();
 }
 
+// code as files: cards, the pane, the sandbox, downloads, Code mode
+await page.click("#ai-codemode");
+await ask("make me a page", () => document.querySelectorAll("#ai-log .ai-msg.bot:last-child .ai-file").length >= 3);
+const cards = await page.$$eval("#ai-log .ai-msg.bot:last-child .ai-file b", (b) => b.map((x) => x.textContent));
+ok(cards.join() === "index.html,style.css,app.js", "named code blocks come back as file cards", cards.join());
+ok(/\(code mode\)/.test(await page.evaluate(lastText)), "Code mode tells the model to answer with files");
+ok(await page.$$eval("#ai-log .ai-msg.bot:last-child .ai-code", (c) => c.length) === 1, "…while a short snippet stays inline");
+await page.click("#ai-log .ai-msg.bot:last-child .ai-file[data-f] .ai-f-run");
+const frame = await (await page.waitForSelector("#ai-cp-frame:not([hidden])")).contentFrame();
+await frame.waitForFunction(() => document.getElementById("t")?.textContent === "Ran!", null, { timeout: 5000 });
+ok(await frame.evaluate(() => getComputedStyle(document.getElementById("t")).color) === "rgb(255, 0, 0)", "Run shows the page with its CSS and JS put together, in the sandbox");
+ok(await frame.evaluate(() => { try { return !!parent.document.title; } catch (_) { return false; } }) === false, "…and the sandbox can't reach the site");
+const dl = page.waitForEvent("download");
+await page.click("#ai-cp-page");
+const file = await (await dl).path();
+const one = (await import("node:fs")).readFileSync(file, "utf8");
+ok(/<style>[\s\S]*color:rgb\(255, 0, 0\)/.test(one) && /textContent='Ran!'/.test(one) && !/href="style\.css"/.test(one), "Download as HTML puts the files into one page");
+await page.click("#ai-cp-x");
+ok(await page.isHidden("#ai-codepane"), "the pane closes");
+await page.click("#ai-codemode");
+
 // answers that get cut off are carried on, never left half-written
 const botText = () => page.$eval("#ai-log .ai-msg.bot:last-child", (b) => b.textContent);
 await ask("write me long code", () => /All done\./.test(document.querySelector("#ai-log .ai-msg.bot:last-child")?.textContent || ""));

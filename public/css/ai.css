@@ -346,3 +346,64 @@ html[data-solo="ai"] .ai-signin{width:100%;height:40px;border-radius:10px;font-w
 /* a guest's way back to the sign-in screen, right in the bar (the AI app has no desktop) */
 html[data-solo="ai"] .ai-top #ai-signin-top{width:auto;min-width:0;padding:0 12px;font-size:14px;font-weight:600;color:#fff;background:#0a84ff;border-radius:15px}
 html:not([data-solo="ai"]) #ai-signin-top{display:none}
+
+/* ── code as files: cards in the chat, and the pane that opens them ── */
+.ai-file{display:flex;align-items:center;gap:12px;margin:10px 0;padding:10px 12px;border:1px solid var(--border-2);border-radius:14px;background:var(--glass-2);cursor:pointer;transition:background .12s,border-color .12s;max-width:520px}
+.ai-file:hover{background:var(--glass-3);border-color:rgba(var(--accent-rgb),.5)}
+.ai-file.live{cursor:default;opacity:.85}
+.ai-file-ic{flex:0 0 auto;width:40px;height:44px;border-radius:8px;display:grid;place-items:center;font:700 10px/1 ui-monospace,Consolas,monospace;letter-spacing:.04em;color:#fff;background:linear-gradient(160deg,rgba(var(--accent-rgb),.95),rgba(var(--accent-rgb),.55))}
+.ai-file.live .ai-file-ic{animation:aiFilePulse 1.2s ease-in-out infinite}
+.ai-file-t{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.ai-file-t b{font-size:.92em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ai-file-t small{color:var(--text-3);font-size:.78em}
+.ai-file-acts{display:flex;gap:6px;flex:0 0 auto}
+.ai-file-acts button{height:30px;padding:0 11px;border-radius:9px;border:1px solid var(--border-2);background:var(--glass-2);color:var(--text);font-size:.8em;font-weight:600}
+.ai-file-acts button:hover{background:var(--glass-3)}
+.ai-file-acts .ai-f-run{background:rgba(var(--accent-rgb),.22);border-color:transparent}
+@keyframes aiFilePulse{50%{opacity:.55}}
+html[data-motion="off"] .ai-file.live .ai-file-ic,html[data-perf="on"] .ai-file.live .ai-file-ic{animation:none}
+@media (prefers-reduced-motion:reduce){.ai-file.live .ai-file-ic{animation:none}}
+.ai-codemode.on{background:rgba(var(--accent-rgb),.22);border-color:rgba(var(--accent-rgb),.6);color:var(--text)}
+
+#ai-window.pane-open{grid-template-columns:248px minmax(0,1fr) minmax(360px,46vw)}
+.ai-codepane{display:flex;flex-direction:column;min-width:0;min-height:0;border-left:1px solid var(--border);background:var(--bg0)}
+.ai-codepane[hidden]{display:none}
+.ai-cp-top{display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid var(--border)}
+.ai-cp-t{flex:1;min-width:0;display:flex;flex-direction:column}
+.ai-cp-t b{font-size:.95em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ai-cp-t small{color:var(--text-3);font-size:.75em}
+.ai-cp-tabs{display:flex;padding:3px;border-radius:10px;background:var(--glass-2)}
+.ai-cp-tabs button{padding:5px 12px;border-radius:8px;font-size:.82em;font-weight:600;color:var(--text-2)}
+.ai-cp-tabs button.on{background:var(--glass-3);color:var(--text)}
+.ai-cp-tabs button[hidden]{display:none}
+.ai-cp-body{flex:1;min-height:0;position:relative}
+.ai-cp-body pre{position:absolute;inset:0;margin:0;overflow:auto;padding:14px 16px;font:12.5px/1.55 ui-monospace,SFMono-Regular,Consolas,monospace;color:var(--text);white-space:pre;tab-size:2}
+.ai-cp-body iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:#fff}
+.ai-cp-body [hidden]{display:none}
+.ai-cp-bar{display:flex;gap:8px;justify-content:flex-end;padding:10px 12px;border-top:1px solid var(--border)}
+.ai-cp-bar [hidden]{display:none}
+@media (max-width:900px){
+  #ai-window.pane-open{grid-template-columns:minmax(0,1fr)}
+  .ai-codepane{position:absolute;inset:0;z-index:8;border-left:0}
+}
+/* the iPhone layout: the pane is a full-screen sheet under the notch */
+@media (max-width:600px){
+  html[data-solo="ai"] .ai-codepane{padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom);background:#000}
+  html[data-solo="ai"] .ai-cp-top{min-height:44px;padding:4px 10px;border-bottom:.5px solid rgba(84,84,88,.6)}
+  html[data-solo="ai"] .ai-cp-tabs{background:#1c1c1e}
+  html[data-solo="ai"] .ai-cp-tabs button.on{background:#3a3a3c}
+  html[data-solo="ai"] .ai-cp-bar{border-top:.5px solid rgba(84,84,88,.6)}
+  html[data-solo="ai"] .ai-cp-bar .btn{flex:1 1 auto;height:36px;border-radius:10px;font-size:14px;white-space:nowrap;padding:0 10px}
+  html[data-solo="ai"] .ai-cp-bar .btn.primary{background:#0a84ff}
+  html[data-solo="ai"] .ai-file{background:#1c1c1e;border:0;border-radius:14px}
+  html[data-solo="ai"] .ai-file-acts button{height:30px;border:0;background:#2c2c2e}
+  html[data-solo="ai"] .ai-file-acts .ai-f-run{background:#0a84ff;color:#fff}
+  html[data-solo="ai"] .ai-codemode.on{background:rgba(10,132,255,.2)}
+}
+/* with the pane open the chat column is narrow: the bar's buttons drop their words, and
+   anything that still doesn't fit is clipped rather than spilling over the pane */
+#ai-window.pane-open .ai-top{overflow:hidden;flex-wrap:nowrap}
+#ai-window.pane-open .ai-cmp-btn span,#ai-window.pane-open #ai-ultra span:not(.ai-ultra-bolt){display:none}
+#ai-window.pane-open #ai-custom-btn{font-size:0;gap:0;padding:0 9px}
+#ai-window.pane-open #ai-custom-btn .i{width:16px;height:16px}
+#ai-window.pane-open .ai-mp-btn{max-width:180px}

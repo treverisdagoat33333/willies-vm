@@ -100,6 +100,8 @@ function usageOf(model, u) {
 }
 // ULTRACODE, the owner's switch for the owner-only models; only sent while it's on
 const ULTRACODE = "ULTRACODE is on. Use your full effort on every message and always give your best possible answer: think it all the way through, check your work, and when writing code give complete, working, carefully checked code with nothing left out.";
+// Code mode (the page's switch): answers as whole files, which the page shows as file cards
+const CODE_MODE = "Code mode is on. When you write code, give complete, working files, never fragments or \"rest stays the same\". Put each file in its own fenced block whose first line is the language and the file name, like ```html index.html or ```python main.py. For anything that runs in a browser, prefer one self-contained index.html with its CSS and JavaScript inside, so it can run in the preview. Keep explanations short and put them outside the files.";
 const EFFORTS = new Set(["low", "medium", "high", "xhigh", "max"]);
 const MAX_CUSTOM = 36_500; // the page allows 36,332 characters of instructions, plus its own labels
 function cleanCustom(v) {
@@ -321,6 +323,7 @@ export function aiRouter({ requireSession, limiter, userLimiter, isOwner = () =>
     // how hard it thinks (the page's Effort picker); "max" is Ultra
     let effort = EFFORTS.has(req.body?.effort) ? req.body.effort : null;
     // ULTRACODE: the most effort the provider offers ("max"), and the line above in the system message
+    if (req.body?.code === true) system.content = `${system.content}\n\n${CODE_MODE}`.trim();
     const ultra = req.body?.ultracode === true && OWNER_ONLY.test(model) && isOwner(req.vmSession);
     if (ultra) { effort = "max"; system.content = `${system.content}\n\n${ULTRACODE}`.trim(); }
     const call = async (msgs) => {

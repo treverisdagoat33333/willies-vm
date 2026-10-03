@@ -871,6 +871,7 @@ https://discord.com/</textarea><div class="ctl"><button class="btn sm" id="st-ru
         <div class="ai-mp-pop" id="ai-eff-pop" role="listbox" hidden><div class="ai-mp-g">How hard should it think?</div><div class="ai-mp-list" id="ai-eff-list"></div></div>
       </div>
       <button type="button" class="btn sm ai-ultra" id="ai-ultra" hidden aria-pressed="false" title="ULTRACODE: the most effort the AI can give, on every message"><span class="ai-ultra-bolt">⚡</span><span>ULTRACODE</span></button>
+      <button type="button" class="btn sm ai-cmp-btn ai-codemode" id="ai-codemode" aria-pressed="false" title="Code mode: answers come back as complete files you can run and download"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="m8 7-5 5 5 5M16 7l5 5-5 5"/></svg><span>Code</span></button>
       <span class="sp"></span>
       <button type="button" class="btn sm primary ai-signin-top" id="ai-signin-top" hidden>Sign in</button>
       <button type="button" class="mu-iconbtn" id="ai-export" title="Download this chat" aria-label="Download this chat"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg></button>
@@ -890,6 +891,15 @@ https://discord.com/</textarea><div class="ctl"><button class="btn sm" id="st-ru
     </form>
     <p class="ai-note">AI can make mistakes. Your messages go to the AI service to be answered (or stay on this device with a model from "On this device"); chats are saved on this device only.</p>
   </main>
+  <aside class="ai-codepane" id="ai-codepane" hidden aria-label="File">
+    <div class="ai-cp-top">
+      <div class="ai-cp-t"><b id="ai-cp-name"></b><small id="ai-cp-meta"></small></div>
+      <div class="ai-cp-tabs" role="tablist"><button type="button" data-tab="code" class="on">Code</button><button type="button" data-tab="run" id="ai-cp-run">Preview</button></div>
+      <button type="button" class="mu-iconbtn" id="ai-cp-x" aria-label="Close" title="Close"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+    </div>
+    <div class="ai-cp-body"><pre id="ai-cp-pre"><code id="ai-cp-code"></code></pre><iframe id="ai-cp-frame" title="Sandbox" sandbox="allow-scripts allow-modals allow-forms allow-pointer-lock" credentialless hidden></iframe></div>
+    <div class="ai-cp-bar"><button type="button" class="btn sm" id="ai-cp-copy">Copy</button><button type="button" class="btn sm" id="ai-cp-dl">Download</button><button type="button" class="btn sm primary" id="ai-cp-page">Download as HTML</button></div>
+  </aside>
   <div class="ai-drop" id="ai-drop" hidden>Drop pictures to send them</div>
   <div class="ai-lightbox" id="ai-lightbox" hidden><img alt=""></div>
   <div class="ai-custom" id="ai-custom" hidden>
