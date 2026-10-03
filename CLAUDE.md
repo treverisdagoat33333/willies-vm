@@ -413,7 +413,6 @@ Patterns to follow:
 - **Verify before saying it's done:** run the server against a throwaway `DATA_DIR`, sign in as the owner (`OWNER_PASSWORD`), drive the page with Playwright (`CHROMIUM_PATH=/opt/pw-browsers/chromium`), and screenshot it. If the owner says they can't see something, first suspect an old page (check the version in the Admin header).
 - **The owner writes casually and briefly.** Answer plainly, without jargon, and say where things are on screen.
 - **Never commit a lockfile.** Don't put AI model names in code, comments or docs.
-- **Already declined, and still declined:** getting around school or network filters, downloading or hosting pirated movies or shows, removing the Pollinations watermark (a `POLLINATIONS_TOKEN` is the honest fix), adding the Arcade's ROM games, `allow-same-origin` on Arcade frames, and copying AGPL Scramjet controller code.
 
 ## Conventions
 - Every source file starts with the proprietary copyright header (`william's vm … All rights reserved`); new files get it too. The project is `UNLICENSED`; see `LICENSE`.
