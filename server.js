@@ -115,23 +115,20 @@ async function vm4ModelList() {
   return vm4Models.list.length ? vm4Models.list : [VM4_CLAUDE_MODEL, VM4_FAST_MODEL];
 }
 
-// What VM #4 gets: environment variables for every terminal, plus config files so Claude Code,
-// opencode and VS Code's Continue start already pointed at the owner's API with its models.
+// What VM #4 gets: environment variables for every terminal, plus config files so opencode and
+// VS Code's Continue start already pointed at the owner's API with its models. Claude Code is
+// left untouched on purpose: the owner signs in to their own Claude account there, as on a new
+// install, so no ANTHROPIC_* variables or ~/.claude.json are written.
 async function vm4Setup() {
   if (!VM4_AI_KEY || !VM4_AI_URL) return { envs: {}, files: [] };
   const models = await vm4ModelList();
-  // Claude Code adds /v1/messages itself, so it gets the address without /v1.
-  const anthropicBase = VM4_AI_URL.replace(/\/v1$/, "");
   const envs = {
-    ANTHROPIC_BASE_URL: anthropicBase, ANTHROPIC_API_KEY: VM4_AI_KEY,
-    ANTHROPIC_MODEL: VM4_CLAUDE_MODEL, ANTHROPIC_SMALL_FAST_MODEL: VM4_FAST_MODEL,
     OPENAI_BASE_URL: VM4_AI_URL, OPENAI_API_KEY: VM4_AI_KEY,
     // the terminal apps draw boxes and symbols, which come out as "?" without UTF-8
     LANG: "en_US.UTF-8", LC_ALL: "en_US.UTF-8",
   };
   const sh = (v) => "'" + String(v).replace(/'/g, "'\\''") + "'";
   const profile = Object.entries(envs).map(([k, v]) => `export ${k}=${sh(v)}`).join("\n") + "\n";
-  const claude = { hasCompletedOnboarding: true, bypassPermissionsModeAccepted: false, customApiKeyResponses: { approved: [VM4_AI_KEY.slice(-20)], rejected: [] } };
   const opencode = {
     $schema: "https://opencode.ai/config.json",
     model: "owner/" + VM4_CLAUDE_MODEL,
@@ -150,7 +147,6 @@ async function vm4Setup() {
     envs,
     files: [
       { path: "/home/user/.vm4-env", data: profile },
-      { path: "/home/user/.claude.json", data: JSON.stringify(claude) },
       { path: "/home/user/.config/opencode/opencode.json", data: JSON.stringify(opencode, null, 2) },
       { path: "/home/user/.continue/config.yaml", data: continueCfg },
     ],
@@ -1535,7 +1531,7 @@ app.post("/api/e2b/start", requireSession, vmStartGate, async (req, res) => {
     if (setup?.files.length) {
       await sandbox.files.write(setup.files);
       // terminals opened from the desktop read .bashrc, not the sandbox's own variables
-      await sandbox.commands.run("grep -q vm4-env ~/.bashrc || echo '[ -f ~/.vm4-env ] && . ~/.vm4-env' >> ~/.bashrc; chmod 600 ~/.vm4-env ~/.claude.json ~/.config/opencode/opencode.json ~/.continue/config.yaml", { timeoutMs: 15_000 });
+      await sandbox.commands.run("grep -q vm4-env ~/.bashrc || echo '[ -f ~/.vm4-env ] && . ~/.vm4-env' >> ~/.bashrc; chmod 600 ~/.vm4-env ~/.config/opencode/opencode.json ~/.continue/config.yaml", { timeoutMs: 15_000 });
     }
 
     const sandboxId = sandbox.sandboxId;
