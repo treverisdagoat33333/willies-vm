@@ -160,7 +160,10 @@ You are talking to the site's owner, so you can also moderate for them. These ne
 const SHELL_ACTIONS = `
 You also have your own Linux computer in the cloud (Ubuntu, with internet, root via sudo; it stays up while you use it and is wiped after about 30 minutes idle). Run a shell command on it with:
 [[action {"do":"shell.run","cmd":"uname -a && ls"}]]
-The output and exit code come back to you in the next message; you can then run more commands, or answer. Work in /home/user: every file you create or change there is saved to the owner's Files app (folder "AI computer") after each command, so put things you make for them there. Commands must finish by themselves (no prompts, editors or servers left in the foreground; use -y and background long-running servers with nohup … &), and each gets 2 minutes at most. Use it whenever the owner asks you to run, install, test, build, download or check something, then tell them what happened.`;
+The output and exit code come back to you in the next message; you can then run more commands, or answer. Work in /home/user: every file you create or change there is saved to the owner's Files app (folder "AI computer") after each command, so put things you make for them there. Commands must finish by themselves (no prompts, editors or servers left in the foreground; use -y and background long-running servers with nohup … &), and each gets 2 minutes at most. Use it whenever the owner asks you to run, install, test, build, download or check something, then tell them what happened.
+Claude Code (the \`claude\` command) is installed there, signed in to the owner's own Claude account once they've logged it in. Run it without prompts, like: claude -p "fix the failing test in /home/user/app" --dangerously-skip-permissions. If it says it isn't logged in, or the owner asks you to log in to Claude Code, use:
+[[action {"do":"claude.login"}]]
+That opens Claude's sign-in in the owner's browser; they press Authorize and paste the code, so tell them to do that. Never ask them for a password or a token yourself.`;
 /* Prices in US dollars per million tokens, the same list the owner's other AI app uses
    for this provider. A model missing from it shows "rate not set" rather than a made-up
    cost. AI_PRICES (JSON, {"model": {"input": 1, "output": 2}}) adds to it or overrides it. */
@@ -370,12 +373,22 @@ const SHELL_IDLE_MS = 30 * 60_000;
 const SHELL_CMD_MS = 120_000;
 const SHELL_OUT = 12_000; // characters of output handed back to the model
 let shellBox = null; // a promise of the sandbox, so two commands at once share one
-function shellSandbox() {
+// variables every command gets (server.js passes the owner's Claude Code login, if saved)
+let shellEnv = () => ({});
+// The coding template (VM #4's) when there is one, so Claude Code, Node and Python are already there.
+export function shellSandbox() {
   if (!shellBox) {
-    shellBox = Sandbox.create(process.env.AI_SHELL_TEMPLATE || "base", { apiKey: process.env.E2B_API_KEY, timeoutMs: SHELL_IDLE_MS });
+    shellBox = Sandbox.create(process.env.AI_SHELL_TEMPLATE || process.env.E2B_CODE_TEMPLATE || "base", { apiKey: process.env.E2B_API_KEY, timeoutMs: SHELL_IDLE_MS });
     shellBox.catch(() => { shellBox = null; });
   }
   return shellBox;
+}
+// with a saved login, Claude Code would still stop on its first-run screens; this skips them once per computer
+const onboarded = new WeakSet();
+async function prepClaude(box, envs) {
+  if (!envs.CLAUDE_CODE_OAUTH_TOKEN || onboarded.has(box)) return;
+  await box.files.write("/home/user/.claude.json", JSON.stringify({ hasCompletedOnboarding: true })).catch(() => {});
+  onboarded.add(box);
 }
 const clip = (s) => (s.length > SHELL_OUT ? s.slice(0, SHELL_OUT / 2) + `\n…(${s.length - SHELL_OUT} characters cut)…\n` + s.slice(-SHELL_OUT / 2) : s);
 /* Every file a command made or changed in the cloud computer's home folder is copied into
@@ -406,7 +419,9 @@ async function runShell(cmd, user, retried = false) {
   try {
     await box.setTimeout(SHELL_IDLE_MS).catch(() => {});
     await box.commands.run(`touch ${MARK}`, { timeoutMs: 10_000 });
-    const r = await box.commands.run(cmd, { timeoutMs: SHELL_CMD_MS, cwd: "/home/user" }).catch((e) => {
+    const envs = { LANG: "en_US.UTF-8", LC_ALL: "en_US.UTF-8", ...shellEnv() };
+    await prepClaude(box, envs);
+    const r = await box.commands.run(cmd, { timeoutMs: SHELL_CMD_MS, cwd: "/home/user", envs }).catch((e) => {
       // a command that exits non-zero rejects with its result; that's an answer, not a failure
       if (e && typeof e.exitCode === "number") return e;
       throw e;
@@ -425,8 +440,9 @@ async function runShell(cmd, user, retried = false) {
   }
 }
 
-export function aiRouter({ requireSession, limiter, userLimiter, isOwner = () => false }) {
+export function aiRouter({ requireSession, limiter, userLimiter, isOwner = () => false, shellEnv: envFn }) {
   const router = express.Router();
+  if (envFn) shellEnv = envFn;
   // which models the API offers, and which look like picture makers, so the owner can pick
   // AI_IMAGE_MODEL from the deploy logs without a way to call the API by hand
   if (config().key && config().base) models().then((list) => {

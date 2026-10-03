@@ -68,7 +68,7 @@ import {
 } from "./remote.js";
 import { clientIp, createLimiter, limitByIp, formatWait } from "./security.js";
 import { musicRouter } from "./music.js";
-import { aiRouter } from "./ai.js";
+import { aiRouter, shellSandbox as aiShellSandbox } from "./ai.js";
 import { moviesRouter } from "./movies.js";
 import { analyticsRouter, record, recentErrors, onError } from "./analytics.js";
 import { filesRouter } from "./files.js";
@@ -1065,6 +1065,8 @@ app.use(
     requireSession,
     limiter: limitByIp(aiIpLimiter, "Too many AI messages from your network."),
     isOwner: isOwnerSession,
+    // the AI's cloud computer gets the owner's saved Claude Code login too
+    shellEnv: () => { const t = readSecret("claude_code"); return t ? { CLAUDE_CODE_OAUTH_TOKEN: t } : {}; },
     userLimiter: (req, res, next) => {
       const wait = aiUserLimiter.hit(sessionLabel(req.vmSession));
       if (!wait) return next();
@@ -1654,10 +1656,13 @@ async function endClaudeLogin() {
 app.get("/api/vm/claude-login", requireOwner, (_req, res) => res.json({ saved: !!readSecret("claude_code") }));
 app.delete("/api/vm/claude-login", requireOwner, (_req, res) => { forgetSecret("claude_code"); res.json({ ok: true }); });
 app.post("/api/vm/claude-login/start", requireOwner, async (req, res) => {
-  const entry = e2bSandboxes.get(String(req.body?.sandboxId || ""));
-  if (!entry) return res.status(404).json({ error: "Start VM #4 first." });
   await endClaudeLogin();
   try {
+    // the AI app's cloud computer, when the AI asks (claude.login), else the open VM
+    const entry = req.body?.target === "ai"
+      ? { sandbox: await aiShellSandbox() }
+      : e2bSandboxes.get(String(req.body?.sandboxId || ""));
+    if (!entry) return res.status(404).json({ error: "Start VM #4 first." });
     const l = { sandbox: entry.sandbox, out: "", at: Date.now() };
     // a wide terminal, so the long sign-in link comes out on one line
     const h = await entry.sandbox.pty.create({ cols: 1000, rows: 40, timeoutMs: 10 * 60_000, envs: { LANG: "en_US.UTF-8", TERM: "xterm-256color" },

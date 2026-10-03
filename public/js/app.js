@@ -1467,11 +1467,12 @@ $('#vm-close').onclick=()=>closeVM();
 /* Log in to Claude Code (VM #4 and the kept VM). Claude's sign-in page won't work in the VM's
    own browser, so the server starts the sign-in inside the VM, the page opens Claude's link in
    a tab of this browser, and the code it shows is pasted back here (server.js, claude-login). */
-async function claudeLogin(){
-  const b=$('#vm-claude');if(!containerId||b.disabled)return;
-  b.disabled=true;b.textContent='Starting…';
+/* target 'ai': the AI app's cloud computer (its claude.login action, js/ai.js); else the open VM */
+async function claudeLogin(target){
+  const ai=target==='ai',b=$('#vm-claude');if(!ai&&(!containerId||b.disabled))return;
+  if(!ai){b.disabled=true;b.textContent='Starting…'}
   try{
-    const r=await fetch('/api/vm/claude-login/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sandboxId:containerId})}),d=await r.json().catch(()=>({}));
+    const r=await fetch('/api/vm/claude-login/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(ai?{target:'ai'}:{sandboxId:containerId})}),d=await r.json().catch(()=>({}));
     if(!r.ok)throw new Error(d.error||`HTTP ${r.status}`);
     const tab=openTab(d.url);
     dcModal({title:'Log in to Claude Code',
@@ -1480,12 +1481,12 @@ async function claudeLogin(){
       onOk:async v=>{
         const r=await fetch('/api/vm/claude-login/finish',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code:v.code})}),d=await r.json().catch(()=>({}));
         if(!r.ok)throw new Error(d.error||`HTTP ${r.status}`);
-        toast('Claude Code is logged in. Open a new terminal in the VM and type claude. New VM #4s start logged in too.','ok');
+        toast(ai?'Claude Code is logged in. The AI can use it now, and VM #4 starts logged in too.':'Claude Code is logged in. Open a new terminal in the VM and type claude. New VM #4s start logged in too.','ok');
       }});
     // the dialog's own link back to the Claude page, for a blocked pop-up
     const sub=$('#dc-modal-sub');if(sub&&!tab){const a=document.createElement('a');a.href=d.url;a.target='_blank';a.rel='noopener noreferrer';a.textContent=' Open the Claude page';sub.appendChild(a)}
-  }catch(e){toast('Claude Code login: '+e.message,'err')}
-  finally{b.disabled=false;b.textContent='Log in to Claude Code'}
+  }catch(e){toast('Claude Code login: '+e.message,'err');if(ai)throw e}
+  finally{if(!ai){b.disabled=false;b.textContent='Log in to Claude Code'}}
 }
 $('#vm-claude').onclick=()=>{click();claudeLogin()};
 $('#vm-newtab').onclick=()=>{click();if(vmUrl&&!openTab(vmUrl))toast('Your browser blocked the tab. Allow pop-ups for this site.','err')};

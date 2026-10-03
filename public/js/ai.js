@@ -727,6 +727,13 @@ const ACTIONS={
     let log=lines.join('\n');if(log.length>12000)log=log.slice(-12000);
     return{label:`💬 Read ${where}`,more:`(From the site, not the user: the ${lines.length} most recent messages in ${where}, oldest first. Answer my last request from them.)\n${log||'(no messages yet)'}`};
   },
+  /* Claude Code on the cloud computer: Claude's own sign-in, in the owner's browser (claudeLogin
+     in app.js). The owner presses Authorize and pastes the code; the AI never sees the token. */
+  async 'claude.login'(){
+    if(!dawvqOn())throw new Error('Only your owner-only models can use the cloud computer');
+    await claudeLogin('ai');
+    return '🔑 Opened the Claude sign-in for you';
+  },
   /* the owner's cloud computer (ai.js on the server only teaches this to the dawvq models,
      for the owner). The output goes back to the model, which may run more commands. */
   async 'shell.run'({cmd}){
