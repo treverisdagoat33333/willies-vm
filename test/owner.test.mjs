@@ -109,6 +109,17 @@ ok(ss.body.models?.length && !ss.body.models.includes("dawvqTEST") && !/^dawvq/.
 r = await api(sam, "/api/ai/chat", "POST", { model: "dawvqTEST", messages: [{ role: "user", content: "hi" }] });
 ok(r.status === 403, "…and can't use one by asking for it", JSON.stringify(r));
 
+// the owner-only models bring their own system prompt: ours is left out, the site's actions stay
+const sysSent = async (model) => {
+  await api(own, "/api/ai/chat", "POST", { model, actions: true, messages: [{ role: "user", content: "hi" }] });
+  const last = await (await fetch(process.env.SITE + "/v1/_last")).json();
+  return last.messages.find((m) => m.role === "system")?.content || "";
+};
+let sent = await sysSent("dawvqTEST");
+ok(!/helpful, friendly assistant/.test(sent) && /music\.play/.test(sent) && /admin\.ban/.test(sent), "a dawvq model gets no opener of ours, just the actions", sent.slice(0, 120));
+sent = await sysSent("gpt-4o-mini");
+ok(/helpful, friendly assistant/.test(sent), "…other models still get it");
+
 /* ---- kept VM ---- */
 await own.page.evaluate(() => openAdmin());
 await own.page.waitForFunction(() => /E2B isn't set up|none yet|paused|open now/.test(document.querySelector("#ad-kept-state")?.textContent || ""), null, { timeout: 8000 });

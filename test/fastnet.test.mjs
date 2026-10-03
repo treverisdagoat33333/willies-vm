@@ -9,7 +9,7 @@ let pass = 0, fail = 0;
 const ok = (c, l, x = "") => { c ? pass++ : fail++; console.log(`${c ? "PASS" : "FAIL"} ${l}${c ? "" : "  -> " + x}`); };
 const frame = (url, method = "GET") => { const m = Buffer.from(JSON.stringify({ url, method, headers: [] })); const l = Buffer.alloc(4); l.writeUInt32BE(m.length); return Buffer.concat([l, m]); };
 const g = await fetch(BASE + "/api/auth/guest", { method: "POST" });
-const cookie = (g.headers.get("set-cookie") || "").split(";")[0];
+const cookie = g.headers.getSetCookie().map((c) => c.split(";")[0]).join("; ");
 ok(g.ok && cookie, "got a guest session", g.status);
 const post = (url, withCookie = true) => fetch(BASE + "/wj-net", { method: "POST", body: frame(url), headers: withCookie ? { cookie } : {} });
 let r = await post("http://127.0.0.1:9/", false);
