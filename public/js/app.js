@@ -1315,6 +1315,8 @@ function acceptAuth(d,fresh){
   $('#auth-wrap').classList.add('hidden');setUser();
   // Willie AI (/ai, installed on its own): just the AI, open and full-screen, no chat socket
   if(SOLO_AI){(function go(){window.ai?window.ai.open():setTimeout(go,50)})()}else connectChat();
+  // the AI app has no desktop to sign out from, so a guest gets a way back to the sign-in screen there
+  if(SOLO_AI&&!d.account){const b=$('#ai-signin');b.hidden=false;b.onclick=()=>{leaveQuietly();fetch('/api/auth/logout',{method:'POST'}).catch(()=>{}).finally(()=>location.reload())};if(!$('#ai-window').classList.contains('side-open'))setTimeout(()=>toast('You\'re a guest. Open the menu (☰) and tap "Sign in to your account" to use your account.'),1500)}
   viewAsBanner(d);
   // viewing as someone: their settings must not overwrite the owner's on this device
   if(d.account&&!d.viewedBy)syncStart(currentUsername);

@@ -342,3 +342,4 @@ html[data-solo="ai"] #ai-window:not(.show){display:none}
   html[data-solo="ai"] .ai-editbar,html[data-solo="ai"] .ai-tray,html[data-solo="ai"] .ai-slash{margin-left:10px;margin-right:10px;width:auto}
   html[data-solo="ai"] #toasts{left:12px;right:12px;bottom:calc(env(safe-area-inset-bottom) + 64px);align-items:center}
 }
+html[data-solo="ai"] .ai-signin{width:100%;height:40px;border-radius:10px;font-weight:600}
