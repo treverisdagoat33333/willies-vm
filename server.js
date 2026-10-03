@@ -126,6 +126,8 @@ async function vm4Setup() {
     ANTHROPIC_BASE_URL: anthropicBase, ANTHROPIC_API_KEY: VM4_AI_KEY,
     ANTHROPIC_MODEL: VM4_CLAUDE_MODEL, ANTHROPIC_SMALL_FAST_MODEL: VM4_FAST_MODEL,
     OPENAI_BASE_URL: VM4_AI_URL, OPENAI_API_KEY: VM4_AI_KEY,
+    // the terminal apps draw boxes and symbols, which come out as "?" without UTF-8
+    LANG: "en_US.UTF-8", LC_ALL: "en_US.UTF-8",
   };
   const sh = (v) => "'" + String(v).replace(/'/g, "'\\''") + "'";
   const profile = Object.entries(envs).map(([k, v]) => `export ${k}=${sh(v)}`).join("\n") + "\n";

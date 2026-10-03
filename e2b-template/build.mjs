@@ -38,6 +38,17 @@ const template = Template()
     "npm install -g @anthropic-ai/claude-code opencode-ai",
     "rm -rf /var/lib/apt/lists/*",
   ])
+  // Without a UTF-8 locale and fonts with box-drawing and symbol glyphs, opencode and Claude
+  // Code draw their screens as rows of question marks.
+  .runCmd([
+    "apt-get update",
+    "DEBIAN_FRONTEND=noninteractive apt-get install -y locales fonts-dejavu-core fonts-noto-core fonts-noto-color-emoji fonts-symbola",
+    "sed -i 's/^# *en_US.UTF-8/en_US.UTF-8/' /etc/locale.gen && locale-gen",
+    "update-locale LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8",
+    "printf 'LANG=en_US.UTF-8\\nLC_ALL=en_US.UTF-8\\n' >> /etc/environment",
+    "rm -rf /var/lib/apt/lists/*",
+  ])
+  .setEnvs({ LANG: "en_US.UTF-8", LC_ALL: "en_US.UTF-8" })
   // Chrome and VS Code refuse to start inside a sandbox without these flags.
   .runCmd([
     // the base image may already carry its own copies under other names, so only touch what exists
