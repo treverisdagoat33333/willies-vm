@@ -42,7 +42,7 @@ import { getAiChats, putAiChats } from "./db.js";
 */
 
 const MAX_MESSAGES = 40; // of history sent per request
-const MAX_CHARS = 120_000; // across those messages (one message alone can be 39,213)
+const MAX_CHARS = 300_000; // across those messages (a message can carry attached files' text, up to 100k characters each)
 // per request to the API. Code runs long, and reasoning models spend part of it thinking,
 // so 2048 cut answers off mid-file; an API that refuses this many gets FALLBACK_TOKENS
 const MAX_TOKENS = 16_384;

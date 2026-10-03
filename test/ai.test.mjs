@@ -202,6 +202,21 @@ ok(await page.isVisible("#ai-cp-frame") && /▶ Run/.test(await page.textContent
 await page.click("#ai-cp-x");
 await page.click("#ai-codemode");
 
+// any file can be sent: text goes along as text, other kinds are named
+await page.setInputFiles("#ai-file", [
+  { name: "notes.csv", mimeType: "text/csv", buffer: Buffer.from("name,score\nwillie,99\n") },
+  { name: "tool.exe", mimeType: "application/octet-stream", buffer: Buffer.from([0x4d, 0x5a, 0, 0, 1, 2, 3, 0, 0, 0]) },
+]);
+ok(await page.waitForFunction(() => document.querySelectorAll("#ai-tray .ai-tray-file").length === 2, null, { timeout: 5000 }).then(() => true, () => false), "files wait in the tray like pictures do");
+await ask("read these", () => /You said:/.test(document.querySelector("#ai-log .ai-msg.bot:last-child")?.textContent || ""));
+const sentLast = await (await fetch(process.env.SITE + "/v1/_last")).json();
+const said = sentLast.messages.at(-1).content;
+ok(/willie,99/.test(said) && /Attached file: notes\.csv/.test(said), "a text file's contents go to the AI", said.slice(0, 200));
+ok(/tool\.exe \(application\/octet-stream/.test(said), "…and a file it can't read is named so it knows", said.slice(0, 300));
+const mine = await page.$$eval("#ai-log .ai-msg.me", (m) => { const x = m.at(-1); return { chips: [...x.querySelectorAll(".ai-sent-file")].map((c) => c.textContent), text: x.textContent }; });
+const chips = mine.chips;
+ok(chips.length === 2 && !mine.text.includes("willie,99"), "your message shows the files as chips, not their contents", JSON.stringify(chips));
+
 // answers that get cut off are carried on, never left half-written
 const botText = () => page.$eval("#ai-log .ai-msg.bot:last-child", (b) => b.textContent);
 await ask("write me long code", () => /All done\./.test(document.querySelector("#ai-log .ai-msg.bot:last-child")?.textContent || ""));
@@ -223,6 +238,14 @@ ok(/Thought for/.test(fold.sum) && /They might like/.test(fold.body) && !fold.op
 // thinking sent apart by the API comes through as well
 await ask("reason first", () => /The answer is 42/.test(document.querySelector("#ai-log .ai-msg.bot:last-child")?.textContent || "") && !document.querySelector("#ai-window.busy"));
 ok(await page.$eval("#ai-log .ai-msg.bot:last-child .ai-think-body", (b) => b.textContent) === "Let me work this out.", "thinking the API sends apart (reasoning_content) shows too");
+// opening the thinking fold sticks, even though the bubble is rebuilt (as it is every frame while answering)
+await page.click("#ai-log .ai-msg.bot:last-child .ai-think > summary");
+await page.evaluate(() => window.ai.open());
+await page.evaluate(() => { document.querySelector("#ai-model").dispatchEvent(new Event("change")); });
+await page.waitForTimeout(300);
+ok(await page.$eval("#ai-log .ai-msg.bot:last-child .ai-think", (d) => d.open), "an opened thinking fold stays open when the answer is redrawn");
+await page.click("#ai-log .ai-msg.bot:last-child .ai-think > summary");
+ok(!(await page.$eval("#ai-log .ai-msg.bot:last-child .ai-think", (d) => d.open)), "…and closes again when tapped");
 
 // the tools under an answer: copy, read aloud, again, and which model answered
 ok(/gpt-4o/.test(await page.textContent("#ai-log .ai-msg.bot:last-child .ai-meta")) && !!(await page.$("#ai-log .ai-msg.bot:last-child .ai-t-again")), "a finished answer says which model answered, with Answer again");
