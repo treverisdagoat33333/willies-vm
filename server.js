@@ -1117,6 +1117,47 @@ app.post("/api/admin/visitors/:label/kick", requireOwner, (req, res) => {
   res.json({ ok: true });
 });
 
+/*
+| Pranks: the owner sends something to one person's open page. Pages wait on
+| GET /api/live/wait (held up to 25 s) so a prank lands within a second, not on
+| the next 20 s beat. Every prank ends by itself within a minute, so nobody is
+| ever stuck on the site's screen.
+*/
+const PRANKS = new Set(["message", "alarm", "shake", "flip", "virus", "emoji"]);
+const prankQueue = new Map(); // label -> [{kind, text, secs}]
+const prankWaiters = new Map(); // label -> Set(res)
+function prankFlush(label) {
+  const q = prankQueue.get(label), ws = prankWaiters.get(label);
+  if (!q?.length || !ws?.size) return;
+  prankQueue.delete(label);
+  for (const res of ws) res.json({ pranks: q });
+  ws.clear();
+}
+app.get("/api/live/wait", requireSession, (req, res) => {
+  const label = sessionLabel(req.vmSession);
+  res.set("cache-control", "no-store");
+  if (!prankWaiters.has(label)) prankWaiters.set(label, new Set());
+  const ws = prankWaiters.get(label);
+  ws.add(res);
+  const done = () => { clearTimeout(t); ws.delete(res); };
+  const t = setTimeout(() => { ws.delete(res); if (!res.headersSent) res.json({ pranks: [] }); }, 25_000);
+  res.on("close", done);
+  prankFlush(label);
+});
+app.post("/api/admin/visitors/:label/prank", requireOwner, (req, res) => {
+  const label = String(req.params.label || ""), kind = String(req.body?.kind || "");
+  if (!PRANKS.has(kind)) return res.status(400).json({ error: "Unknown prank." });
+  if (label === req.vmSession.username || getUser(label)?.role === "owner") return res.status(400).json({ error: "That's you." });
+  if (!liveVisitors.has(label)) return res.status(404).json({ error: "They aren't on the site right now." });
+  const secs = Math.min(Math.max(Number(req.body?.secs) || 10, 3), 60);
+  const item = { kind, secs, text: String(req.body?.text || "").slice(0, 300) };
+  if (!prankQueue.has(label)) prankQueue.set(label, []);
+  prankQueue.get(label).push(item);
+  prankFlush(label);
+  logEvent("admin", `pranked ${label} (${kind})`);
+  res.json({ ok: true });
+});
+
 app.post("/api/admin/vms/:id/kill", requireOwner, async (req, res) => {
   const id = req.params.id;
   if (e2bSandboxes.has(id)) {

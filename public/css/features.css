@@ -407,3 +407,22 @@ html[data-motion="off"] .ad-le.fresh,html[data-perf="on"] .ad-le.fresh{animation
 #viewas-bar{position:fixed;top:10px;left:50%;translate:-50% 0;z-index:9500;display:flex;align-items:center;gap:12px;padding:8px 10px 8px 16px;border-radius:999px;background:#b45309;color:#fff;font-size:.9em;box-shadow:0 6px 24px rgba(0,0,0,.45)}
 #viewas-bar .btn{background:rgba(255,255,255,.2);color:#fff;border-color:transparent}
 .ad-kept-acts{display:flex;gap:8px;flex-wrap:wrap}
+
+/* ---- owner pranks (runPrank in app.js) ---- */
+.ad-lv-pranks{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;width:100%}
+.ad-lv-pranks[hidden]{display:none}
+html.prank-shake body{animation:prank-shake .35s infinite}
+html.prank-flip body{transform:rotate(180deg);transition:transform .6s}
+html.prank-alarm body::after{content:'';position:fixed;inset:0;z-index:2147483646;pointer-events:none;animation:prank-flash .5s infinite}
+@keyframes prank-shake{0%,100%{translate:0 0}25%{translate:-8px 4px}50%{translate:6px -6px}75%{translate:-4px 8px}}
+@keyframes prank-flash{0%,100%{background:transparent}50%{background:rgba(255,0,0,.25)}}
+.prank-cover{position:fixed;inset:0;z-index:2147483647;background:rgba(0,0,0,.75);display:grid;place-items:center;padding:16px}
+.prank-card{background:var(--panel,#111);color:var(--text,#fff);border-radius:16px;padding:28px;max-width:440px;width:100%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.6)}
+.prank-msg{font-size:20px;font-weight:700;white-space:pre-wrap;margin-bottom:18px;overflow-wrap:anywhere}
+.prank-cover.virus .prank-card{background:#1a0000;color:#ff4d4d;border:2px solid #ff1a1a;font-family:monospace}
+.prank-bar{height:10px;background:#330000;border-radius:5px;overflow:hidden;margin-bottom:18px}
+.prank-bar i{display:block;height:100%;width:0;background:#ff1a1a;animation:prank-fill linear forwards}
+@keyframes prank-fill{to{width:100%}}
+.prank-rain{position:fixed;inset:0;pointer-events:none;z-index:2147483645;overflow:hidden}
+.prank-rain span{position:absolute;top:-60px;animation:prank-fall 3s linear forwards}
+@keyframes prank-fall{to{translate:0 110vh;rotate:360deg}}

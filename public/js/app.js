@@ -3282,10 +3282,20 @@ function adLiveDraw(d){
   const apps=Object.entries(d.byApp).sort((a,b)=>b[1]-a[1]);
   $('#ad-live-apps').innerHTML=apps.length?apps.map(([a,n])=>`<span class="ad-la">${(LIVE_APP[a]||['•',a])[0]} ${esc((LIVE_APP[a]||['',a])[1])} <b>${n}</b></span>`).join(''):'';
   const meName=currentUsername;
-  $('#ad-live-list').innerHTML=d.visitors.length?d.visitors.map(v=>`<div class="ad-lv${v.hidden?' away':''}" data-v="${esc(v.name)}"><span class="nm">${esc(v.name)}</span><span class="ap">${(LIVE_APP[v.app]||['•',v.app]).join(' ')}</span><small>${v.hidden?'tab in background · ':''}here ${adAgo(v.since).replace(' ago','')} · ${esc(v.ip||'?')}</small>${v.name===meName?'':`<div class="ad-lv-acts"><button type="button" class="btn sm" data-do="kick">Kick</button><button type="button" class="btn sm danger" data-do="ban">Ban</button><button type="button" class="btn sm danger" data-do="ip">IP ban</button><button type="button" class="btn sm" data-do="signup">No new accounts</button></div>`}</div>`).join(''):'<div class="ad-empty">Nobody else is here right now.</div>';
+  $('#ad-live-list').innerHTML=d.visitors.length?d.visitors.map(v=>`<div class="ad-lv${v.hidden?' away':''}" data-v="${esc(v.name)}"><span class="nm">${esc(v.name)}</span><span class="ap">${(LIVE_APP[v.app]||['•',v.app]).join(' ')}</span><small>${v.hidden?'tab in background · ':''}here ${adAgo(v.since).replace(' ago','')} · ${esc(v.ip||'?')}</small>${v.name===meName?'':`<div class="ad-lv-acts"><button type="button" class="btn sm" data-do="kick">Kick</button><button type="button" class="btn sm danger" data-do="ban">Ban</button><button type="button" class="btn sm danger" data-do="ip">IP ban</button><button type="button" class="btn sm" data-do="signup">No new accounts</button><button type="button" class="btn sm" data-do="prank">😈 Prank</button></div><div class="ad-lv-pranks" hidden>${PRANK_BTNS}</div>`}</div>`).join(''):'<div class="ad-empty">Nobody else is here right now.</div>';
+  if(adPrankOpen){const r=[...$$('#ad-live-list .ad-lv')].find(x=>x.dataset.v===adPrankOpen);const p=r?.querySelector('.ad-lv-pranks');if(p)p.hidden=false}
   const box=$('#ad-live-errs');
   if(!box.dataset.init){box.dataset.init='1';box.innerHTML='';(d.errors||[]).forEach(e=>adLiveErr(e))}
   if(!box.children.length)box.innerHTML='<div class="ad-empty">No problems since the server started. 🎉</div>';
+}
+/* pranks for someone on the site now (POST /api/admin/visitors/:label/prank); each ends by itself */
+const PRANKS=[['message','💬 Message they can\'t close'],['alarm','🚨 Alarm'],['shake','📳 Shake screen'],['flip','🙃 Flip screen'],['virus','🦠 Fake virus'],['emoji','🌧️ Emoji rain']];
+const PRANK_BTNS=PRANKS.map(([k,l])=>`<button type="button" class="btn sm" data-do="p-${k}">${l}</button>`).join('');
+let adPrankOpen='';
+function adPrank(name,kind){
+  const send=async(body)=>{const r=await fetch(`/api/admin/visitors/${encodeURIComponent(name)}/prank`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({kind,...body})});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||'HTTP '+r.status);toast(`Sent to ${name} 😈`,'ok')};
+  if(kind==='message')return dcModal({title:`Message for ${name}`,sub:'It covers their screen and can\'t be closed until the time runs out (60 seconds at most).',okLabel:'Send',fields:[{key:'text',label:'Message',maxlength:300},{key:'secs',label:'Seconds before they can close it',placeholder:'15'}],onOk:v=>send({text:v.text,secs:Number(v.secs)||15})});
+  send({secs:kind==='alarm'?6:10}).catch(e=>toast(e.message,'err'));
 }
 /* site bans (bans.js): a person on the site now, or an account; how long and why */
 function adSiteBan(o){
@@ -3311,6 +3321,8 @@ $('#ad-live-list').addEventListener('click',e=>{
   const b=e.target.closest('[data-do]');if(!b)return;
   const name=b.closest('.ad-lv').dataset.v,acct=!name.startsWith('guest-');click();
   if(b.dataset.do==='kick'){if(confirm(`Kick ${name} off the site? ${acct?'Their account is signed out everywhere.':'They lose their guest session.'}`))fetch(`/api/admin/visitors/${encodeURIComponent(name)}/kick`,{method:'POST'}).then(async r=>toast(r.ok?`${name} kicked`:((await r.json().catch(()=>({}))).error||'Couldn\'t kick'),r.ok?'ok':'err'));return}
+  if(b.dataset.do==='prank'){const p=b.closest('.ad-lv').querySelector('.ad-lv-pranks');p.hidden=!p.hidden;adPrankOpen=p.hidden?'':name;return}
+  if(b.dataset.do.startsWith('p-'))return adPrank(name,b.dataset.do.slice(2));
   if(b.dataset.do==='ban')return adSiteBan(acct?{kind:'user',user:name,label:name}:{kind:'device',visitor:name,label:name});
   if(b.dataset.do==='ip')return adSiteBan({kind:'ip',visitor:name,label:name});
   if(b.dataset.do==='signup')return adSiteBan({kind:'device',scope:'signup',visitor:name,label:name});
@@ -3530,6 +3542,40 @@ function checkBuild(b){
   if(SOLO_AI&&!window.ai?.busy?.()){leaveQuietly();location.reload();return}
   if(Date.now()-buildToast>600000){buildToast=Date.now();toast('Willie OS was updated. Reload the page to get the new version.')}
 }
+/* Pranks from the owner arrive on a held request, so they land straight away.
+   Each one undoes itself; none lasts more than a minute. */
+async function prankWait(){
+  for(;;){
+    if(document.querySelector('#auth-wrap:not(.hidden)')||window.viewingAs||document.documentElement.dataset.owner==='on'){await new Promise(r=>setTimeout(r,2000));continue}
+    try{const r=await fetch('/api/live/wait',{cache:'no-store'});if(!r.ok)throw 0;const d=await r.json();(d.pranks||[]).forEach(runPrank)}
+    catch(_){await new Promise(r=>setTimeout(r,10000))}
+  }
+}
+function runPrank(p){
+  const secs=Math.min(Math.max(p.secs||10,3),60),html=document.documentElement;
+  if(p.kind==='shake'||p.kind==='flip'){html.classList.add('prank-'+p.kind);setTimeout(()=>html.classList.remove('prank-'+p.kind),secs*1000);return}
+  if(p.kind==='alarm'){
+    // a siren that sweeps up and down, not too loud, for a few seconds
+    try{const ac=new AudioContext(),o=ac.createOscillator(),g=ac.createGain(),t=ac.currentTime,end=Math.min(secs,10);
+      o.type='square';g.gain.value=.12;for(let i=0;i<end*2;i++){o.frequency.setValueAtTime(700,t+i/2);o.frequency.linearRampToValueAtTime(1300,t+i/2+.45)}
+      o.connect(g).connect(ac.destination);o.start();o.stop(t+end);o.onended=()=>ac.close();if(ac.state==='suspended')resumeSound?.(ac)}catch(_){}
+    html.classList.add('prank-alarm');setTimeout(()=>html.classList.remove('prank-alarm'),Math.min(secs,10)*1000);return}
+  if(p.kind==='emoji'){const em=['😂','🤡','💀','🔥','👀','🐸','🍕','💩'];const box=document.createElement('div');box.className='prank-rain';
+    for(let i=0;i<60;i++){const s=document.createElement('span');s.textContent=em[i%em.length];s.style.left=Math.random()*100+'%';s.style.animationDelay=Math.random()*secs*.7+'s';s.style.fontSize=20+Math.random()*30+'px';box.append(s)}
+    document.body.append(box);setTimeout(()=>box.remove(),secs*1000+3000);return}
+  // message and fake virus: a cover over everything with a countdown before it can close
+  const box=document.createElement('div');box.className='prank-cover'+(p.kind==='virus'?' virus':'');
+  const msg=p.kind==='virus'?'⚠️ VIRUS DETECTED ⚠️\nTrojan.WillieOS.exe is deleting your files…':(p.text||'👀');
+  box.innerHTML=`<div class="prank-card"><div class="prank-msg"></div>${p.kind==='virus'?'<div class="prank-bar"><i></i></div>':''}<button type="button" class="btn" disabled></button></div>`;
+  box.querySelector('.prank-msg').textContent=msg;
+  const btn=box.querySelector('button');let left=secs;
+  const tick=()=>{if(left>0){btn.textContent=`Close in ${left}s`;left--;return}
+    clearInterval(iv);if(p.kind==='virus')box.querySelector('.prank-msg').textContent='jk 😂 your files are fine. You got pranked.';btn.disabled=false;btn.textContent='Close'};
+  const iv=setInterval(tick,1000);tick();
+  if(p.kind==='virus')box.querySelector('.prank-bar i').style.animationDuration=secs+'s';
+  btn.onclick=()=>box.remove();document.body.append(box);
+}
+prankWait();
 setInterval(()=>liveBeat(),20000);
 setTimeout(()=>liveBeat(true),3000);
 document.addEventListener('visibilitychange',()=>liveBeat(true));
