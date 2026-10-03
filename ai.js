@@ -11,6 +11,7 @@ import { getAiChats, putAiChats } from "./db.js";
 import dns from "node:dns/promises";
 import { isPrivateIp } from "./fastnet.js";
 import { Sandbox } from "e2b";
+import { saveToDrive } from "./drive.js";
 
 /*
 |--------------------------------------------------------------------------
@@ -159,7 +160,7 @@ You are talking to the site's owner, so you can also moderate for them. These ne
 const SHELL_ACTIONS = `
 You also have your own Linux computer in the cloud (Ubuntu, with internet, root via sudo; it stays up while you use it and is wiped after about 30 minutes idle). Run a shell command on it with:
 [[action {"do":"shell.run","cmd":"uname -a && ls"}]]
-The output and exit code come back to you in the next message; you can then run more commands, or answer. Commands must finish by themselves (no prompts, editors or servers left in the foreground; use -y and background long-running servers with nohup … &), and each gets 2 minutes at most. Use it whenever the owner asks you to run, install, test, build, download or check something, then tell them what happened.`;
+The output and exit code come back to you in the next message; you can then run more commands, or answer. Work in /home/user: every file you create or change there is saved to the owner's Files app (folder "AI computer") after each command, so put things you make for them there. Commands must finish by themselves (no prompts, editors or servers left in the foreground; use -y and background long-running servers with nohup … &), and each gets 2 minutes at most. Use it whenever the owner asks you to run, install, test, build, download or check something, then tell them what happened.`;
 /* Prices in US dollars per million tokens, the same list the owner's other AI app uses
    for this provider. A model missing from it shows "rate not set" rather than a made-up
    cost. AI_PRICES (JSON, {"model": {"input": 1, "output": 2}}) adds to it or overrides it. */
@@ -377,20 +378,49 @@ function shellSandbox() {
   return shellBox;
 }
 const clip = (s) => (s.length > SHELL_OUT ? s.slice(0, SHELL_OUT / 2) + `\n…(${s.length - SHELL_OUT} characters cut)…\n` + s.slice(-SHELL_OUT / 2) : s);
-async function runShell(cmd, retried = false) {
+/* Every file a command made or changed in the cloud computer's home folder is copied into
+   the owner's Files, under "AI computer" with the same sub-folders, because the sandbox is
+   wiped after it sits idle. Hidden folders and package caches (node_modules, venvs) are
+   left out; at most SYNC_MAX files a command. */
+const SYNC_MAX = 60;
+const MARK = "/tmp/.wvm-mark";
+const FIND = `find /home/user -type f -newer ${MARK} -size -25M -not -path '*/.*' -not -path '*/node_modules/*' -not -path '*/__pycache__/*' -not -path '*/venv/*' -not -path '*/site-packages/*' -printf '%P\\n' 2>/dev/null | head -n ${SYNC_MAX}`;
+async function syncFiles(box, user) {
+  const r = await box.commands.run(FIND, { timeoutMs: 20_000 }).catch((e) => e);
+  const paths = String(r?.stdout || "").split("\n").map((s) => s.trim()).filter(Boolean);
+  const saved = [], failed = [];
+  for (const rel of paths) {
+    try {
+      const bytes = await box.files.read("/home/user/" + rel, { format: "bytes" });
+      const parts = rel.split("/"), name = parts.pop();
+      // Files folders go 6 deep at most; anything deeper lands in the deepest one allowed
+      const folder = "/AI computer" + (parts.length ? "/" + parts.slice(0, 5).join("/") : "");
+      const f = await saveToDrive(user, folder, name, Buffer.from(bytes));
+      saved.push(`${f.folder}/${f.name}`);
+    } catch (e) { failed.push(`${rel}: ${e.message}`); }
+  }
+  return { saved, failed };
+}
+async function runShell(cmd, user, retried = false) {
   const box = await shellSandbox();
   try {
     await box.setTimeout(SHELL_IDLE_MS).catch(() => {});
+    await box.commands.run(`touch ${MARK}`, { timeoutMs: 10_000 });
     const r = await box.commands.run(cmd, { timeoutMs: SHELL_CMD_MS, cwd: "/home/user" }).catch((e) => {
       // a command that exits non-zero rejects with its result; that's an answer, not a failure
       if (e && typeof e.exitCode === "number") return e;
       throw e;
     });
-    return { exit: r.exitCode, stdout: clip(r.stdout || ""), stderr: clip(r.stderr || ""), box: box.sandboxId };
+    const files = await syncFiles(box, user).catch(() => ({ saved: [], failed: [] }));
+    return { exit: r.exitCode, stdout: clip(r.stdout || ""), stderr: clip(r.stderr || ""), box: box.sandboxId, ...files };
   } catch (e) {
     // the sandbox stopped (idle too long, or E2B restarted it): start a new one, once
-    if (!retried && /not found|not running|terminated|closed|404/i.test(String(e?.message))) { shellBox = null; return runShell(cmd, true); }
-    if (/deadline|timed? ?out/i.test(String(e?.message))) return { exit: null, stdout: "", stderr: `Stopped after ${SHELL_CMD_MS / 1000} seconds. Run long jobs in the background with nohup … &.`, box: box.sandboxId };
+    if (!retried && /not found|not running|terminated|closed|404/i.test(String(e?.message))) { shellBox = null; return runShell(cmd, user, true); }
+    if (/deadline|timed? ?out/i.test(String(e?.message))) {
+      // what it made before it was stopped still gets saved
+      const files = await syncFiles(box, user).catch(() => ({ saved: [], failed: [] }));
+      return { exit: null, stdout: "", stderr: `Stopped after ${SHELL_CMD_MS / 1000} seconds. Run long jobs in the background with nohup … &.`, box: box.sandboxId, ...files };
+    }
     throw e;
   }
 }
@@ -422,7 +452,7 @@ export function aiRouter({ requireSession, limiter, userLimiter, isOwner = () =>
     const cmd = typeof req.body?.cmd === "string" ? req.body.cmd.trim().slice(0, 8000) : "";
     if (!cmd) return res.status(400).json({ error: "No command." });
     if (!process.env.E2B_API_KEY) return res.status(503).json({ error: "The cloud computer isn't set up (no E2B key)." });
-    try { res.json(await runShell(cmd)); }
+    try { res.json(await runShell(cmd, req.vmSession.username)); }
     catch (e) { res.status(502).json({ error: String(e?.message || e).slice(0, 300) }); }
   });
   router.post("/shell/reset", requireSession, ownerOnly, async (_req, res) => {

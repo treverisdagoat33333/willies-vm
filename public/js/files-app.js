@@ -38,6 +38,10 @@
       try { state = await api('/api/drive'); } catch (e) { $b('.fx-grid').innerHTML = `<p class="fx-err">${esc(e.message)}</p>`; return; }
       draw();
     }
+    // the AI saves files here too (js/ai.js); an open window shows them straight away
+    const changed = () => load();
+    window.addEventListener('wvm:files-changed', changed);
+    win.cleanup.push(() => window.removeEventListener('wvm:files-changed', changed));
     const kids = (p) => state.folders.filter((f) => f.slice(0, f.lastIndexOf('/') || 1) === p && f !== p);
     function draw() {
       // the tree: every folder, indented by depth

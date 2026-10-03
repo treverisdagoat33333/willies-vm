@@ -66,6 +66,25 @@ const cleanFolder = (raw) => {
   return parts.length > 6 ? null : "/" + parts.join("/");
 };
 const shape = (f) => ({ id: f.id, name: f.name, folder: f.folder, type: f.type, size: f.size, createdAt: f.created_at, updatedAt: f.updated_at });
+const addFolders = (u, folder) => { const parts = folder.split("/").filter(Boolean); for (let i = 1; i <= parts.length; i++) driveDb.addFolder(u, "/" + parts.slice(0, i).join("/")); };
+
+/* Saves a file into someone's Files, replacing one of the same name in the same folder, so
+   the AI saving a file again after changing it updates it instead of piling up copies. Used
+   by the AI's cloud computer and its chat files (ai.js, js/ai.js). Throws a plain message. */
+export async function saveToDrive(u, rawFolder, rawName, body) {
+  const folder = cleanFolder(rawFolder) || "/";
+  const name = cleanName(rawName);
+  if (!body?.length) throw new Error("That file is empty.");
+  if (body.length > MAX_FILE) throw new Error(`${name} is over 25 MB.`);
+  const old = driveDb.byName(u, folder, name);
+  if (driveDb.used(u) - (old?.size || 0) + body.length > QUOTA) throw new Error(`Your Files are full (${Math.round(QUOTA / 1048576)} MB).`);
+  const id = old?.id || crypto.randomBytes(12).toString("hex");
+  await fs.promises.writeFile(fileOf(id), body);
+  if (folder !== "/") addFolders(u, folder);
+  if (old) driveDb.setBytes(u, id, sniff(body), body.length);
+  else driveDb.add({ id, username: u, name, folder, type: sniff(body), size: body.length });
+  return shape(driveDb.get(u, id));
+}
 
 export function driveRouter({ requireAccount, limiter }) {
   const router = express.Router();
@@ -100,6 +119,8 @@ export function driveRouter({ requireAccount, limiter }) {
     const folder = cleanFolder(req.query.folder);
     if (!folder) return res.status(400).json({ error: "That folder is too deep." });
     if (!body.length) return res.status(400).json({ error: "That file is empty." });
+    // ?replace=1: overwrite a file of the same name in that folder (the AI saving its files)
+    if (req.query.replace === "1") return saveToDrive(u, folder, req.query.name, body).then((f) => res.json(f), (e) => res.status(507).json({ error: e.message }));
     if (driveDb.used(u) + body.length > QUOTA) return res.status(507).json({ error: `Your Files are full (${Math.round(QUOTA / 1048576)} MB). Delete something first.` });
     const id = crypto.randomBytes(12).toString("hex");
     const f = { id, username: u, name: cleanName(req.query.name), folder, type: sniff(body), size: body.length };

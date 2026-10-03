@@ -608,7 +608,12 @@ async function answer(reply,model,canAct,signal,base){
     if(isLocal(model))await askLocal(reply,canAct,signal,base,model);else await askOnline(reply,model,canAct,signal,base);
     // only thinking, or nothing at all, is an empty answer; actions alone are fine
     if(!answerOf(reply.content).trim())reply.error='The AI sent back an empty answer.';
-    else if(canAct)return await runActions(reply);
+    else{
+      const more=canAct?await runActions(reply):null;
+      // the owner's own models keep everything they make in the owner's Files
+      if(ownerNow()&&ownerModel(model)&&!signal.aborted)await saveToFiles(reply).catch(()=>{});
+      return more;
+    }
   }catch(e){
     if(!signal.aborted){reply.error=String(e?.message||e);reportError('ai',reply.error)}
     else if(!reply.content)reply.error='Stopped.';
@@ -730,9 +735,11 @@ const ACTIONS={
     const r=await fetch('/api/ai/shell',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({cmd}),signal:busy?.signal});
     const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||'HTTP '+r.status);
     const out=[d.stdout,d.stderr&&(d.stdout?'\n':'')+d.stderr].filter(Boolean).join('').trim();
-    const short=cmd.replace(/\s+/g,' ');
-    return{label:`💻 ${short.length>60?short.slice(0,60)+'…':short}${d.exit?` (exit ${d.exit})`:d.exit===null?' (timed out)':''}`,out,again:true,
-      more:`(From your cloud computer, not the user. Command:\n$ ${cmd}\nExit code: ${d.exit===null?'none, it timed out':d.exit}\nOutput:\n${out||'(nothing)'})`};
+    const short=cmd.replace(/\s+/g,' '),saved=d.saved||[],failed=d.failed||[];
+    const filesNote=(saved.length?`\n\nSaved to Files:\n${saved.join('\n')}`:'')+(failed.length?`\n\nNot saved:\n${failed.join('\n')}`:'');
+    if(saved.length)window.dispatchEvent(new Event('wvm:files-changed'));
+    return{label:`💻 ${short.length>60?short.slice(0,60)+'…':short}${d.exit?` (exit ${d.exit})`:d.exit===null?' (timed out)':''}${saved.length?` · 📁 ${saved.length} saved`:''}`,out:out+filesNote,again:true,
+      more:`(From your cloud computer, not the user. Command:\n$ ${cmd}\nExit code: ${d.exit===null?'none, it timed out':d.exit}\nOutput:\n${out||'(nothing)'}${filesNote})`};
   },
 };
 /* The owner's moderation actions (ai.js on the server only offers them to the owner).
@@ -763,6 +770,35 @@ Object.assign(ACTIONS,{
     for(const b of mine)await adminPost('/api/admin/bans/'+b.id,null,'DELETE');
   })},
 });
+/* The files in an answer (the same blocks that show as file cards) and the pictures it made,
+   saved to Files › AI files › <chat name>. Saving again replaces a file of the same name, so
+   a file the AI rewrites stays one file there. */
+function cardFiles(text){
+  const parts=splitFences(text),out=[];
+  parts.forEach((p,i)=>{
+    if(p.t!=='code'||p.open)return;
+    const prev=parts[i-1]?.t==='text'?parts[i-1].s.trimEnd().split('\n').pop():'';
+    const hint=(prev.match(/^\s*(?:#{1,6}\s*|[-*]\s+|\d+[.)]\s*)?(?:file:?\s*)?[`*_"']*([\w.\-\/]*[\w\-]\.[a-z][a-z0-9+]{0,7})[`*_"']*\s*:?\s*$/i)||[])[1]||'';
+    const code=p.code.replace(/\n$/,'');
+    if(!p.info.trim().match(FILE_RE)&&!hint&&code.split('\n').length<12)return; // a short snippet, not a file
+    out.push(parseFence(p.info,code,out.length+1,hint));
+  });
+  return out;
+}
+async function saveToFiles(reply){
+  if(reply.savedFiles)return;
+  const files=cardFiles(answerOf(reply.content)),pics=reply.made||[];
+  if(!files.length&&!pics.length)return;
+  reply.savedFiles=true;
+  const folder='/AI files/'+((cur?.title||'Chat').replace(/[\/\\"<>\u0000-\u001f]/g,' ').replace(/\s+/g,' ').trim().slice(0,50)||'Chat');
+  const put=(name,body)=>fetch(`/api/drive?replace=1&folder=${encodeURIComponent(folder)}&name=${encodeURIComponent(name)}`,{method:'POST',body}).then(async r=>{if(!r.ok)throw new Error((await r.json().catch(()=>({}))).error||'HTTP '+r.status)});
+  let n=0,why='';
+  for(const f of files){try{await put(f.name,f.code);n++}catch(e){why=e.message}}
+  for(let i=0;i<pics.length;i++){try{const b=await imgGet(pics[i]);if(b){await put(`picture-${i+1}.jpg`,b);n++}}catch(e){why=e.message}}
+  (reply.acts||(reply.acts=[])).push(n?{ok:true,label:`📁 Saved ${n} file${n===1?'':'s'} to Files › AI files`}:{ok:false,label:`Couldn't save to Files: ${why}`});
+  if(n)window.dispatchEvent(new Event('wvm:files-changed'));
+  paintLast();
+}
 async function runActions(reply){
   const list=[...answerOf(reply.content).matchAll(ACTION_RE)].slice(0,5);
   if(!list.length)return null;

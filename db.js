@@ -195,6 +195,8 @@ export const driveDb = {
   inFolder: (u, p) => db.prepare("SELECT id FROM drive WHERE username = ? AND (folder = ? OR folder LIKE ? ESCAPE '\\')").all(u, p, p.replace(/[\\%_]/g, (c) => "\\" + c) + "/%").map((r) => r.id),
   removeFolder: (u, p) => db.prepare("DELETE FROM drive_folders WHERE username = ? AND (path = ? OR path LIKE ? ESCAPE '\\')").run(u, p, p.replace(/[\\%_]/g, (c) => "\\" + c) + "/%"),
   all: (u) => db.prepare("SELECT id FROM drive WHERE username = ?").all(u).map((r) => r.id),
+  byName: (u, folder, name) => db.prepare("SELECT * FROM drive WHERE username = ? AND folder = ? AND name = ? ORDER BY updated_at DESC LIMIT 1").get(u, folder, name) || null,
+  setBytes: (u, id, type, size) => db.prepare("UPDATE drive SET type = ?, size = ?, updated_at = ? WHERE username = ? AND id = ?").run(type, size, Date.now(), u, id),
   forget: (u) => { db.prepare("DELETE FROM drive WHERE username = ?").run(u); db.prepare("DELETE FROM drive_folders WHERE username = ?").run(u); },
 };
 /* the owner's custom emoji pictures (emoji.js) */
