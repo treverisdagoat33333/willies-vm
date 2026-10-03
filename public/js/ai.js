@@ -376,7 +376,12 @@ function bubble(m){
     if(m.making)d.insertAdjacentHTML('beforeend',`<div class="ai-making"><span>🎨 Drawing “${esc(m.making.slice(0,80))}”…</span></div>`);
     if(m.acts?.length){
       const box=document.createElement('div');box.className='ai-acts';
-      for(const a of m.acts){const c=document.createElement('span');c.className='ai-act '+(a.ok?'ok':'bad');c.textContent=a.label;box.appendChild(c)}
+      for(const a of m.acts){
+        const c=document.createElement('span');c.className='ai-act '+(a.ok?'ok':'bad');c.textContent=a.label;
+        // a command's output, folded, so the owner can see what the cloud computer said
+        if(a.out!=null){const d=document.createElement('details');d.className='ai-shell';const s=document.createElement('summary');s.appendChild(c);const p=document.createElement('pre');p.textContent=a.out||'(no output)';d.append(s,p);box.appendChild(d)}
+        else box.appendChild(c);
+      }
       d.appendChild(box);
     }
     if(m.note&&!m.error){const n=document.createElement('div');n.className='ai-cutnote';n.textContent=m.note;d.appendChild(n)}
@@ -613,7 +618,9 @@ async function answer(reply,model,canAct,signal,base){
 /* Compare: the same question to a second model, answered side by side. Only the
    first model acts on the site; the one you keep carries the conversation on. */
 let compareWith=store('ai.compare','');
-async function ask(canAct){
+// how many times in a row the AI may run commands and look at the result before it must stop
+const MAX_SHELL_ROUNDS=15;
+async function ask(canAct,round=0){
   const base=cur.messages.slice();
   const reply={role:'assistant',content:'',streaming:true};cur.messages.push(reply);
   const second=canAct&&compareWith&&compareWith!==MODEL.value?compareWith:'';
@@ -634,7 +641,12 @@ async function ask(canAct){
     else if(custom.speak&&visibleText(reply.content)&&!reply.error)speak(reply);
     if(dawvqOn())refreshHealth(true);
   }
-  if(more&&cur){cur.messages.push({role:'user',content:more,hidden:true});await ask(false)}
+  // chat.read gets one more reply that can only talk; a command's output can lead to more commands
+  if(more&&cur&&!ctl.signal.aborted){
+    const again=more.again&&round<MAX_SHELL_ROUNDS;
+    cur.messages.push({role:'user',content:more.more+(more.again&&!again?'\n(That was the last command you can run this turn. Answer now.)':''),hidden:true});
+    await ask(again,round+1);
+  }
 }function stop(){busy?.abort()}
 
 /* ═══ the AI on this device (js/local-ai.js) ═══
@@ -710,6 +722,18 @@ const ACTIONS={
     let log=lines.join('\n');if(log.length>12000)log=log.slice(-12000);
     return{label:`💬 Read ${where}`,more:`(From the site, not the user: the ${lines.length} most recent messages in ${where}, oldest first. Answer my last request from them.)\n${log||'(no messages yet)'}`};
   },
+  /* the owner's cloud computer (ai.js on the server only teaches this to the dawvq models,
+     for the owner). The output goes back to the model, which may run more commands. */
+  async 'shell.run'({cmd}){
+    if(!dawvqOn())throw new Error('Only your owner-only models can use the cloud computer');
+    cmd=String(cmd||'').trim().slice(0,8000);if(!cmd)throw new Error('No command');
+    const r=await fetch('/api/ai/shell',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({cmd}),signal:busy?.signal});
+    const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||'HTTP '+r.status);
+    const out=[d.stdout,d.stderr&&(d.stdout?'\n':'')+d.stderr].filter(Boolean).join('').trim();
+    const short=cmd.replace(/\s+/g,' ');
+    return{label:`💻 ${short.length>60?short.slice(0,60)+'…':short}${d.exit?` (exit ${d.exit})`:d.exit===null?' (timed out)':''}`,out,again:true,
+      more:`(From your cloud computer, not the user. Command:\n$ ${cmd}\nExit code: ${d.exit===null?'none, it timed out':d.exit}\nOutput:\n${out||'(nothing)'})`};
+  },
 };
 /* The owner's moderation actions (ai.js on the server only offers them to the owner).
    None runs by itself: each opens a confirm dialog naming who and what. */
@@ -742,18 +766,23 @@ Object.assign(ACTIONS,{
 async function runActions(reply){
   const list=[...answerOf(reply.content).matchAll(ACTION_RE)].slice(0,5);
   if(!list.length)return null;
-  reply.acts=[];let more=null;
+  reply.acts=[];const mores=[];let again=false;
   for(const [,json] of list){
     let a;try{a=JSON.parse(json)}catch(_){reply.acts.push({ok:false,label:"Couldn't read an action"});continue}
     const fn=ACTIONS[a?.do];
     if(!fn){reply.acts.push({ok:false,label:`Can't do “${String(a?.do||'?').slice(0,30)}”`});continue}
     try{
       const out=await fn(a,reply);
-      if(out&&typeof out==='object'){reply.acts.push({ok:true,label:out.label});more=out.more}
+      if(out&&typeof out==='object'){reply.acts.push({ok:true,label:out.label,...(out.out!=null?{out:out.out}:{})});if(out.more)mores.push(out.more);if(out.again)again=true}
       else reply.acts.push({ok:true,label:out});
-    }catch(e){reply.acts.push({ok:false,label:e.message||'That failed'})}
+    }catch(e){
+      reply.acts.push({ok:false,label:e.message||'That failed'});
+      // a failed command still goes back, so the model knows and can try something else
+      if(a.do==='shell.run'){mores.push(`(From your cloud computer: the command couldn't run: ${e.message||'it failed'})`);again=true}
+    }
+    paintLast();
   }
-  return more;
+  return mores.length?{more:mores.join('\n\n'),again}:null;
 }
 /* a short note about the screen, so "this song" or "the chat" make sense */
 function siteContext(){

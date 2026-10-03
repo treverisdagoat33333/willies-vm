@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@e2b/desktop": "^1.0.0",
+    "e2b": "^1.13.2",
     "@mercuryworkshop/bare-mux": "^2.1.9",
     "@mercuryworkshop/libcurl-transport": "^2.0.5",
     "@mercuryworkshop/scramjet": "https://github.com/MercuryWorkshop/scramjet/releases/download/v2.0.67-alpha.2/mercuryworkshop-scramjet-2.0.67-alpha.2.tgz",

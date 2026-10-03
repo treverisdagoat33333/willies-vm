@@ -10,6 +10,7 @@ import { record } from "./analytics.js";
 import { getAiChats, putAiChats } from "./db.js";
 import dns from "node:dns/promises";
 import { isPrivateIp } from "./fastnet.js";
+import { Sandbox } from "e2b";
 
 /*
 |--------------------------------------------------------------------------
@@ -154,6 +155,11 @@ You are talking to the site's owner, so you can also moderate for them. These ne
 - admin.timeout {"user": a username, "minutes": a number} stops them chatting for a while
 - admin.announce {"text": the announcement} posts a site-wide announcement
 - admin.unban {"user": a username} lifts their site bans`;
+// only for the owner, and only on the owner-only models: a private Linux cloud computer
+const SHELL_ACTIONS = `
+You also have your own Linux computer in the cloud (Ubuntu, with internet, root via sudo; it stays up while you use it and is wiped after about 30 minutes idle). Run a shell command on it with:
+[[action {"do":"shell.run","cmd":"uname -a && ls"}]]
+The output and exit code come back to you in the next message; you can then run more commands, or answer. Commands must finish by themselves (no prompts, editors or servers left in the foreground; use -y and background long-running servers with nohup … &), and each gets 2 minutes at most. Use it whenever the owner asks you to run, install, test, build, download or check something, then tell them what happened.`;
 /* Prices in US dollars per million tokens, the same list the owner's other AI app uses
    for this provider. A model missing from it shows "rate not set" rather than a made-up
    cost. AI_PRICES (JSON, {"model": {"input": 1, "output": 2}}) adds to it or overrides it. */
@@ -189,6 +195,8 @@ function systemFor(actions, context, custom = "", owner = false, bare = false) {
   let sys = bare ? "" : SYSTEM;
   if (actions) sys += "\n" + ACTIONS;
   if (actions && owner) sys += "\n" + ADMIN_ACTIONS;
+  // `bare` is exactly the owner-only models, so this is the owner on one of those
+  if (actions && owner && bare && process.env.E2B_API_KEY) sys += "\n" + SHELL_ACTIONS;
   // the person's own instructions (the AI app's Customize): how to answer, what to know about them
   if (custom) sys += `\n\nThe user's custom instructions (follow them unless they ask for something harmful):\n${custom}`;
   // the page's note is data about the screen, never instructions
@@ -357,6 +365,36 @@ async function readStream(body, onText, signal, onThink = () => {}, onUsage = ()
   } finally { reader.cancel().catch(() => {}); }
 }
 
+const SHELL_IDLE_MS = 30 * 60_000;
+const SHELL_CMD_MS = 120_000;
+const SHELL_OUT = 12_000; // characters of output handed back to the model
+let shellBox = null; // a promise of the sandbox, so two commands at once share one
+function shellSandbox() {
+  if (!shellBox) {
+    shellBox = Sandbox.create(process.env.AI_SHELL_TEMPLATE || "base", { apiKey: process.env.E2B_API_KEY, timeoutMs: SHELL_IDLE_MS });
+    shellBox.catch(() => { shellBox = null; });
+  }
+  return shellBox;
+}
+const clip = (s) => (s.length > SHELL_OUT ? s.slice(0, SHELL_OUT / 2) + `\n…(${s.length - SHELL_OUT} characters cut)…\n` + s.slice(-SHELL_OUT / 2) : s);
+async function runShell(cmd, retried = false) {
+  const box = await shellSandbox();
+  try {
+    await box.setTimeout(SHELL_IDLE_MS).catch(() => {});
+    const r = await box.commands.run(cmd, { timeoutMs: SHELL_CMD_MS, cwd: "/home/user" }).catch((e) => {
+      // a command that exits non-zero rejects with its result; that's an answer, not a failure
+      if (e && typeof e.exitCode === "number") return e;
+      throw e;
+    });
+    return { exit: r.exitCode, stdout: clip(r.stdout || ""), stderr: clip(r.stderr || ""), box: box.sandboxId };
+  } catch (e) {
+    // the sandbox stopped (idle too long, or E2B restarted it): start a new one, once
+    if (!retried && /not found|not running|terminated|closed|404/i.test(String(e?.message))) { shellBox = null; return runShell(cmd, true); }
+    if (/deadline|timed? ?out/i.test(String(e?.message))) return { exit: null, stdout: "", stderr: `Stopped after ${SHELL_CMD_MS / 1000} seconds. Run long jobs in the background with nohup … &.`, box: box.sandboxId };
+    throw e;
+  }
+}
+
 export function aiRouter({ requireSession, limiter, userLimiter, isOwner = () => false }) {
   const router = express.Router();
   // which models the API offers, and which look like picture makers, so the owner can pick
@@ -376,6 +414,21 @@ export function aiRouter({ requireSession, limiter, userLimiter, isOwner = () =>
     const q = String(req.query.q || "").trim().slice(0, 300);
     if (!q) return res.status(400).json({ error: "Search for something." });
     res.json({ q, ...(await searchWeb(q)) });
+  });
+  /* The owner's cloud computer for the dawvq models' shell.run: one E2B sandbox, made on the
+     first command and kept while it's used (E2B stops it after SHELL_IDLE_MS of quiet). It's
+     a separate machine, so nothing it runs can touch this server or the site's files. */
+  router.post("/shell", requireSession, ownerOnly, async (req, res) => {
+    const cmd = typeof req.body?.cmd === "string" ? req.body.cmd.trim().slice(0, 8000) : "";
+    if (!cmd) return res.status(400).json({ error: "No command." });
+    if (!process.env.E2B_API_KEY) return res.status(503).json({ error: "The cloud computer isn't set up (no E2B key)." });
+    try { res.json(await runShell(cmd)); }
+    catch (e) { res.status(502).json({ error: String(e?.message || e).slice(0, 300) }); }
+  });
+  router.post("/shell/reset", requireSession, ownerOnly, async (_req, res) => {
+    const old = shellBox; shellBox = null;
+    if (old) await (await old).kill().catch(() => {});
+    res.json({ ok: true });
   });
   router.get("/read", requireSession, ownerOnly, limiter, async (req, res) => {
     try { res.json(await readPage(String(req.query.url || ""))); }
