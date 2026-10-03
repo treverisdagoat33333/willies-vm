@@ -193,7 +193,7 @@ html[data-motion="off"] .ai-mp-pop,html[data-perf="on"] .ai-mp-pop{animation:non
 .ai-c-row small{font-weight:400;color:var(--text-3)}
 .ai-c-row input{width:18px;height:18px;accent-color:var(--accent)}
 .ai-c-btns{display:flex;justify-content:flex-end;gap:8px}
-@media (max-width:720px){.ai-mp-btn{max-width:44vw}#ai-custom-btn{font-size:0;gap:0}.ai-edit{display:none}}
+@media (max-width:720px){.ai-mp-btn{max-width:44vw}#ai-custom-btn{font-size:0;gap:0;padding:0 9px}#ai-custom-btn .i{width:16px;height:16px;font-size:16px}.ai-edit{display:none}}
 #ai-window [hidden]{display:none!important}
 
 /* pictures: attached ones in your message, made ones under the AI's reply */
@@ -254,3 +254,10 @@ html[data-motion="off"] .ai-ultra.on,html[data-motion="off"] .ai-ultra.on *,html
 html[data-perf="on"] .ai-ultra.on,html[data-perf="on"] .ai-ultra.on *,html[data-perf="on"] .ai-ultra.on::after,html[data-perf="on"] #ai-window.ultra .ai-compose{animation:none}
 html[data-motion="off"] .ai-ultra-fx,html[data-perf="on"] .ai-ultra-fx{display:none}
 @media (prefers-reduced-motion:reduce){.ai-ultra.on,.ai-ultra.on *,.ai-ultra.on::after,#ai-window.ultra .ai-compose{animation:none}.ai-ultra-fx{display:none}}
+/* Willie AI (/ai): the AI alone, filling the screen, with nothing else from the desktop.
+   The notch and home bar get their own room (viewport-fit is cover once installed on iOS). */
+html[data-solo="ai"] body{background:#000}
+html[data-solo="ai"] #desktop,html[data-solo="ai"] #taskbar,html[data-solo="ai"] #widgets,html[data-solo="ai"] #icons,
+html[data-solo="ai"] #ai-close,html[data-solo="ai"] [data-minimize="ai"],html[data-solo="ai"] .mu-mini,html[data-solo="ai"] #start{display:none!important}
+html[data-solo="ai"] #ai-window{inset:0!important;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);animation:none}
+html[data-solo="ai"] #ai-window:not(.show){display:none}

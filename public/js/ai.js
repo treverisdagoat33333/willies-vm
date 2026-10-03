@@ -502,12 +502,12 @@ const ACTIONS={
   'music.resume'(){const n=window.music?.now();if(!n)throw new Error('Nothing to resume');if(!n.playing)window.music.playPause();return '▶ Playing'},
   'music.next'(){window.music?.next();return '⏭ Next song'},
   'music.prev'(){window.music?.prev();return '⏮ Back'},
-  'movies.open'({query,row,genre}){
+  'movies.open'({query,row,genre}){if(document.documentElement.dataset.solo==='ai')throw new Error('Open Willie OS for that');
     window.movies?.browse({query,row,genre});
     return `🎬 Movies${query?`: “${String(query).slice(0,40)}”`:genre?`: ${genre}`:row&&row!=='movies'?`: ${row==='shows'?'TV shows':'anime'}`:''}`;
   },
-  'app.open'({app}){if(!APP_NAMES[app])throw new Error(`No app called ${app}`);APPS[app]();return `Opened ${APP_NAMES[app]}`},
-  'browser.open'({url}){
+  'app.open'({app}){if(document.documentElement.dataset.solo==='ai')throw new Error('Open Willie OS for that');if(!APP_NAMES[app])throw new Error(`No app called ${app}`);APPS[app]();return `Opened ${APP_NAMES[app]}`},
+  'browser.open'({url}){if(document.documentElement.dataset.solo==='ai')throw new Error('Open Willie OS for that');
     let u;try{u=new URL(String(url))}catch(_){throw new Error('Not a web address')}
     if(!/^https?:$/.test(u.protocol))throw new Error('Not a web address');
     openBrowser(u.href);return `🌐 Opened ${u.hostname}`;
@@ -917,6 +917,8 @@ function open(){
   setTimeout(()=>INPUT.focus(),50);
 }
 function hide(){
+  // the installed Willie AI app is nothing but this window; there's nothing behind it to show
+  if(document.documentElement.dataset.solo==='ai')return;
   if(!W.classList.contains('show'))return;
   W.classList.add('closing');
   onCloseDone(W,()=>W.classList.remove('show','closing'));

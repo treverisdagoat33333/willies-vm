@@ -189,7 +189,8 @@ function applyCloak(){
   // tab and only flips to the disguise once you switch away.
   const wearIt=cloaking&&(!S.cloakAuto||document.hidden);
   const use=wearIt?target:CLOAKS.none;
-  document.title=use.t;$('#favicon').href=use.i;
+  // the installed Willie AI app keeps its own name when it isn't disguised
+  document.title=!wearIt&&root.dataset.solo==='ai'?'Willie AI':use.t;$('#favicon').href=use.i;
   const pv=$('#cloak-preview');
   if(pv){
     $('#cloak-preview-icon').src=target.i;
@@ -1305,16 +1306,19 @@ function viewAsBanner(d){
   }else if(!d.viewedBy)bar?.remove();
   if(d.ownerViews?.length)setTimeout(()=>toast(`The site owner viewed your account as you ${d.ownerViews.length>1?`${d.ownerViews.length} times, last `:''}on ${new Date(d.ownerViews.at(-1)).toLocaleString()}, to help with the site.`),2500);
 }
+const SOLO_AI=root.dataset.solo==='ai';
 function acceptAuth(d,fresh){
   vmLimit=(d.vmMinutes||30)*60;currentUsername=d.username||'Guest';
   currentRole=d.role||(d.account?'member':'guest');
   root.dataset.account=d.account?'on':'off';
   root.dataset.owner=currentRole==='owner'?'on':'off';
-  $('#auth-wrap').classList.add('hidden');setUser();connectChat();
+  $('#auth-wrap').classList.add('hidden');setUser();
+  // Willie AI (/ai, installed on its own): just the AI, open and full-screen, no chat socket
+  if(SOLO_AI){(function go(){window.ai?window.ai.open():setTimeout(go,50)})()}else connectChat();
   viewAsBanner(d);
   // viewing as someone: their settings must not overwrite the owner's on this device
   if(d.account&&!d.viewedBy)syncStart(currentUsername);
-  if(!acceptAuth.counted){acceptAuth.counted=true;track('visit');setTimeout(()=>window.tour?.greet(RETURNING||(d.account&&d.since&&Date.now()-d.since>3600000)),1200)}
+  if(!acceptAuth.counted){acceptAuth.counted=true;track('visit');if(!SOLO_AI)setTimeout(()=>window.tour?.greet(RETURNING||(d.account&&d.since&&Date.now()-d.since>3600000)),1200)}
   toast(`Welcome, ${currentUsername}! ${d.vmMinutes||30} min of VM time.`,'ok');
   if(fresh)window.motion?.celebrate();
 }

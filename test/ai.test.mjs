@@ -149,6 +149,23 @@ await page.evaluate(() => localStorage.setItem("ai.effort", JSON.stringify("")))
 await page.reload(); await page.waitForFunction(() => window.ai, null, { timeout: 10000 }); await page.waitForTimeout(1500);
 await page.evaluate(() => window.ai.open()); await page.waitForTimeout(800);
 
+// Willie AI (/ai): the AI alone, installable with its own name and icon
+{
+  const html = await (await fetch(process.env.BASE + "/ai")).text();
+  const mf = await (await fetch(process.env.BASE + "/ai.webmanifest")).json();
+  ok(/data-solo="ai"/.test(html) && /href="\/ai\.webmanifest"/.test(html) && /<title>Willie AI<\/title>/.test(html), "/ai serves the AI-only page with its own manifest");
+  ok(mf.name === "Willie AI" && mf.start_url === "/ai" && mf.display === "standalone" && mf.icons.length === 3, "…which installs as Willie AI", JSON.stringify(mf).slice(0, 120));
+  const solo = await browser.newPage({ viewport: { width: 390, height: 800 } });
+  await solo.context().addCookies(await page.context().cookies());
+  await solo.goto(process.env.BASE + "/ai");
+  await solo.waitForFunction(() => document.querySelector("#ai-window")?.classList.contains("show"), null, { timeout: 10000 });
+  const st = await solo.evaluate(() => ({ tb: getComputedStyle(document.querySelector("#taskbar")).display, close: getComputedStyle(document.querySelector("#ai-close")).display, title: document.title }));
+  ok(st.tb === "none" && st.close === "none" && st.title === "Willie AI", "…opens straight into the AI, with no desktop and nothing to close", JSON.stringify(st));
+  await solo.evaluate(() => window.ai.hide());
+  ok(await solo.evaluate(() => document.querySelector("#ai-window").classList.contains("show")), "…and the AI can't be hidden there");
+  await solo.close();
+}
+
 // answers that get cut off are carried on, never left half-written
 const botText = () => page.$eval("#ai-log .ai-msg.bot:last-child", (b) => b.textContent);
 await ask("write me long code", () => /All done\./.test(document.querySelector("#ai-log .ai-msg.bot:last-child")?.textContent || ""));

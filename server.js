@@ -525,6 +525,19 @@ const arcadeLimiter = createLimiter({ windowMs: 60_000, max: 120 });
 app.use(arcadeRouter({ catalog: ARCADE_CATALOG(publicDir), limiter: limitByIp(arcadeLimiter, "Too many games opened. Wait a minute.") }));
 // your own HTML games in public/games/ (games.js)
 app.use(gamesRouter(path.join(publicDir, "games")));
+/* Willie AI: the AI on its own, installable as an app (its own manifest, name and icon, so it
+   installs apart from Willie OS). Same page, marked data-solo="ai", which hides the rest. */
+app.get(["/ai", "/ai/"], (_req, res) => {
+  const html = fs.readFileSync(path.join(publicDir, "index.html"), "utf8")
+    .replace('<html lang="en">', '<html lang="en" data-solo="ai">')
+    .replace("<title>Willie OS</title>", "<title>Willie AI</title>")
+    .replace("maximum-scale=1\">", "maximum-scale=1,viewport-fit=cover\">")
+    .replace('href="/manifest.webmanifest"', 'href="/ai.webmanifest"')
+    .replace('href="/icons/apple-touch-icon.png"', 'href="/icons/ai-apple-180.png"')
+    .replace('content="Willie OS">', 'content="Willie AI">')
+    .replace('<meta name="theme-color" content="#0b0d12">', '<meta name="theme-color" content="#000000">');
+  res.set({ "content-type": "text/html; charset=utf-8", "cache-control": "no-cache" }).send(html);
+});
 app.use(compressedStatic(publicDir), express.static(publicDir));
 app.use(ownerToolsRouter({ requireOwner, getUser, getSession, verifyToken, createToken, tokenVersion, cookieOptions, logEvent }));
 
