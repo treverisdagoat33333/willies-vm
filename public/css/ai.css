@@ -407,3 +407,7 @@ html[data-motion="off"] .ai-file.live .ai-file-ic,html[data-perf="on"] .ai-file.
 #ai-window.pane-open #ai-custom-btn{font-size:0;gap:0;padding:0 9px}
 #ai-window.pane-open #ai-custom-btn .i{width:16px;height:16px}
 #ai-window.pane-open .ai-mp-btn{max-width:180px}
+.ai-code-top{gap:6px}
+.ai-code-run{margin-left:auto;padding:3px 9px;border-radius:6px;font-size:1em;font-weight:600;color:#fff;background:rgba(var(--accent-rgb),.55)}
+.ai-code-run+.ai-copy{margin-left:0}
+html[data-solo="ai"] .ai-code-run{background:#0a84ff}

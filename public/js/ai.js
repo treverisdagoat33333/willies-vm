@@ -105,7 +105,8 @@ const EXT={html:'html',htm:'html',xml:'xml',svg:'svg',css:'css',js:'js',javascri
 const LANG_OF={html:'html',htm:'html',svg:'svg',css:'css',js:'js',mjs:'js',jsx:'jsx',ts:'ts',json:'json',py:'python',md:'markdown'};
 const FILES=new Map(),GROUPS=new Map();
 let fileSeq=0;
-const RUNNABLE=f=>['html','svg','js'].includes(f.ext)||(f.ext==='css'&&false);
+// what Run can show: web pages, pictures, JavaScript, and Python (Pyodide, in the sandbox)
+const RUNNABLE=f=>['html','svg','js','py'].includes(f.ext);
 function parseFence(info,code,n){
   const words=info.trim().split(/\s+/).filter(Boolean);
   let name=words.find(w=>/^[\w.\-\/]+\.[a-z0-9+]+$/i.test(w))||'',lang=(words.find(w=>w!==name)||'').toLowerCase();
@@ -128,7 +129,7 @@ function md(text){
     const live=open&&i===parts.length-1,f=parseFence(info,code,group.length+1);
     // short snippets stay inline; files and long code become cards
     const named=/\.[a-z0-9+]+(\s|$)/i.test(info.trim());
-    if(!named&&code.split('\n').length<12)return `<div class="ai-code"><div class="ai-code-top"><span>${esc(f.lang==='text'?'code':f.lang)}</span><button type="button" class="ai-copy">Copy</button></div><pre><code>${esc(code)}</code></pre></div>`;
+    if(!named&&code.split('\n').length<12)return `<div class="ai-code" data-ext="${esc(f.ext)}" data-name="${esc(f.name)}"><div class="ai-code-top"><span>${esc(f.lang==='text'?'code':f.lang)}</span>${!live&&RUNNABLE(f)?'<button type="button" class="ai-code-run">▶ Run</button>':''}<button type="button" class="ai-copy">Copy</button></div><pre><code>${esc(code)}</code></pre></div>`;
     const key=f.name+'\u0000'+code;let id=null;
     for(const [k,v] of FILES)if(v.key===key){id=k;break}
     if(!id){id='f'+(++fileSeq);FILES.set(id,{...f,key,id});if(FILES.size>400)FILES.delete(FILES.keys().next().value)}
@@ -137,6 +138,13 @@ function md(text){
   }).join('');
   if(group.length){const g=group.join(',');for(const id of group)GROUPS.set(id,g)}
   return out;
+}
+/* a short inline snippet's Run: it becomes a file on the spot, so the pane can show it */
+function fileFromInline(box){
+  const code=box.querySelector('code').textContent,ext=box.dataset.ext,name=box.dataset.name;
+  const key=name+'\u0000'+code;
+  for(const [k,v] of FILES)if(v.key===key)return v;
+  const f={name,ext,lang:LANG_OF[ext]||ext,code,key,id:'f'+(++fileSeq)};FILES.set(f.id,f);return f;
 }
 const groupOf=id=>(GROUPS.get(id)||id).split(',').map(x=>FILES.get(x)).filter(Boolean);
 const MIME={html:'text/html',svg:'image/svg+xml',css:'text/css',js:'text/javascript',json:'application/json',md:'text/markdown'};
@@ -163,6 +171,8 @@ function asOnePage(files){
    console.log output written on the page */
 function runnable(f,files){
   if(f.ext==='html')return asOnePage(files.includes(f)?files:[f]);
+  // Python: Pyodide (Python built for the browser) loads inside the sandbox and prints there
+  if(f.ext==='py')return `<!doctype html><html><head><meta charset="utf-8"><style>body{margin:0;font:13px/1.5 ui-monospace,Consolas,monospace;background:#0b0b0d;color:#e5e5e5}#o div{padding:4px 10px;border-bottom:1px solid #222;white-space:pre-wrap}#o .e{color:#f87171}#o .s{color:#9ca3af}</style></head><body><div id="o"><div class="s">Starting Python…</div></div><script src="https://cdn.jsdelivr.net/pyodide/v0.27.7/full/pyodide.js"></`+`script><script>(async()=>{const o=document.getElementById('o'),w=(c,t)=>{const d=document.createElement('div');d.className=c;d.textContent=t;o.appendChild(d)};try{const py=await loadPyodide({stdout:t=>w('',t),stderr:t=>w('e',t)});o.firstChild.remove();const src=${JSON.stringify(f.code).replace(/</g,'\\u003c')};await py.loadPackagesFromImports(src);await py.runPythonAsync(src);w('s','— finished —')}catch(e){w('e',String(e.message||e))}})()</`+`script></body></html>`;
   if(f.ext==='svg')return `<!doctype html><body style="margin:0;display:grid;place-items:center;min-height:100vh;background:#fff">${f.code}</body>`;
   return `<!doctype html><html><head><meta charset="utf-8"><style>body{margin:0;font:13px/1.5 ui-monospace,Consolas,monospace;background:#0b0b0d;color:#e5e5e5}#o div{padding:4px 10px;border-bottom:1px solid #222;white-space:pre-wrap}#o .e{color:#f87171}</style></head><body><div id="o"></div><script>(()=>{const o=document.getElementById('o'),w=(c,a)=>{const d=document.createElement('div');d.className=c;d.textContent=a.map(x=>typeof x==='object'?(()=>{try{return JSON.stringify(x,null,2)}catch(_){return String(x)}})():String(x)).join(' ');o.appendChild(d)};for(const k of['log','info','warn','debug'])console[k]=(...a)=>w('',a);console.error=(...a)=>w('e',a);addEventListener('error',e=>w('e',[e.message]));addEventListener('unhandledrejection',e=>w('e',['Unhandled: '+(e.reason?.message||e.reason)]))})();</`+`script><script>\n${f.code}\n</`+`script></body></html>`;
 }
@@ -724,14 +734,27 @@ $('#ai-chats').addEventListener('click',e=>{
   if(busy&&c!==cur)stop();
   cur=c;W.classList.remove('side-open');render();
 });
+/* File cards act on pointerup, not click: while an answer is still being typed out its
+   bubble is redrawn every frame, so the card under the finger is often a new element by the
+   time the button comes up, and the browser drops the click (it took several taps). */
+let cardDown=null;
+LOG.addEventListener('pointerdown',e=>{
+  const card=e.target.closest('.ai-file:not(.live)');
+  cardDown=card?{id:card.dataset.f,act:e.target.closest('.ai-f-dl')?'dl':e.target.closest('.ai-f-run')?'run':'open',x:e.clientX,y:e.clientY}:null;
+});
+LOG.addEventListener('pointerup',e=>{
+  const d=cardDown;cardDown=null;
+  if(!d||Math.hypot(e.clientX-d.x,e.clientY-d.y)>12)return; // a scroll, not a tap
+  const f=FILES.get(d.id);if(!f)return;click();
+  if(d.act==='dl'){saveFile(f.name,f.code,f.ext);return}
+  openPane(d.id,d.act==='run'||(d.act==='open'&&RUNNABLE(f))?'run':'code');
+});
+LOG.addEventListener('pointercancel',()=>{cardDown=null});
 LOG.addEventListener('click',e=>{
   const sug=e.target.closest('.ai-sug');if(sug){click();send(sug.textContent);return}
-  const card=e.target.closest('.ai-file');
-  if(card&&!card.classList.contains('live')){
-    const id=card.dataset.f,f=FILES.get(id);if(!f)return;click();
-    if(e.target.closest('.ai-f-dl')){saveFile(f.name,f.code,f.ext);return}
-    openPane(id,e.target.closest('.ai-f-run')?'run':'code');return;
-  }
+  if(e.target.closest('.ai-file'))return; // handled on pointerup, below
+  const run=e.target.closest('.ai-code-run');
+  if(run){const b=run.closest('.ai-code'),f=fileFromInline(b);if(f){click();openPane(f.id,'run')}return}
   const copy=e.target.closest('.ai-copy');
   if(copy){const code=copy.closest('.ai-code').querySelector('code').textContent;navigator.clipboard?.writeText(code).then(()=>{copy.textContent='Copied';setTimeout(()=>{copy.textContent='Copy'},1500)},()=>toast('Copy failed','err'));return}
   if(e.target.closest('.ai-retry')&&cur&&!busy){

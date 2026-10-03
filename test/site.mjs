@@ -229,7 +229,7 @@ function aiMock(req, res, u) {
     // code mode: answers with files (and says whether it was told to)
     if (/make me a page/.test(said)) {
       const sys = (b.messages || []).find((m) => m.role === "system")?.content || "";
-      const reply = `Here it is${/Code mode is on/.test(sys) ? " (code mode)" : ""}.\n\n\`\`\`html index.html\n<!doctype html>\n<html><head><link rel="stylesheet" href="style.css"></head>\n<body><h1 id="t">Hi</h1>\n<script src="app.js"></script></body></html>\n\`\`\`\n\n\`\`\`css style.css\nh1{color:rgb(255, 0, 0)}\n\`\`\`\n\n\`\`\`js app.js\ndocument.getElementById('t').textContent='Ran!';\nconsole.log('ok');\n\`\`\`\n\nShort one: \`\`\`js\nlet x = 1\n\`\`\``;
+      const reply = `Here it is${/Code mode is on/.test(sys) ? " (code mode)" : ""}.\n\n\`\`\`html index.html\n<!doctype html>\n<html><head><link rel="stylesheet" href="style.css"></head>\n<body><h1 id="t">Hi</h1>\n<script src="app.js"></script></body></html>\n\`\`\`\n\n\`\`\`css style.css\nh1{color:rgb(255, 0, 0)}\n\`\`\`\n\n\`\`\`js app.js\ndocument.getElementById('t').textContent='Ran!';\nconsole.log('ok');\n\`\`\`\n\nShort one: \`\`\`js\nlet x = 1\n\`\`\`\n\n\`\`\`python\nprint("hi")\n\`\`\``;
       res.writeHead(200, { "content-type": "text/event-stream" });
       res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: reply } }] })}\n\n`);
       res.write("data: [DONE]\n\n"); return res.end();

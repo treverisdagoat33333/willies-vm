@@ -172,7 +172,7 @@ await ask("make me a page", () => document.querySelectorAll("#ai-log .ai-msg.bot
 const cards = await page.$$eval("#ai-log .ai-msg.bot:last-child .ai-file b", (b) => b.map((x) => x.textContent));
 ok(cards.join() === "index.html,style.css,app.js", "named code blocks come back as file cards", cards.join());
 ok(/\(code mode\)/.test(await page.evaluate(lastText)), "Code mode tells the model to answer with files");
-ok(await page.$$eval("#ai-log .ai-msg.bot:last-child .ai-code", (c) => c.length) === 1, "…while a short snippet stays inline");
+ok(await page.$$eval("#ai-log .ai-msg.bot:last-child .ai-code", (c) => c.length) === 2, "…while short snippets stay inline");
 await page.click("#ai-log .ai-msg.bot:last-child .ai-file[data-f] .ai-f-run");
 const frame = await (await page.waitForSelector("#ai-cp-frame:not([hidden])")).contentFrame();
 await frame.waitForFunction(() => document.getElementById("t")?.textContent === "Ran!", null, { timeout: 5000 });
@@ -185,6 +185,21 @@ const one = (await import("node:fs")).readFileSync(file, "utf8");
 ok(/<style>[\s\S]*color:rgb\(255, 0, 0\)/.test(one) && /textContent='Ran!'/.test(one) && !/href="style\.css"/.test(one), "Download as HTML puts the files into one page");
 await page.click("#ai-cp-x");
 ok(await page.isHidden("#ai-codepane"), "the pane closes");
+// a card still opens when the bubble under it is redrawn mid-tap (as it is while an answer types out)
+await page.evaluate(() => {
+  const card = document.querySelector("#ai-log .ai-msg.bot:last-child .ai-file");
+  const r = card.getBoundingClientRect(), at = { clientX: r.left + 20, clientY: r.top + 20, bubbles: true, pointerId: 1 };
+  card.dispatchEvent(new PointerEvent("pointerdown", at));
+  const fresh = card.cloneNode(true); card.replaceWith(fresh);
+  fresh.dispatchEvent(new PointerEvent("pointerup", at));
+});
+ok(await page.isVisible("#ai-codepane"), "a card opens even if it was redrawn between press and release");
+await page.click("#ai-cp-x");
+const runs = await page.$$eval("#ai-log .ai-msg.bot:last-child .ai-code", (c) => c.map((x) => !!x.querySelector(".ai-code-run")));
+ok(runs.length === 2 && runs.every(Boolean), "short JavaScript and Python snippets get a Run button too", JSON.stringify(runs));
+await page.click("#ai-log .ai-msg.bot:last-child .ai-code[data-ext='js'] .ai-code-run");
+ok(await page.isVisible("#ai-cp-frame") && /▶ Run/.test(await page.textContent("#ai-cp-run")), "…which opens it running in the sandbox");
+await page.click("#ai-cp-x");
 await page.click("#ai-codemode");
 
 // answers that get cut off are carried on, never left half-written
