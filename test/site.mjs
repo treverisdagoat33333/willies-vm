@@ -234,6 +234,34 @@ function aiMock(req, res, u) {
       res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: reply } }] })}\n\n`);
       res.write("data: [DONE]\n\n"); return res.end();
     }
+    // many files, written the awkward ways real models write them
+    if (/lots of files/.test(said)) {
+      const T = "`".repeat(3), Q = "`".repeat(4);
+      const reply = [
+        "Here's the project. Wrap code in " + T + " like this sentence does, it's fine.",
+        "",
+        T + "html:index.html", "<!doctype html>", "<html><body><h1 id=t>x</h1><script src=\"app.js\"></script></body></html>", T,
+        "",
+        "**app.js**", T + "javascript", "localStorage.setItem('n', '1'); document.getElementById('t').textContent = 'many ok ' + localStorage.getItem('n');", T,
+        "",
+        Q + "markdown README.md", "# Readme", "Run it:", T + "bash", "npm start", T, Q,
+        "",
+        "~~~css title=\"style.css\"", "h1 { color: blue }", "~~~",
+        "",
+        "### server.py", T + "python", "print('hello')", T,
+        "",
+        T + "markdown NOTES.md", "# Notes", T + "bash", "python server.py", T, "Files:", "", T, "site/", "└── index.html", T, "More text.", T,
+        "",
+        T + "python run.py", "print('after nested')", T,
+        "",
+        "That's all " + T + " done.",
+      ].join("\n");
+      res.writeHead(200, { "content-type": "text/event-stream" });
+      // in small pieces, the way a stream arrives
+      const chunks = reply.match(/[\s\S]{1,7}/g); let k = 0;
+      const tk = () => { if (res.destroyed) return; if (k >= chunks.length) { res.write("data: [DONE]\n\n"); return res.end(); } res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: chunks[k++] } }] })}\n\n`); setTimeout(tk, 2); };
+      return tk();
+    }
     if (/big tokens/.test(said) && b.max_tokens > 4096) return json(400, { error: { message: "max_tokens is too large for this model" } });
     res.writeHead(200, { "content-type": "text/event-stream" });
     // replies that act on the site (public/js/ai.js carries the actions out); the

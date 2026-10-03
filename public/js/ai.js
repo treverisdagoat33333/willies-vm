@@ -103,36 +103,82 @@ function blocks(text){
    downloaded together as one HTML page. FILES/GROUPS hold what the cards point at. */
 const EXT={html:'html',htm:'html',xml:'xml',svg:'svg',css:'css',js:'js',javascript:'js',jsx:'jsx',ts:'ts',typescript:'ts',tsx:'tsx',json:'json',py:'py',python:'py',java:'java',c:'c',cpp:'cpp','c++':'cpp',cs:'cs',csharp:'cs',go:'go',rs:'rs',rust:'rs',rb:'rb',ruby:'rb',php:'php',sh:'sh',bash:'sh',shell:'sh',ps1:'ps1',powershell:'ps1',sql:'sql',md:'md',markdown:'md',yaml:'yml',yml:'yml',lua:'lua',kt:'kt',kotlin:'kt',swift:'swift',txt:'txt',text:'txt'};
 const LANG_OF={html:'html',htm:'html',svg:'svg',css:'css',js:'js',mjs:'js',jsx:'jsx',ts:'ts',json:'json',py:'python',md:'markdown'};
-const FILES=new Map(),GROUPS=new Map();
+const FILES=new Map(),GROUPS=new Map(),FILE_KEYS=new Map();
 let fileSeq=0;
 // what Run can show: web pages, pictures, JavaScript, and Python (Pyodide, in the sandbox)
 const RUNNABLE=f=>['html','svg','js','py'].includes(f.ext);
-function parseFence(info,code,n){
-  const words=info.trim().split(/\s+/).filter(Boolean);
-  let name=words.find(w=>/^[\w.\-\/]+\.[a-z0-9+]+$/i.test(w))||'',lang=(words.find(w=>w!==name)||'').toLowerCase();
+const FILE_RE=/([\w.\-\/]*[\w\-]\.[a-z][a-z0-9+]{0,7})\b/i;
+function parseFence(info,code,n,hint){
+  // the name can be in the info line in many shapes ("html index.html", "html:index.html",
+  // 'js title="app.js"', "index.html"), or on the line just before the block (**app.js**)
+  const raw=info.trim(),named=raw.match(FILE_RE)?.[1];
+  let name=(named&&!/^\d/.test(named)?named:'')||hint||'';
+  let lang=(raw.replace(named||'\u0000','').match(/[a-z][\w+#-]*/i)?.[0]||'').toLowerCase();
+  if(lang==='title'||lang==='file'||lang==='filename')lang='';
   let ext=name?name.split('.').pop().toLowerCase():EXT[lang]||'';
   if(!ext&&/^\s*<(!doctype|html)/i.test(code))ext='html';
   if(!lang)lang=LANG_OF[ext]||ext||'text';
   if(!name)name=ext==='html'?'index.html':`file-${n}.${ext||'txt'}`;
   return{name:name.split('/').pop(),lang,ext:ext||'txt',code};
 }
+/* Splits an answer into text and fenced code the way Markdown does: a fence opens only at
+   the start of a line (``` or ~~~, 3 or more, up to 3 spaces in) and closes only on a line of
+   the same mark at least as long. Splitting on every ``` (as before) broke on code that
+   itself contained ```, on four-backtick fences, and on ``` mentioned in a sentence, and
+   then everything after it came out as raw text: that's what happened with many files. */
+function splitFences(text){
+  const out=[],lines=String(text).split('\n');let buf=[],fence=null,code=[];
+  const flushText=()=>{if(buf.length){out.push({t:'text',s:buf.join('\n')});buf=[]}};
+  for(let i=0;i<lines.length;i++){
+    const line=lines[i];
+    if(!fence){
+      const m=line.match(/^ {0,3}(`{3,}|~{3,})(.*)$/);
+      if(m&&!(m[1][0]==='`'&&m[2].includes('`'))){flushText();fence={mark:m[1],info:m[2],md:/\b(md|markdown)\b|\.md\b/i.test(m[2])};code=[];continue}
+      // some models open a block at the end of a sentence ("Here it is: ```js"); that counts
+      // only when the fence and a bare language end the line, not ``` in the middle of one
+      const tailOpen=line.match(/^(.*\S)\s*(`{3,})([\w+#.\-:]*)\s*$/);
+      if(tailOpen&&!tailOpen[1].includes('`'.repeat(3))){buf.push(tailOpen[1]);flushText();fence={mark:tailOpen[2],info:tailOpen[3]};code=[];continue}
+      buf.push(line);
+    }else{
+      // Models often nest blocks with the same mark (a README with ```bash examples inside a
+      // ``` block). Strictly, the first bare ``` ends the README and everything after it is
+      // off by one; instead, a fence line with a language inside a block opens a nested one,
+      // and a bare fence closes the innermost first.
+      const open=line.match(/^ {0,3}(`{3,}|~{3,})([\w+#.\-]+)\s*$/);
+      if(open&&open[1][0]===fence.mark[0]){fence.depth=(fence.depth||0)+1;code.push(line);continue}
+      const m=line.match(/^ {0,3}(`{3,}|~{3,})\s*$/);
+      if(m&&m[1][0]===fence.mark[0]){
+        if(fence.depth){fence.depth--;code.push(line);continue}
+        // in a Markdown file a bare fence with content straight under it starts an unlabelled
+        // inner block (a folder tree in a README), not the end of the file
+        const next=lines[i+1];
+        if(fence.md&&next!=null&&next.trim()&&!/^ {0,3}(`{3,}|~{3,})/.test(next)){fence.depth=1;code.push(line);continue}
+        if(m[1].length>=fence.mark.length){out.push({t:'code',info:fence.info,code:code.join('\n'),open:false});fence=null;continue}
+      }
+      code.push(line);
+    }
+  }
+  if(fence)out.push({t:'code',info:fence.info,code:code.join('\n'),open:true});
+  flushText();
+  return out;
+}
 function fileCard(f,live){
   const lines=f.code.split('\n').length;
   return `<div class="ai-file${live?' live':''}" data-f="${f.id}"><div class="ai-file-ic">${esc((f.ext||'txt').slice(0,4).toUpperCase())}</div><div class="ai-file-t"><b>${esc(f.name)}</b><small>${live?`Writing… ${lines} lines`:`${lines} line${lines===1?'':'s'} · ${esc(f.lang)}`}</small></div>${live?'':`<div class="ai-file-acts">${RUNNABLE(f)?'<button type="button" class="ai-f-run" title="Run in a sandbox">▶ Run</button>':''}<button type="button" class="ai-f-dl" title="Download">Download</button></div>`}</div>`;
 }
 function md(text){
-  // odd parts are inside ``` fences; an unclosed fence (still streaming) shows as code too
-  const parts=String(text).split('```'),open=parts.length%2===0,group=[];
-  const out=parts.map((part,i)=>{
-    if(!(i%2))return blocks(part);
-    const nl=part.indexOf('\n'),info=nl>=0?part.slice(0,nl):'',code=(nl>=0?part.slice(nl+1):part).replace(/\n$/,'');
-    const live=open&&i===parts.length-1,f=parseFence(info,code,group.length+1);
+  const parts=splitFences(text),group=[];
+  const out=parts.map((p,i)=>{
+    if(p.t==='text')return blocks(p.s);
+    // a file named on the line just before the block ("**index.html**", "`app.js`:", "### style.css")
+    const prev=parts[i-1]?.t==='text'?parts[i-1].s.trimEnd().split('\n').pop():'';
+    const hint=(prev.match(/^\s*(?:#{1,6}\s*|[-*]\s+|\d+[.)]\s*)?(?:file:?\s*)?[`*_"']*([\w.\-\/]*[\w\-]\.[a-z][a-z0-9+]{0,7})[`*_"']*\s*:?\s*$/i)||[])[1]||'';
+    const live=p.open,code=p.code.replace(/\n$/,''),f=parseFence(p.info,code,group.length+1,hint);
     // short snippets stay inline; files and long code become cards
-    const named=/\.[a-z0-9+]+(\s|$)/i.test(info.trim());
-    if(!named&&code.split('\n').length<12)return `<div class="ai-code" data-ext="${esc(f.ext)}" data-name="${esc(f.name)}"><div class="ai-code-top"><span>${esc(f.lang==='text'?'code':f.lang)}</span>${!live&&RUNNABLE(f)?'<button type="button" class="ai-code-run">▶ Run</button>':''}<button type="button" class="ai-copy">Copy</button></div><pre><code>${esc(code)}</code></pre></div>`;
-    const key=f.name+'\u0000'+code;let id=null;
-    for(const [k,v] of FILES)if(v.key===key){id=k;break}
-    if(!id){id='f'+(++fileSeq);FILES.set(id,{...f,key,id});if(FILES.size>400)FILES.delete(FILES.keys().next().value)}
+    if(!p.info.trim().match(FILE_RE)&&!hint&&code.split('\n').length<12)return `<div class="ai-code" data-ext="${esc(f.ext)}" data-name="${esc(f.name)}"><div class="ai-code-top"><span>${esc(f.lang==='text'?'code':f.lang)}</span>${!live&&RUNNABLE(f)?'<button type="button" class="ai-code-run">▶ Run</button>':''}<button type="button" class="ai-copy">Copy</button></div><pre><code>${esc(code)}</code></pre></div>`;
+    // the same file keeps its id across the many redraws while an answer streams
+    const key=f.name+'\u0000'+code;let id=FILE_KEYS.get(key);
+    if(!id){id='f'+(++fileSeq);FILES.set(id,{...f,key,id});FILE_KEYS.set(key,id);if(FILES.size>400){const [old,v]=FILES.entries().next().value;FILES.delete(old);FILE_KEYS.delete(v.key)}}
     if(!live)group.push(id);
     return fileCard(FILES.get(id),live);
   }).join('');
@@ -169,12 +215,20 @@ function asOnePage(files){
 }
 /* what the sandbox shows: a page as it is, an SVG as a picture, JavaScript with its
    console.log output written on the page */
+/* The sandbox has no origin of its own, so the browser refuses it localStorage, sessionStorage
+   and cookies, and apps the AI writes (to-do lists, games with high scores) crash on them.
+   This puts in-memory stand-ins first, so they work for as long as the preview is open. */
+const STORE_SHIM=`<script>(()=>{const mk=()=>{const m=new Map();return{get length(){return m.size},key:i=>[...m.keys()][i]??null,getItem:k=>m.has(String(k))?m.get(String(k)):null,setItem:(k,v)=>{m.set(String(k),String(v))},removeItem:k=>{m.delete(String(k))},clear:()=>m.clear()}};for(const n of['localStorage','sessionStorage']){try{window[n].length}catch(_){try{Object.defineProperty(window,n,{value:mk(),configurable:true})}catch(_){}}}let jar='';try{document.cookie}catch(_){try{Object.defineProperty(document,'cookie',{get:()=>jar,set:v=>{const p=String(v).split(';')[0];jar=jar?jar+'; '+p:p},configurable:true})}catch(_){}}})()</`+`script>`;
+// pages without a viewport line render 980px wide and shrink on a phone; give them one
+const VIEWPORT='<meta name="viewport" content="width=device-width,initial-scale=1">';
+const withShim=h=>{const html=/<meta[^>]+name=["']?viewport/i.test(h)?h:VIEWPORT+h;return withShim0(html)};
+const withShim0=html=>/<head[^>]*>/i.test(html)?html.replace(/<head[^>]*>/i,m=>m+STORE_SHIM):/<html[^>]*>/i.test(html)?html.replace(/<html[^>]*>/i,m=>m+STORE_SHIM):STORE_SHIM+html;
 function runnable(f,files){
-  if(f.ext==='html')return asOnePage(files.includes(f)?files:[f]);
+  if(f.ext==='html')return withShim(asOnePage(files.includes(f)?files:[f]));
   // Python: Pyodide (Python built for the browser) loads inside the sandbox and prints there
   if(f.ext==='py')return `<!doctype html><html><head><meta charset="utf-8"><style>body{margin:0;font:13px/1.5 ui-monospace,Consolas,monospace;background:#0b0b0d;color:#e5e5e5}#o div{padding:4px 10px;border-bottom:1px solid #222;white-space:pre-wrap}#o .e{color:#f87171}#o .s{color:#9ca3af}</style></head><body><div id="o"><div class="s">Starting Python…</div></div><script src="https://cdn.jsdelivr.net/pyodide/v0.27.7/full/pyodide.js"></`+`script><script>(async()=>{const o=document.getElementById('o'),w=(c,t)=>{const d=document.createElement('div');d.className=c;d.textContent=t;o.appendChild(d)};try{const py=await loadPyodide({stdout:t=>w('',t),stderr:t=>w('e',t)});o.firstChild.remove();const src=${JSON.stringify(f.code).replace(/</g,'\\u003c')};await py.loadPackagesFromImports(src);await py.runPythonAsync(src);w('s','— finished —')}catch(e){w('e',String(e.message||e))}})()</`+`script></body></html>`;
   if(f.ext==='svg')return `<!doctype html><body style="margin:0;display:grid;place-items:center;min-height:100vh;background:#fff">${f.code}</body>`;
-  return `<!doctype html><html><head><meta charset="utf-8"><style>body{margin:0;font:13px/1.5 ui-monospace,Consolas,monospace;background:#0b0b0d;color:#e5e5e5}#o div{padding:4px 10px;border-bottom:1px solid #222;white-space:pre-wrap}#o .e{color:#f87171}</style></head><body><div id="o"></div><script>(()=>{const o=document.getElementById('o'),w=(c,a)=>{const d=document.createElement('div');d.className=c;d.textContent=a.map(x=>typeof x==='object'?(()=>{try{return JSON.stringify(x,null,2)}catch(_){return String(x)}})():String(x)).join(' ');o.appendChild(d)};for(const k of['log','info','warn','debug'])console[k]=(...a)=>w('',a);console.error=(...a)=>w('e',a);addEventListener('error',e=>w('e',[e.message]));addEventListener('unhandledrejection',e=>w('e',['Unhandled: '+(e.reason?.message||e.reason)]))})();</`+`script><script>\n${f.code}\n</`+`script></body></html>`;
+  return `<!doctype html><html><head><meta charset="utf-8">${STORE_SHIM}<style>body{margin:0;font:13px/1.5 ui-monospace,Consolas,monospace;background:#0b0b0d;color:#e5e5e5}#o div{padding:4px 10px;border-bottom:1px solid #222;white-space:pre-wrap}#o .e{color:#f87171}</style></head><body><div id="o"></div><script>(()=>{const o=document.getElementById('o'),w=(c,a)=>{const d=document.createElement('div');d.className=c;d.textContent=a.map(x=>typeof x==='object'?(()=>{try{return JSON.stringify(x,null,2)}catch(_){return String(x)}})():String(x)).join(' ');o.appendChild(d)};for(const k of['log','info','warn','debug'])console[k]=(...a)=>w('',a);console.error=(...a)=>w('e',a);addEventListener('error',e=>w('e',[e.message]));addEventListener('unhandledrejection',e=>w('e',['Unhandled: '+(e.reason?.message||e.reason)]))})();</`+`script><script>\n${f.code}\n</`+`script></body></html>`;
 }
 /* the pane: the file's code, or it running in a sandboxed frame (scripts only: no access to
    this site, its cookies or storage, and it can't navigate the page) */
@@ -1136,5 +1190,6 @@ async function askAbout({url,title,text,q}){
 }
 window.ai={open,hide,toggle,send,stop,askAbout,sync:pull,busy:()=>!!busy,
   // one action as if the AI had written it (tests)
+  _file:id=>FILES.get(id)?.code,
   _act:async a=>{const f=ACTIONS[a?.do];if(!f)throw new Error('No such action');return f(a,{})}};
 })();

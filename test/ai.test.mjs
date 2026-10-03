@@ -202,6 +202,20 @@ ok(await page.isVisible("#ai-cp-frame") && /▶ Run/.test(await page.textContent
 await page.click("#ai-cp-x");
 await page.click("#ai-codemode");
 
+// many files written the awkward ways: ``` inside code, four-backtick and ~~~ fences, names
+// on the line before or after a colon, ``` mentioned in a sentence
+await ask("lots of files please", () => document.querySelectorAll("#ai-log .ai-msg.bot:last-child .ai-file:not(.live)").length >= 7 && !document.querySelector("#ai-window.busy"));
+const many = await page.$$eval("#ai-log .ai-msg.bot:last-child .ai-file b", (b) => b.map((x) => x.textContent));
+ok(many.join() === "index.html,app.js,README.md,style.css,server.py,NOTES.md,run.py", "every file comes out as a card, however the model writes the fences (blocks nested with the same mark too)", many.join());
+await page.waitForFunction(() => /done\./.test(document.querySelector("#ai-log .ai-msg.bot:last-child")?.textContent || ""), null, { timeout: 8000 }).catch(() => {});
+const tail = await page.$eval("#ai-log .ai-msg.bot:last-child", (m) => m.textContent);
+ok(/That's all ``` done\./.test(tail) && /like this sentence does/.test(tail), "…and the text around them stays text", tail.slice(-80));
+await page.click("#ai-log .ai-msg.bot:last-child .ai-file[data-f] .ai-f-run");
+const mf = await (await page.waitForSelector("#ai-cp-frame:not([hidden])")).contentFrame();
+ok(await mf.waitForFunction(() => document.getElementById("t")?.textContent === "many ok 1", null, { timeout: 5000 }).then(() => true, () => false), "…and the page runs with its script, localStorage and all");
+await page.click("#ai-cp-x");
+ok(/```bash/.test(await page.evaluate(() => { const c = [...document.querySelectorAll("#ai-log .ai-msg.bot:last-child .ai-file")].find((x) => /README/.test(x.textContent)); return c ? "" + window.ai._file(c.dataset.f) : ""; })), "a file that contains ``` keeps it");
+
 // any file can be sent: text goes along as text, other kinds are named
 await page.setInputFiles("#ai-file", [
   { name: "notes.csv", mimeType: "text/csv", buffer: Buffer.from("name,score\nwillie,99\n") },
