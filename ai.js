@@ -98,6 +98,8 @@ function usageOf(model, u) {
   const cost = rate ? (u.prompt / 1e6) * rate.input + (u.completion / 1e6) * rate.output : null;
   return { ...u, total: u.prompt + u.completion, cost, rate: rate || null };
 }
+// ULTRACODE, the owner's switch for the owner-only models; only sent while it's on
+const ULTRACODE = "ULTRACODE is on. Use your full effort on every message and always give your best possible answer: think it all the way through, check your work, and when writing code give complete, working, carefully checked code with nothing left out.";
 const EFFORTS = new Set(["low", "medium", "high", "xhigh", "max"]);
 const MAX_CUSTOM = 36_500; // the page allows 36,332 characters of instructions, plus its own labels
 function cleanCustom(v) {
@@ -318,6 +320,9 @@ export function aiRouter({ requireSession, limiter, userLimiter, isOwner = () =>
     let tokens = MAX_TOKENS, withUsage = true;
     // how hard it thinks (the page's Effort picker); "max" is Ultra
     let effort = EFFORTS.has(req.body?.effort) ? req.body.effort : null;
+    // ULTRACODE: the most effort the provider offers ("max"), and the line above in the system message
+    const ultra = req.body?.ultracode === true && OWNER_ONLY.test(model) && isOwner(req.vmSession);
+    if (ultra) { effort = "max"; system.content = `${system.content}\n\n${ULTRACODE}`.trim(); }
     const call = async (msgs) => {
       const go = (n) => fetch(`${base}/chat/completions`, {
         method: "POST",
@@ -370,6 +375,7 @@ export function aiRouter({ requireSession, limiter, userLimiter, isOwner = () =>
     const ping = setInterval(() => send({ t: "ping" }), PING_MS);
     send({ t: "model", v: model });
     if (effort) send({ t: "effort", v: effort });
+    if (ultra) send({ t: "ultracode" });
     record("ai");
     let text = partial;
     const used = { prompt: 0, completion: 0, cached: 0, reasoning: 0, counted: false };

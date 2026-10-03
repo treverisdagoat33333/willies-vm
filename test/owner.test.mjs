@@ -120,6 +120,31 @@ ok(!/helpful, friendly assistant/.test(sent) && /music\.play/.test(sent) && /adm
 sent = await sysSent("gpt-4o-mini");
 ok(/helpful, friendly assistant/.test(sent), "…other models still get it");
 
+// ULTRACODE: max effort and the full-effort line, only while it's on, only for the owner's models
+const sentWith = async (body) => {
+  await api(own, "/api/ai/chat", "POST", { model: "dawvqTEST", actions: true, messages: [{ role: "user", content: "hi" }], ...body });
+  const last = await (await fetch(process.env.SITE + "/v1/_last")).json();
+  return { sys: last.messages.find((m) => m.role === "system")?.content || "", effort: last.reasoning_effort };
+};
+let u = await sentWith({ ultracode: true, effort: "max" });
+ok(u.effort === "max" && /Use your full effort on every message/.test(u.sys), "ULTRACODE sends max effort and the full-effort line", JSON.stringify(u).slice(0, 160));
+u = await sentWith({});
+ok(!u.effort && !/full effort/.test(u.sys), "…and neither when it's off");
+await api(sam, "/api/ai/chat", "POST", { model: "gpt-4o-mini", ultracode: true, messages: [{ role: "user", content: "hi" }] });
+u = await (await fetch(process.env.SITE + "/v1/_last")).json();
+ok(!/full effort/.test(u.messages.find((m) => m.role === "system")?.content || "") && !u.reasoning_effort, "…and nobody else can switch it on");
+// the button: only on a dawvq model, and switching it on shows it and plays the burst
+await own.page.evaluate(() => { window.ai.open(); const s = document.querySelector("#ai-model"); s.value = "gpt-4o-mini"; s.dispatchEvent(new Event("change")); });
+await own.page.waitForTimeout(500);
+ok(await own.page.isHidden("#ai-ultra"), "the ULTRACODE button is hidden on other models");
+await own.page.evaluate(() => { const s = document.querySelector("#ai-model"); s.value = "dawvqTEST"; s.dispatchEvent(new Event("change")); });
+ok(await own.page.isVisible("#ai-ultra"), "…and shows on a dawvq model");
+await own.page.click("#ai-ultra");
+const on = await own.page.evaluate(() => ({ btn: document.querySelector("#ai-ultra").classList.contains("on"), win: document.querySelector("#ai-window").classList.contains("ultra"), fx: !!document.querySelector(".ai-ultra-fx"), eff: document.querySelector("#ai-eff-btn").textContent }));
+ok(on.btn && on.win && on.fx && /Max/.test(on.eff), "switching it on lights it up, plays the burst and sets effort to Max", JSON.stringify(on));
+await own.page.screenshot({ path: (process.env.SHOTS || "/tmp") + "/ultracode.png" }).catch(() => {});
+await own.page.click("#ai-ultra");
+
 /* ---- kept VM ---- */
 await own.page.evaluate(() => openAdmin());
 await own.page.waitForFunction(() => /E2B isn't set up|none yet|paused|open now/.test(document.querySelector("#ad-kept-state")?.textContent || ""), null, { timeout: 8000 });

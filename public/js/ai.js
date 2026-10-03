@@ -298,7 +298,7 @@ async function fillModels(){
   // with no online AI, nothing is picked until they say so: the first use downloads hundreds of MB
   MODEL.value=all.includes(saved)?saved:status?.ready?(status.model||list[0]):'';
   MODEL.hidden=true;MODEL.dataset.many=all.length>1?'1':'';
-  MP.hidden=all.length<2;renderPicker();renderCompare?.();renderEffort();
+  MP.hidden=all.length<2;renderPicker();renderCompare?.();renderEffort();renderUltra();
 }
 
 /* ═══ talking to the server ═══ */
@@ -368,7 +368,7 @@ async function askOnline(reply,model,canAct,signal,base){
     const partial=tries?answerOf(reply.content):'';
     let finished=false,failed=null;
     try{
-      const r=await fetch('/api/ai/chat',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({model,actions:canAct,context:siteContext(),custom:customText(),messages:msgs,...(effort?{effort}:{}),...(partial?{partial}:{})}),signal});
+      const r=await fetch('/api/ai/chat',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({model,actions:canAct,context:siteContext(),custom:customText(),messages:msgs,...(ultraOn()?{effort:'max',ultracode:true}:effort?{effort}:{}),...(partial?{partial}:{})}),signal});
       if(!r.ok){const d=await r.json().catch(()=>({}));const e=new Error(d.error||`HTTP ${r.status}`);e.final=r.status<500||r.status===503;throw e}
       const reader=r.body.getReader(),dec=new TextDecoder();let buf='';
       const take=line=>{
@@ -379,6 +379,7 @@ async function askOnline(reply,model,canAct,signal,base){
         else if(m.t==='model')reply.modelName=m.v;
         else if(m.t==='usage')reply.usage=m.v;
         else if(m.t==='effort')reply.effort=m.v;
+        else if(m.t==='ultracode')reply.ultra=true;
         else if(m.t==='done'){finished=true;if(m.finish==='length')reply.note='This answer was very long, so it stopped here. Say "continue" for the rest.'}
         else if(m.t==='error')failed=new Error(m.error);
       };
@@ -418,7 +419,7 @@ function metaOf(m){
     if(u.rate)detail.push(`Cost: ${fmtCost(u.cost)} ($${u.rate.input} in / $${u.rate.output} out per million tokens)`);
     else detail.push('No price is set for this model');
   }else if(out)detail.push(local?'Estimated from the text; models on this device are free':'Estimated from the text: the AI sent no token count');
-  if(m.effort)detail.push(`Effort: ${effortName(m.effort)}`);
+  if(m.effort)detail.push(`Effort: ${m.ultra?'Max (ULTRACODE)':effortName(m.effort)}`);
   if(m.thinkMs)detail.push(`Thought for ${(m.thinkMs/1000).toFixed(1)}s`);
   return{line:parts.join(' · '),detail:detail.join('\n')};
 }
@@ -874,6 +875,30 @@ $('#ai-eff-btn').onclick=()=>{click();renderEffort();EPOP.hidden=!EPOP.hidden;$(
 $('#ai-eff-list').addEventListener('click',e=>{const b=e.target.closest('.ai-mp-it');if(!b)return;click();effort=b.dataset.v;put('ai.effort',effort);EPOP.hidden=true;renderEffort();toast(`Effort: ${effortName(effort)}`,'ok')});
 document.addEventListener('pointerdown',e=>{if(!EPOP.hidden&&!EFF.contains(e.target))EPOP.hidden=true});
 MODEL.addEventListener('change',renderEffort);
+/* ULTRACODE (owner-only models only): effort at the most the provider offers ("max"), plus a
+   line in the system message, sent only while it's on, telling it to give every answer its
+   full effort. Remembered on this device. */
+let ultra=store('ai.ultracode',false)===true;
+const ULTRA=$('#ai-ultra');
+const ownerModel=m=>/^dawvq/i.test(m||'');
+const ultraOn=()=>ultra&&ownerModel(MODEL.value);
+function renderUltra(){
+  ULTRA.hidden=!ownerModel(MODEL.value);
+  ULTRA.classList.toggle('on',ultra);ULTRA.setAttribute('aria-pressed',ultra);
+  W.classList.toggle('ultra',ultraOn());
+  // while it's on the effort picker would only mislead: ULTRACODE always runs at the maximum
+  $('#ai-eff-btn').disabled=ultraOn();
+  if(ultraOn())$('#ai-eff-btn span').textContent='Effort: Max';
+}
+/* switching it on: a shockwave from the button and sparks flying off it */
+function ultraBurst(){
+  const r=ULTRA.getBoundingClientRect(),fx=document.createElement('div');fx.className='ai-ultra-fx';
+  fx.style.left=r.left+r.width/2+'px';fx.style.top=r.top+r.height/2+'px';
+  fx.innerHTML='<i class="ring"></i><i class="ring r2"></i>'+Array.from({length:14},(_,i)=>`<b style="--a:${i*360/14}deg;--d:${50+Math.random()*50}px"></b>`).join('');
+  document.body.appendChild(fx);setTimeout(()=>fx.remove(),1100);
+}
+ULTRA.onclick=()=>{click();ultra=!ultra;put('ai.ultracode',ultra);renderEffort();renderUltra();if(ultra)ultraBurst();toast(ultra?'⚡ ULTRACODE on: maximum effort on every message':'ULTRACODE off',ultra?'ok':'')};
+MODEL.addEventListener('change',renderUltra);
 MODEL.addEventListener('change',renderCompare);
 document.addEventListener('keydown',e=>{if(W.classList.contains('show')&&e.key==='Escape'&&!typing())hide()});
 
