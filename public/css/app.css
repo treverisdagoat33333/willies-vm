@@ -717,3 +717,7 @@ html[data-tbpos="floating"] #desktop,html[data-tbpos="floating"] .panel,html[dat
   .tbb{width:38px;height:38px}
   #tb-user span{display:none}
 }
+
+/* the GPU VM's provider isn't answering: say so on its buttons (remove when it works again) */
+.tile .badge.broken{background:rgba(255,80,80,.18);color:#ff6b6b}
+.broken-tag{display:block;font-style:normal;font-size:.62rem;font-weight:700;color:#ff6b6b;margin-top:1px}
