@@ -1454,7 +1454,7 @@ function openVM(url,label){window.restoreApp?.('vm');vmUrl=url;const f=$('#vm-fr
 async function closeVM(force){
   if(!force&&S.vmconfirm&&!confirm('Close the VM? Your session will end.'))return;
   window.restoreApp?.('vm'); // closing ends a minimized VM too (its time ran out), so drop the taskbar dot
-  clearInterval(pollI);clearInterval(vmTimerI);vmStart=null;$('#vm-timer').textContent='00:00';$('#vm-timer').className='';
+  clearInterval(pollI);pollI=null;clearInterval(vmTimerI);vmStart=null;$('#vm-timer').textContent='00:00';$('#vm-timer').className='';
   const w=$('#vm-wrap');w.classList.add('closing');onCloseDone(w,()=>{w.style.display='none';w.classList.remove('closing')});setTimeout(()=>$('#vm-frame').src='about:blank',220);
   const id=containerId,type=vmType;containerId=vmType=vmUrl=null;
   if(id&&type==='gpu')fetch(`/api/vm/${encodeURIComponent(id)}`,{method:'DELETE'}).catch(()=>{});
@@ -1501,8 +1501,22 @@ $('#ad-kept-del').onclick=()=>dcModal({title:'Delete your kept VM?',sub:'Everyth
   toast('Kept VM deleted','ok');adKept();
 }});
 async function launchE2BVM(){if(containerId){$('#vm-wrap').style.display='flex';return}clearInterval(pollI);setLaunching(true);setStatus('Starting desktop sandbox…',true);try{const r=await fetch('/api/e2b/start',{method:'POST',headers:{'Content-Type':'application/json'}}),d=await r.json();if(!r.ok)throw new Error(d.error||d.message||`HTTP ${r.status}`);if(d.status&&d.status!=='success')throw new Error(d.error||d.message||'Sandbox did not start.');if(!d.sandboxId||!d.url)throw new Error('Sandbox returned no stream URL.');containerId=d.sandboxId;vmType='e2b';openVM(d.url,'VM #1 · Desktop')}catch(e){setStatus('Error: '+e.message);toast('VM #1 failed: '+e.message,'err');reportError('vm',e.message,'VM #1');containerId=vmType=null;setLaunching(false)}}
-async function launchGPUVM(){if(containerId){$('#vm-wrap').style.display='flex';return}clearInterval(pollI);setLaunching(true);setStatus('Requesting GPU instance…',true);try{const r=await fetch('/api/launch?gpu=true'),d=await r.json();if(!r.ok)throw new Error(d.error||d.message||`HTTP ${r.status}`);if(d.status==='success'){containerId=d.container_id;vmType='gpu';openVM(d.url,'VM #2 · GPU');return}if(d.status==='queued'){setStatus(`Queued — position ${d.position??'?'}…`,true);pollQueue(d.token);return}throw new Error(d.error||d.message||'Unexpected response')}catch(e){setStatus('Error: '+e.message);toast('VM #2 failed: '+e.message,'err');reportError('vm',e.message,'VM #2');setLaunching(false)}}
-function pollQueue(token){clearInterval(pollI);if(!token){setLaunching(false);return}pollI=setInterval(async()=>{try{const r=await fetch(`/api/queue?token=${encodeURIComponent(token)}`),d=await r.json().catch(()=>({}));if(!r.ok){if([401,403,404].includes(r.status)){clearInterval(pollI);setStatus('Error: '+(d.error||`HTTP ${r.status}`));toast('VM #2 failed: '+(d.error||`HTTP ${r.status}`),'err');setLaunching(false)}return}if(d.status==='allocated'){clearInterval(pollI);containerId=d.container_id;vmType='gpu';openVM(d.url,'VM #2 · GPU');return}if(d.status==='failed'){clearInterval(pollI);setStatus('Failed: '+(d.reason||'unknown'));toast('Queue failed: '+(d.reason||'unknown'),'err');setLaunching(false);return}setStatus(d.position!==undefined?`Queued — position ${d.position}…`:'Waiting for GPU…',true)}catch(_){}},4000)}
+async function launchGPUVM(){if(containerId){$('#vm-wrap').style.display='flex';return}clearInterval(pollI);setLaunching(true);setStatus('Requesting GPU instance…',true);try{const r=await fetch('/api/launch?gpu=true',{signal:AbortSignal.timeout(60000)}).catch(e=>{throw new Error(e.name==='TimeoutError'?'The GPU provider didn\'t answer. Try again in a few minutes.':'Network error')}),d=await r.json().catch(()=>({error:`HTTP ${r.status}`}));if(!r.ok)throw new Error(d.error||d.message||`HTTP ${r.status}`);if(d.status==='success'){containerId=d.container_id;vmType='gpu';openVM(d.url,'VM #2 · GPU');return}if(d.status==='queued'){setStatus(`Queued — position ${d.position??'?'}…`,true);pollQueue(d.token);return}throw new Error(d.error||d.message||'Unexpected response')}catch(e){setStatus('Error: '+e.message);toast('VM #2 failed: '+e.message,'err');reportError('vm',e.message,'VM #2');setLaunching(false)}}
+/* The queue check is a long poll (the server waits up to 25 s), so ask again only after each
+   answer; asking every 4 s stacked requests up. Give up after 10 minutes in the queue. */
+function pollQueue(token){clearInterval(pollI);if(!token){setLaunching(false);return}const run=pollI={},until=Date.now()+600000;
+  const fail=m=>{if(pollI!==run)return;pollI=null;setStatus('Error: '+m);toast('VM #2 failed: '+m,'err');reportError('vm',m,'VM #2');setLaunching(false)};
+  (async()=>{let misses=0;while(pollI===run){
+    if(Date.now()>until)return fail('Still no GPU free after 10 minutes. Try again later.');
+    try{const r=await fetch(`/api/queue?token=${encodeURIComponent(token)}`,{signal:AbortSignal.timeout(50000)}),d=await r.json().catch(()=>({}));if(pollI!==run)return;
+      if(!r.ok){if([401,403,404].includes(r.status)||++misses>=5)return fail(d.error||`HTTP ${r.status}`);await new Promise(z=>setTimeout(z,3000));continue}
+      misses=0;
+      if(d.status==='allocated'){pollI=null;containerId=d.container_id;vmType='gpu';openVM(d.url,'VM #2 · GPU');return}
+      if(d.status==='failed')return fail(d.reason||'the GPU provider couldn\'t start it');
+      setStatus(d.position!==undefined?`Queued — position ${d.position}…`:'Waiting for GPU…',true);
+    }catch(_){if(++misses>=5)return fail('Lost touch with the GPU provider.');await new Promise(z=>setTimeout(z,3000))}
+  }})();
+}
 
 /* ═══════════════════════════════════════════════════════════
    BROWSER (proxy engines)

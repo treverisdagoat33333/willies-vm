@@ -1377,9 +1377,10 @@ app.get("/api/launch", requireSession, vmStartGate, async (req, res) => {
   try {
     const response = await fetch(
       `${XENV}/api/create?site_limit=${siteLimit}&delete_after=${deleteAfter}&gpu=${encodeURIComponent(gpu)}&developer_id=${encodeURIComponent(DEV_ID)}`,
-      { headers: { "X-API-Key": XENV_API_KEY } }
+      // XENV sometimes never answers; without a limit the page said "Requesting GPU instance…" forever
+      { headers: { "X-API-Key": XENV_API_KEY }, signal: AbortSignal.timeout(45_000) }
     );
-    const data = await response.json();
+    const data = await response.json().catch(() => ({ error: `The GPU provider sent a bad reply (HTTP ${response.status}).` }));
     if (!response.ok) return res.status(response.status).json(data);
     if (data.status === "success" && data.container_id) trackXenv(data.container_id, req.vmSession, deleteAfter);
     // a queued launch keeps its slot for as long as the page keeps polling
@@ -1387,7 +1388,8 @@ app.get("/api/launch", requireSession, vmStartGate, async (req, res) => {
     res.json(data);
   } catch (err) {
     console.error("XENV launch error:", err);
-    res.status(500).json({ error: err.message || "XENV launch failed." });
+    const slow = err?.name === "TimeoutError" || err?.name === "AbortError";
+    res.status(slow ? 504 : 502).json({ error: slow ? "The GPU provider didn't answer. It may be down or out of GPUs; try again in a few minutes." : `Couldn't reach the GPU provider (${err.message || "network error"}).` });
   } finally {
     vmPending.delete(reservation);
   }
@@ -1426,9 +1428,9 @@ app.get("/api/queue", requireSession, async (req, res) => {
   try {
     const response = await fetch(
       `${XENV}/api/queue_status?token=${encodeURIComponent(token)}&wait=true&timeout=25`,
-      { headers: { "X-API-Key": XENV_API_KEY } }
+      { headers: { "X-API-Key": XENV_API_KEY }, signal: AbortSignal.timeout(40_000) }
     );
-    const data = await response.json();
+    const data = await response.json().catch(() => ({ error: `The GPU provider sent a bad reply (HTTP ${response.status}).` }));
     if (!response.ok) return res.status(response.status).json(data);
     if (data.status === "allocated" || data.status === "failed") vmPending.delete(pendingKey);
     if (data.status === "allocated" && data.container_id && !xenvVMs.has(data.container_id)) {
