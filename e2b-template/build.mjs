@@ -65,11 +65,45 @@ const template = Template()
     "chmod +x ~/Desktop/*.desktop",
     // Continue: AI chat inside VS Code; the site writes its settings when VM #4 starts
     "code --install-extension Continue.continue --force || true",
+  ])
+  // ---- more languages, Python extras, more AI coding tools and everyday apps ----
+  .setUser("root")
+  .runCmd([
+    "apt-get update",
+    // Java, .NET, GIMP, VLC and OBS
+    "DEBIAN_FRONTEND=noninteractive apt-get install -y openjdk-17-jdk-headless dotnet-sdk-8.0 gimp vlc obs-studio",
+    // Go, the current release (Ubuntu's own is years old)
+    "curl -fsSL \"https://go.dev/dl/$(curl -fsSL 'https://go.dev/VERSION?m=text' | head -n1).linux-amd64.tar.gz\" | tar -C /usr/local -xz",
+    "ln -sf /usr/local/go/bin/go /usr/local/bin/go && ln -sf /usr/local/go/bin/gofmt /usr/local/bin/gofmt",
+    // uv (fast Python installs) for everyone, and the usual data tools
+    "curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR=/usr/local/bin UV_NO_MODIFY_PATH=1 sh",
+    "pip3 install --no-cache-dir jupyter numpy pandas matplotlib",
+    // Codex CLI and Gemini CLI next to Claude Code and opencode
+    "npm install -g @openai/codex @google/gemini-cli",
+    "rm -rf /var/lib/apt/lists/*",
+  ])
+  .setUser("user")
+  .runCmd([
+    // Rust, Bun and Deno, installed for the user (each adds itself to ~/.bashrc)
+    "curl -fsSL https://sh.rustup.rs | sh -s -- -y --profile minimal",
+    "curl -fsSL https://bun.sh/install | bash",
+    "curl -fsSL https://deno.land/install.sh | sh -s -- -y",
+    // Aider, on its own Python, so it never fights the system one
+    "uv tool install --python 3.12 aider-chat",
+    "grep -q '.local/bin' ~/.bashrc || echo 'export PATH=\"$HOME/.local/bin:$PATH\"' >> ~/.bashrc",
+    // shortcuts for the new AI tools
+    "printf '[Desktop Entry]\\nType=Application\\nName=Aider\\nExec=xfce4-terminal --hold -e \"bash -ic aider\"\\nIcon=utilities-terminal\\n' > ~/Desktop/aider.desktop",
+    "printf '[Desktop Entry]\\nType=Application\\nName=Codex\\nExec=xfce4-terminal --hold -e codex\\nIcon=utilities-terminal\\n' > ~/Desktop/codex.desktop",
+    "chmod +x ~/Desktop/*.desktop",
+    // a head start: common packages already in the npm and pip caches, so installs are quick
+    "npm cache add react react-dom vite @vitejs/plugin-react typescript express next tailwindcss",
+    "python3 -m pip download -d /tmp/pipwarm requests flask fastapi uvicorn pygame && rm -rf /tmp/pipwarm",
   ]);
 
 const info = await Template.build(template, NAME, {
-  cpuCount: 2,
-  memoryMB: 4096,
+  // a bigger computer: faster builds, and room for VS Code, Chrome and a dev server at once
+  cpuCount: 4,
+  memoryMB: 8192,
   onBuildLogs: defaultBuildLogger(),
 });
 console.log(`\nDone. Template "${NAME}" is ready (id ${info.templateId}).`);

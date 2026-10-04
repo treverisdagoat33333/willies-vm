@@ -69,6 +69,7 @@ import {
 import { clientIp, createLimiter, limitByIp, formatWait } from "./security.js";
 import { musicRouter } from "./music.js";
 import { aiRouter, shellSandbox as aiShellSandbox } from "./ai.js";
+import { pullFiles, pushFiles, saveHome } from "./vmsync.js";
 import { moviesRouter } from "./movies.js";
 import { analyticsRouter, record, recentErrors, onError } from "./analytics.js";
 import { filesRouter } from "./files.js";
@@ -154,8 +155,13 @@ function claudeLoginFiles() {
 // Code" has saved that login (claudeLoginFiles), and otherwise asks to sign in like a new install.
 const shq = (v) => "'" + String(v).replace(/'/g, "'\\''") + "'";
 const profileOf = (envs) => Object.entries(envs).map(([k, v]) => `export ${k}=${shq(v)}`).join("\n") + "\n";
+// The owner's instructions for Claude Code in every VM #4 (e2b-template/CLAUDE.md, edited in the repo)
+function claudeMdFiles() {
+  try { return [{ path: "/home/user/.claude/CLAUDE.md", data: fs.readFileSync(new URL("./e2b-template/CLAUDE.md", import.meta.url), "utf8") }]; }
+  catch (_) { return []; }
+}
 async function vm4Setup() {
-  const login = claudeLoginFiles();
+  const login = { envs: claudeLoginFiles().envs, files: [...claudeLoginFiles().files, ...claudeMdFiles()] };
   // the terminal apps draw boxes and symbols, which come out as "?" without UTF-8
   const base = { LANG: "en_US.UTF-8", LC_ALL: "en_US.UTF-8", ...login.envs };
   if (!VM4_AI_KEY || !VM4_AI_URL) return { envs: base, files: [{ path: "/home/user/.vm4-env", data: profileOf(base) }, ...login.files] };
@@ -182,6 +188,10 @@ async function vm4Setup() {
       { path: "/home/user/.vm4-env", data: profile },
       { path: "/home/user/.config/opencode/opencode.json", data: JSON.stringify(opencode, null, 2) },
       { path: "/home/user/.continue/config.yaml", data: continueCfg },
+      // Aider on the same API. Codex is left to sign in with ChatGPT: the API refuses the
+      // requests Codex makes (its own Responses calls work, Codex's fail on every model), and
+      // Gemini CLI only talks to Google, so it signs in there too.
+      { path: "/home/user/.aider.conf.yml", data: `model: openai/${VM4_CLAUDE_MODEL}\nopenai-api-base: ${VM4_AI_URL}\nopenai-api-key: ${VM4_AI_KEY}\ncheck-update: false\nanalytics-disable: true\nshow-model-warnings: false\n` },
       ...login.files,
     ],
   };
@@ -1582,11 +1592,11 @@ app.post("/api/e2b/start", requireSession, vmStartGate, async (req, res) => {
     if (!streamUrl) throw new Error("E2B did not return a stream URL.");
 
     const owner = sessionLabel(req.vmSession);
-    e2bSandboxes.set(sandboxId, {
-      sandbox, owner, who: vmWho(req.vmSession), startedAt: Date.now(), expiresAt: Date.now() + timeoutMs, code,
-    });
+    const entry = { sandbox, owner, who: vmWho(req.vmSession), startedAt: Date.now(), expiresAt: Date.now() + timeoutMs, code };
+    e2bSandboxes.set(sandboxId, entry);
     // E2B kills it on its own at the timeout; forget it then too
     setTimeout(() => e2bSandboxes.delete(sandboxId), timeoutMs).unref?.();
+    if (code) startFilesSync(entry, req.vmSession.username, timeoutMs);
     logEvent("vm", `${owner} started a desktop VM`);
     record("vm", "desktop");
     return res.json({
@@ -1842,10 +1852,35 @@ app.delete("/api/vm/kept", requireOwner, async (req, res) => {
 |--------------------------------------------------------------------------
 */
 
+/* VM #4 and the owner's Files (vmsync.js): Files are copied onto its desktop as it starts
+   (in the background, so the VM doesn't wait), the desktop folder goes back every minute,
+   and the home folder is saved to Files › VM #4 when it closes or its time is about up. */
+function startFilesSync(entry, user, timeoutMs) {
+  const box = entry.sandbox;
+  entry.user = user;
+  pullFiles(box, user).catch((e) => console.warn("VM #4 files in:", e.message));
+  entry.syncTimer = setInterval(() => pushFiles(box, user).catch(() => {}), 60_000);
+  entry.syncTimer.unref?.();
+  // E2B stops it at the timeout with no warning, so save a minute and a half before
+  entry.lastSave = setTimeout(() => finalSave(entry), Math.max(timeoutMs - 90_000, 30_000));
+  entry.lastSave.unref?.();
+}
+async function finalSave(entry) {
+  if (!entry.user || entry.saved) return;
+  entry.saved = true;
+  clearInterval(entry.syncTimer); clearTimeout(entry.lastSave);
+  try {
+    await pushFiles(entry.sandbox, entry.user);
+    const home = await saveHome(entry.sandbox, entry.user);
+    if (home.length) logEvent("vm", `VM #4 saved ${home.length} files to Files › VM #4`);
+  } catch (e) { console.warn("VM #4 save:", e.message); }
+}
+
 async function killE2B(sandboxId) {
   const entry = e2bSandboxes.get(sandboxId);
   if (!entry) return;
   e2bSandboxes.delete(sandboxId);
+  await finalSave(entry);
   try { await entry.sandbox.stream.stop(); } catch (_) {}
   try { await entry.sandbox.kill(); } catch (_) {}
   console.log(`E2B sandbox killed: ${sandboxId}`);

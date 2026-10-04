@@ -6,8 +6,10 @@
 # The coding VM (VM #4)
 
 `build.mjs` makes an E2B template called **willie-code**: E2B's normal desktop plus
-Google Chrome, VS Code, Git, Python, Node 22, **Claude Code** and **opencode**, with
-desktop shortcuts for each. E2B builds it on their servers, so you only need Node.
+Google Chrome, VS Code, Git, Python, Node 22, Java, .NET, Go, Rust, Bun, Deno, uv,
+Jupyter, **Claude Code**, **opencode**, **Aider**, **Codex** and **Gemini CLI**, GIMP,
+VLC and OBS, with desktop shortcuts. `CLAUDE.md` here becomes Claude Code's
+instructions in every VM #4. E2B builds it on their servers, so you only need Node.
 
 ## Build it (once, about 5–10 minutes)
 
