@@ -156,9 +156,16 @@ function claudeLoginFiles() {
 const shq = (v) => "'" + String(v).replace(/'/g, "'\\''") + "'";
 const profileOf = (envs) => Object.entries(envs).map(([k, v]) => `export ${k}=${shq(v)}`).join("\n") + "\n";
 // The owner's instructions for Claude Code in every VM #4 (e2b-template/CLAUDE.md, edited in the repo)
+// and the same for opencode: in its agent folder (where the owner asked for it) and as its
+// AGENTS.md, which is what opencode reads as its instructions for every agent
 function claudeMdFiles() {
-  try { return [{ path: "/home/user/.claude/CLAUDE.md", data: fs.readFileSync(new URL("./e2b-template/CLAUDE.md", import.meta.url), "utf8") }]; }
-  catch (_) { return []; }
+  let data;
+  try { data = fs.readFileSync(new URL("./e2b-template/CLAUDE.md", import.meta.url), "utf8"); } catch (_) { return []; }
+  return [
+    { path: "/home/user/.claude/CLAUDE.md", data },
+    { path: "/home/user/.config/opencode/agent/claude.md", data },
+    { path: "/home/user/.config/opencode/AGENTS.md", data },
+  ];
 }
 async function vm4Setup() {
   const login = { envs: claudeLoginFiles().envs, files: [...claudeLoginFiles().files, ...claudeMdFiles()] };
