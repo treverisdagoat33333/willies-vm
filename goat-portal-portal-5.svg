@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg"
+     xmlns:xhtml="http://www.w3.org/1999/xhtml"
+     width="100%"
+     height="100%"
+     style="display:block;margin:0;padding:0;background:#000">
+  <title>Nyx</title>
+  <desc>Loads the official Nyx site inside a full-window frame.</desc>
+  <script><![CDATA[
+    (() => {
+      const officialOrigin = "https://nyxlearning.org";
+      const applyCloak = event => {
+        const frame = document.getElementById("nyxSiteFrame");
+        if (!frame || event.origin !== officialOrigin || event.source !== frame.contentWindow || event.data?.type !== "nyx:tab-cloak-sync") return;
+        const title = String(event.data.title || "Nyx").trim().slice(0, 120) || "Nyx";
+        const favicon = String(event.data.favicon || "").trim();
+        const titleElement = document.querySelector("title");
+        if (titleElement) titleElement.textContent = title;
+        try { document.title = title; } catch {}
+        if (!/^(?:https?:|data:image\/)/i.test(favicon)) return;
+        let icon = document.getElementById("nyxOuterTabIcon");
+        if (!icon) {
+          icon = document.createElementNS("http://www.w3.org/1999/xhtml", "link");
+          icon.id = "nyxOuterTabIcon";
+          icon.setAttribute("rel", "icon");
+          document.documentElement.appendChild(icon);
+        }
+        icon.setAttribute("href", favicon.slice(0, 250000));
+      };
+      addEventListener("message", applyCloak);
+    })();
+  ]]></script>
+  <rect width="100%" height="100%" fill="#000"/>
+  <foreignObject x="0" y="0" width="100%" height="100%">
+    <xhtml:iframe
+      id="nyxSiteFrame"
+      src="https://nyxlearning.org/"
+      title="Nyx"
+      allow="autoplay; camera; clipboard-read; clipboard-write; display-capture; fullscreen; microphone"
+      allowfullscreen="allowfullscreen"
+      referrerpolicy="strict-origin-when-cross-origin"
+      style="position:fixed;inset:0;width:100%;height:100%;border:0;margin:0;padding:0;background:#000;display:block">
+    </xhtml:iframe>
+  </foreignObject>
+</svg>
