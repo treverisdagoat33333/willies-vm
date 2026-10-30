@@ -146,7 +146,16 @@
     // graphics chip's own limit and the core count tell them apart. Auto stays modest:
     // the big ones are there to pick by hand.
     const strong = c.mem >= 8 && c.cores >= 8 && c.gpuMb >= 2048;
-    const order = [
+    // A Chromebook's graphics chip shares its small memory with the whole system, and loading a
+    // WebGPU model there often kills the tab (the page goes blank after the download). Auto keeps
+    // to Chrome's own AI or the CPU engines on ChromeOS; the WebGPU ones stay there to pick by hand.
+    const cros = /\bCrOS\b/.test(navigator.userAgent);
+    const order = cros ? [
+      c.nano === "available" && all.find((m) => m.engine === "chrome"),
+      all.find((m) => m.engine === "wllama" && /0\.5b/i.test(m.id)),
+      all.find((m) => m.engine === "transformers" && /360M/.test(m.id)),
+      all.find((m) => m.engine === "transformers" && /135M/.test(m.id)),
+    ] : [
       c.gpu && strong && all.find((m) => m.engine === "webllm" && /Qwen3\.5-2B/.test(m.id)),
       c.gpu && c.mem >= 4 && c.gpuMb >= 1024 && all.find((m) => m.engine === "webllm" && /Qwen3\.5-0\.8B/.test(m.id)),
       c.nano === "available" && all.find((m) => m.engine === "chrome"),
