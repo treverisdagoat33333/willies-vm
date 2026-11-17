@@ -9,6 +9,7 @@ import fs from "node:fs";
 import http from "node:http";
 import { createRequire } from "node:module";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import crypto from "node:crypto";
 import express from "express";
 import zlib from "node:zlib";
@@ -362,7 +363,7 @@ app.use("/libcurl/", pkgStatic(dirOf("@mercuryworkshop/libcurl-transport")));
 |--------------------------------------------------------------------------
 */
 app.use("/sj1/", pkgStatic(scramjetV1Path));
-app.use("/uv/", compressedStatic([path.join(path.dirname(new URL(import.meta.url).pathname), "public", "uv"), uvPath]), express.static(path.join(path.dirname(new URL(import.meta.url).pathname), "public", "uv")), express.static(uvPath));
+app.use("/uv/", compressedStatic([path.join(path.dirname(fileURLToPath(import.meta.url)), "public", "uv"), uvPath]), express.static(path.join(path.dirname(fileURLToPath(import.meta.url)), "public", "uv")), express.static(uvPath));
 app.use("/baremux/", pkgStatic(baremuxPath));
 // The Linux VM that runs in the visitor's own tab (public/linux.html): the emulator and its wasm.
 app.use("/v86/", pkgStatic(dirOf("v86")));
@@ -397,7 +398,7 @@ app.post("/wj-net", requireSession, limitByIp(fastnetLimiter, "Too many fast-mod
 | Serve public static files (your frontend)
 |--------------------------------------------------------------------------
 */
-const publicDir = path.join(path.dirname(new URL(import.meta.url).pathname), "public");
+const publicDir = path.join(path.dirname(fileURLToPath(import.meta.url)), "public");
 
 /*
 |--------------------------------------------------------------------------

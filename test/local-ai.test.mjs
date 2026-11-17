@@ -16,6 +16,8 @@ const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PAT
 
 /* a pretend Gemini Nano: echoes what it was asked, streams it in pieces, and acts when asked to */
 const NANO = () => {
+  Object.defineProperty(navigator, "gpu", { configurable: true, value: undefined });
+  Object.defineProperty(navigator, "deviceMemory", { configurable: true, value: 32 });
   window.__nano = { sessions: 0, prompts: [] };
   window.LanguageModel = {
     availability: async () => "available",

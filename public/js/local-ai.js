@@ -82,11 +82,15 @@
 
   /* ---- what this device can do ---- */
   let caps = null;
+  const probe = (promise, fallback) => new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(fallback), 1500);
+    Promise.resolve(promise).then((value) => { clearTimeout(timer); resolve(value); }, () => { clearTimeout(timer); resolve(fallback); });
+  });
   async function capabilities() {
     if (caps) return caps;
     let gpu = false, f16 = false, gpuMb = 0;
     try {
-      const a = navigator.gpu && (await navigator.gpu.requestAdapter());
+      const a = navigator.gpu && (await probe(navigator.gpu.requestAdapter(), null));
       gpu = !!a;
       f16 = !!a?.features?.has("shader-f16");
       // the biggest single buffer the chip will hand out: a rough guide to how big a model fits
@@ -95,8 +99,8 @@
     let nano = "unavailable";
     try {
       const LM = self.LanguageModel || self.ai?.languageModel;
-      if (LM?.availability) nano = await LM.availability();
-      else if (LM?.capabilities) { const c = await LM.capabilities(); nano = c.available === "readily" ? "available" : c.available === "after-download" ? "downloadable" : "unavailable"; }
+      if (LM?.availability) nano = await probe(LM.availability(), "unavailable");
+      else if (LM?.capabilities) { const c = await probe(LM.capabilities(), { available: "no" }); nano = c.available === "readily" ? "available" : c.available === "after-download" ? "downloadable" : "unavailable"; }
     } catch (_) {}
     const mem = navigator.deviceMemory || 4;
     return (caps = { gpu, f16, gpuMb, nano, mem, cores: navigator.hardwareConcurrency || 2, wasm: typeof WebAssembly === "object" });

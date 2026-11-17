@@ -1,0 +1,22 @@
+/*!
+ * william's vm
+ * Copyright (c) 2026 William (github.com/treverisdagoat33333)
+ * All rights reserved. Proprietary and confidential. See LICENSE.
+ */
+html,body{background:#08090b;color:#eceef2;font-family:"Segoe UI Variable Text","Segoe UI",system-ui,sans-serif;letter-spacing:-.015em}
+#pick{justify-content:center;gap:24px;padding:48px 24px;background:radial-gradient(ellipse at 50% 0,#b7c3d514,transparent 65%)}
+#pick h1{font-size:clamp(28px,4vw,44px);font-weight:500;letter-spacing:-.05em}
+#pick>p{line-height:1.8;font-size:13px;color:#929ba8}
+.lx-row{gap:12px;margin:12px 0}
+.lx-os{background:linear-gradient(145deg,#1b1e24,#101216);border:1px solid #ffffff12;border-radius:14px;padding:22px;width:230px;transition:transform .22s,border-color .22s,background .22s;box-shadow:inset 0 1px #ffffff04}
+.lx-os:hover{transform:translateY(-3px);border-color:#d3d9e542}
+.lx-os[aria-pressed="true"]{border-color:#bec7d5;background:linear-gradient(145deg,#303640,#171a20);box-shadow:0 0 0 3px #c1c9d30c}
+.lx-os b{font-weight:550;letter-spacing:-.025em}.lx-os small{color:#9da6b3;line-height:1.6}.lx-os i{background:#ffffff0c;color:#d4dce7}
+select,button.alt,#bar button{border:1px solid #ffffff16;background:#16191f;border-radius:9px;color:#c9d0db;transition:background .2s}
+button.go{border:1px solid #ffffff70;background:linear-gradient(135deg,#f1f3f6,#aeb6c3);color:#15191f;border-radius:10px;padding:12px 28px;box-shadow:inset 0 1px #fff8}
+button:hover{filter:brightness(1.12)}button:focus-visible,select:focus-visible{outline:2px solid #d3dbe6;outline-offset:4px}
+#bar{background:#101216;border-color:#ffffff12;padding:10px 14px}#bar span{color:#9ca6b5}
+#paste>div{background:#14171d;border:1px solid #ffffff1c;border-radius:18px;padding:24px;box-shadow:0 30px 80px #0008}
+#paste textarea{background:#0b0d10;border-color:#ffffff18;color:#dce2eb}
+#drop{background:#c5ced91c;border-color:#c5ced9}
+@media(prefers-reduced-motion:reduce){*{transition:none!important}}

@@ -8,11 +8,12 @@
 import { chromium } from "playwright";
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 const BASE = process.env.BASE;
 let pass = 0, fail = 0;
 const ok = (c, l, x = "") => { c ? pass++ : fail++; console.log(`${c ? "PASS" : "FAIL"} ${l}${c ? "" : "  -> " + x}`); };
 // two pretend games in public/games/: a folder with a cover and game.json, and a single file
-const GDIR = path.join(path.dirname(new URL(import.meta.url).pathname), "..", "public", "games");
+const GDIR = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "public", "games");
 const made = [path.join(GDIR, "zz-test-folder"), path.join(GDIR, "zz-test-single.html")];
 fs.mkdirSync(made[0], { recursive: true });
 fs.writeFileSync(path.join(made[0], "index.html"), "<!doctype html><title>Ignored title</title><canvas id=c></canvas><script>window.ready=1</script>");

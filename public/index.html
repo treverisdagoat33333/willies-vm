@@ -13,7 +13,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
 <meta name="color-scheme" content="dark">
-<meta name="theme-color" content="#0b0d12">
+<meta name="theme-color" content="#08090b">
 <title>Willie OS</title>
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
@@ -33,6 +33,7 @@
 <link rel="stylesheet" href="/css/apps.css">
 <link rel="stylesheet" href="/css/arcade.css">
 <link rel="stylesheet" href="/css/motion.css">
+<link rel="stylesheet" href="/css/silver.css">
 </head>
 <body>
 
@@ -50,7 +51,7 @@
 <!-- AUTH -->
 <div id="auth-wrap">
   <form id="auth-card" class="glass" autocomplete="on">
-    <div class="logo"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg></div>
+    <div class="workspace-auth-label">WILLIE OS / SILVER EDITION</div><div class="logo"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg></div>
     <h2 id="auth-title">Create your account</h2>
     <p id="auth-description">Accounts get <b>1 hour</b> of VM time per session. Guests get 30 minutes.</p>
     <input id="auth-username" class="field" type="text" placeholder="Username" autocomplete="username" maxlength="24" required>
@@ -92,11 +93,28 @@
         <button class="close" id="btn-close" title="Close"><svg width="10" height="10" viewBox="0 0 10 10"><path d="M1 1l8 8M9 1L1 9" stroke="currentColor" stroke-width="1.5"/></svg></button>
       </div>
     </div>
-    <div class="body">
+    <div class="workspace-shell">
+      <aside class="workspace-nav" aria-label="Workspace navigation">
+        <div class="workspace-wordmark"><span class="workspace-mark">W</span><span>willie<span class="workspace-os">OS</span></span></div>
+        <div class="workspace-nav-label">WORKSPACE</div>
+        <button class="workspace-nav-item selected" aria-current="page"><span>◈</span> Overview</button>
+        <button class="workspace-nav-item" data-app="browser"><span>◎</span> Browser</button>
+        <button class="workspace-nav-item" data-app="apps"><span>⊞</span> Applications</button>
+        <button class="workspace-nav-item" data-app="vm"><span>⌘</span> Virtual machines</button>
+        <button class="workspace-nav-item" data-app="ai"><span>✧</span> Willie AI</button>
+        <div class="workspace-nav-label">YOUR SPACE</div>
+        <button class="workspace-nav-item" data-app="chat"><span>◇</span> Community</button>
+        <button class="workspace-nav-item" data-app="music"><span>♫</span> Music</button>
+        <button class="workspace-nav-item" data-app="games"><span>⊙</span> Arcade</button>
+        <div class="workspace-nav-bottom"><div class="workspace-edition">SILVER EDITION <span>01</span></div><button class="workspace-nav-item" data-app="settings"><span>⚙</span> Settings</button></div>
+      </aside>
+      <div class="body">
+      <div class="workspace-heading"><span>YOUR PERSONAL WORKSPACE</span><span class="workspace-online"><i></i> SYSTEM ONLINE</span></div>
       <div class="hero">
-        <div class="logo"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg></div>
-        <div><h1>Willie OS</h1><p id="hero-sub">Pick something to launch.</p></div>
+        <div class="workspace-hero-copy"><div class="workspace-eyebrow">LESS NOISE. MORE POSSIBILITY.</div><h1>Your space.<br><span>Without limits.</span></h1><p id="hero-sub">Everything you need, one place to begin.</p><button class="btn primary workspace-explore" data-app="apps">Explore your apps <span aria-hidden="true">↗</span></button></div>
+        <div class="silver-sculpture" aria-hidden="true"><div class="silver-orbit orbit-one"></div><div class="silver-orbit orbit-two"></div><div class="silver-orbit orbit-three"></div><span class="silver-core">W</span><span class="silver-caption">BUILT FOR YOUR WORLD</span></div>
       </div>
+      <div class="workspace-section"><h2>Make yourself at home</h2><span>YOUR APPS, ONE CLICK AWAY</span></div>
       <div class="tiles">
         <button class="tile vm-btn" data-app="vm1"><div class="ic c7"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v10H4z"/><path d="M2 19h20"/></svg></div><div><b>VM #1</b><small>Desktop sandbox</small></div></button>
         <button class="tile vm-btn" data-app="vm3"><div class="ic c1"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 17l6-6-6-6"/><path d="M12 19h8"/></svg></div><div><b>VM #3 · Linux</b><small>Runs in your browser · no time limit</small></div></button>
@@ -117,6 +135,7 @@
         <div id="status">Ready.</div>
         <div class="pill"><span class="dot"></span><span id="player-count-text">Online</span></div>
       </div>
+    </div>
     </div>
   </div>
 </div>

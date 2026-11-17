@@ -13,6 +13,9 @@ let pass = 0, fail = 0;
 const ok = (c, l, x = "") => { c ? pass++ : fail++; console.log(`${c ? "PASS" : "FAIL"} ${l}${c ? "" : "  -> " + x}`); };
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined, args: ["--autoplay-policy=no-user-gesture-required"] });
 const ctx = await browser.newContext({ baseURL: BASE, viewport: { width: 1280, height: 800 } });
+await ctx.route("**/api/music/resolve?**", (route) => new URL(route.request().url()).searchParams.get("via") === "yt"
+  ? route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ error: "YouTube unavailable in this fallback test" }) })
+  : route.continue());
 const page = await ctx.newPage();
 const errors = [];
 page.on("pageerror", (e) => errors.push(e.message));

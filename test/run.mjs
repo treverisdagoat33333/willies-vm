@@ -100,7 +100,11 @@ try {
   console.error(e.message);
   failed++;
 } finally {
-  for (const c of children) c.kill();
-  for (const d of temps) fs.rmSync(d, { recursive: true, force: true });
+  await Promise.all(children.map((c) => new Promise((resolve) => {
+    if (c.exitCode !== null || c.signalCode !== null) return resolve();
+    c.once("exit", resolve);
+    c.kill();
+  })));
+  for (const d of temps) fs.rmSync(d, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
 }
 process.exit(failed ? 1 : 0);

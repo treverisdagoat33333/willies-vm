@@ -8,7 +8,7 @@
    ═══════════════════════════════════════════════════════════ */
 const $=(s,r=document)=>r.querySelector(s),$$=(s,r=document)=>[...r.querySelectorAll(s)];
 const DEFAULTS={
-  theme:'oled',accent:'#4f8cff',accent2:'#a855f7',gradient:true,glow:false,autotheme:false,
+  theme:'oled',accent:'#d8dce3',accent2:'#8b929e',gradient:true,glow:false,autotheme:false,
   font:'system',radius:'normal',density:'normal',
   wallpaper:'black',wallpaperUrl:'',blur:true,opacity:0.72,scale:'1',
   particles:false,pstyle:'dots',pcount:70,ripple:false,trail:false,filter:'none',dim:1,
@@ -19,7 +19,7 @@ const DEFAULTS={
   cloak:'none',cloakTitle:'',cloakIcon:'',cloakAuto:false,cloakRandom:false,
   panic:false,panicKey:'`',panicUrl:'https://classroom.google.com',panicAction:'redirect',panicWipe:false,
   blurunfocus:false,blurAmt:24,lock:false,lockMins:'5',
-  perf:false,autoPerf:true,motion:false,bouncy:true,wallimg:true,preload:false,sound:false,soundpack:'soft',volume:0.5,chatsound:true,fps:false,notify:false,sync:true,
+  perf:false,autoPerf:true,motion:false,bouncy:false,wallimg:true,preload:false,sound:false,soundpack:'soft',volume:0.5,chatsound:true,fps:false,notify:false,sync:true,
   proxy:'wj',wjFast:true,wjAds:true,saveLogins:true,confirmLeave:true,
   wClock:true,wWeather:false,wMusic:true,wTodo:false // desktop widgets (js/desk.js)
 };
@@ -51,6 +51,7 @@ let S=(()=>{
 // the rebrand to Willie OS: everyone moves to the black look once; a pick made after that sticks
 try{if(!localStorage.getItem('wvm.defaults.v3')){S.theme='oled';S.autotheme=false;S.wallpaper='black';if(S.bgtextval==='Willie Games V3')S.bgtextval='Willie OS';localStorage.setItem(KEY,JSON.stringify(S));localStorage.setItem('wvm.defaults.v3','1')}}catch(_){}
 try{if(!localStorage.getItem('wvm.defaults.v2')){if(S.proxy==='sj2')S.proxy='wj';if(S.wjFast===false)S.wjFast=true;localStorage.setItem(KEY,JSON.stringify(S));localStorage.setItem('wvm.defaults.v2','1')}}catch(_){}
+try{if(!localStorage.getItem('wvm.silver.v1')){Object.assign(S,{theme:'oled',accent:'#d8dce3',accent2:'#8b929e',wallpaper:'black',autotheme:false,glow:false,bouncy:false});localStorage.setItem(KEY,JSON.stringify(S));localStorage.setItem('wvm.silver.v1','1')}}catch(_){}
 let quietLeave=false; // our own reload or the panic key is leaving: don't ask "Leave site?" (see askBeforeLeaving)
 /* settings sync state; the logic lives in SETTINGS SYNC further down */
 const SYNC_LOCAL_ONLY=['perf','autoPerf','wallimg','preload','fps','sync','proxy','wjFast','wjAds']; // speed and engine settings belong to the device
