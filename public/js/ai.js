@@ -456,10 +456,12 @@ function setBusy(on){
   $('#ai-send').setAttribute('aria-label',on?'Stop':'Send');$('#ai-send').title=on?'Stop':'Send (Enter)';
 }
 /* the picker: the server's models, then the ones that run on this device (js/local-ai.js) */
-let localModels=[];
+let localModels=[],localModelsScan=null;
 const isLocal=v=>String(v||'').startsWith('local:');
 async function fillModels(){
-  if(window.localAI&&!localModels.length)localModels=await window.localAI.list().catch(()=>[]);
+  if(window.localAI&&!localModels.length&&!localModelsScan){
+    localModelsScan=window.localAI.list().then(list=>{localModels=list;if(list.length){fillModels();renderLog()}}).catch(()=>{});
+  }
   const saved=store('ai.model',''),list=status?.models||[];
   const online=list.map(m=>`<option value="${esc(m)}">${esc(m)}</option>`).join('');
   const usable=localModels.filter(m=>!m.why),blocked=localModels.filter(m=>m.why);

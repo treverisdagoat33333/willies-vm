@@ -50,10 +50,13 @@ ok(oldWs && await a.page.evaluate(() => !!chatWS && chatWS !== window.__oldChat 
 await a.page.waitForTimeout(600);
 ok(await a.page.evaluate(() => dcActive) === dm, "…and you're back in the DM you had open", await a.page.evaluate(() => dcActive));
 // written while the connection was down: sent when it's back
+await a.ctx.setOffline(true);
 await a.page.evaluate(() => { const h = chatWS.onclose; chatWS.onclose = null; chatWS.close(); h({ code: 4000 }); });
 await a.page.fill("#dc-input", "written while offline");
 await a.page.press("#dc-input", "Enter");
 ok(await a.page.evaluate(() => dcOutbox.length) === 1, "chat: a message written while offline is kept");
+await a.ctx.setOffline(false);
+await a.page.evaluate(() => window.dispatchEvent(new Event("online")));
 await b.page.evaluate(() => { openChat(); });
 await b.page.waitForFunction((dm) => { if (dcActive !== dm) dcOpen(dm); return dcMessages.some((m) => m.text === "written while offline"); }, dm, { timeout: 15000, polling: 500 }).catch(() => {});
 ok(await b.page.evaluate(() => dcMessages.some((m) => m.text === "written while offline")), "…and arrives once the connection is back");

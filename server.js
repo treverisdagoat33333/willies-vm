@@ -1187,6 +1187,7 @@ app.get("/api/admin/live", requireOwner, (req, res) => {
 });
 
 /* ---- site bans and kicks (bans.js) ---- */
+const comparableIp = (ip) => String(ip || "").toLowerCase().replace(/^::ffff:/, "").replace(/^::1$/, "127.0.0.1");
 app.get("/api/admin/bans", requireOwner, (_req, res) => res.json({ bans: listBans() }));
 app.post("/api/admin/bans", requireOwner, (req, res) => {
   const kind = String(req.body?.kind || ""), scope = SCOPES.includes(req.body?.scope) ? req.body.scope : "site";
@@ -1202,7 +1203,7 @@ app.post("/api/admin/bans", requireOwner, (req, res) => {
   label ||= user || visitor?.name || "";
   // never lock out the owner, by name, network or device
   const me = req.vmSession.username;
-  if ((kind === "user" && value === me) || (kind === "ip" && value === req.ip) || (kind === "device" && value === req.deviceId)) return res.status(400).json({ error: "That would ban you too." });
+  if ((kind === "user" && value === me) || (kind === "ip" && comparableIp(value) === comparableIp(req.ip)) || (kind === "device" && value === req.deviceId)) return res.status(400).json({ error: "That would ban you too." });
   if (kind === "user" && getUser(value)?.role === "owner") return res.status(400).json({ error: "The owner can't be banned." });
   const hours = req.body?.hours ? Math.min(Math.max(Number(req.body.hours) || 24, 1), 24 * 365 * 5) : null;
   const id = addBan({ kind, value, scope, hours, reason: req.body?.reason || "", label, by: me });

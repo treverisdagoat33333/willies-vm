@@ -34,6 +34,7 @@
 <link rel="stylesheet" href="/css/arcade.css">
 <link rel="stylesheet" href="/css/motion.css">
 <link rel="stylesheet" href="/css/silver.css">
+<link rel="stylesheet" href="/css/surfaces.css">
 </head>
 <body>
 
@@ -553,9 +554,9 @@ https://discord.com/</textarea><div class="ctl"><button class="btn sm" id="st-ru
 </div>
 
 <!-- CHAT -->
-<div id="chat-window">
+<div id="chat-window"><button id="dc-nav-backdrop" type="button" aria-label="Close channel list" hidden></button>
   <aside class="dc-side">
-    <div class="dc-brand"><span class="orb"></span><span>william's server</span></div>
+    <div class="dc-brand"><span class="orb"></span><span>Willie Community<small>YOUR PEOPLE. YOUR SPACE.</small></span></div>
     <div class="dc-scroll">
       <div class="dc-cat"><span>Text channels</span><button id="dc-add-channel" title="New channel" hidden>+</button></div>
       <div id="dc-channels"></div>
@@ -574,7 +575,7 @@ https://discord.com/</textarea><div class="ctl"><button class="btn sm" id="st-ru
   </aside>
 
   <main class="dc-main">
-    <div class="dc-top">
+    <div class="dc-top"><button id="dc-menu" type="button" aria-label="Open channels" aria-expanded="false"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
       <span class="hash" id="dc-top-hash">#</span>
       <b id="dc-top-name">general</b>
       <span class="topic" id="dc-top-topic"></span>
@@ -653,7 +654,7 @@ https://discord.com/</textarea><div class="ctl"><button class="btn sm" id="st-ru
 
 <!-- BROWSER -->
 <div id="browser-wrap">
-  <div id="tab-bar"><div id="tab-list"></div><button id="tab-new" title="New tab (Alt+T)"><svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button></div>
+  <div id="tab-bar"><div class="browser-wordmark" aria-label="Willie Browser"><span>W</span><b>Browser</b></div><div id="tab-list"></div><button id="tab-new" title="New tab (Alt+T)"><svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button></div>
   <div id="btoolbar">
     <button id="b-back" title="Back"><svg class="i" viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></button>
     <button id="b-fwd" title="Forward"><svg class="i" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
@@ -667,7 +668,16 @@ https://discord.com/</textarea><div class="ctl"><button class="btn sm" id="st-ru
     <button id="b-close" class="close" title="Close browser"><svg class="i" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
   </div>
   <div id="bookmarks-bar"></div>
-  <div id="browser-frames"><div id="browser-status"></div></div>
+  <div id="browser-frames"><div id="browser-status" role="status"></div>
+    <section id="browser-start" aria-label="New tab" hidden>
+      <div class="browser-home-top"><span>WILLIE BROWSER</span><span>YOUR NEXT DISCOVERY STARTS HERE</span></div>
+      <div class="browser-home-content"><div class="browser-home-mark" aria-hidden="true">W<span>↗</span></div><p class="surface-eyebrow">A LITTLE CURIOSITY GOES A LONG WAY</p><h1>Where to next?</h1><p class="browser-home-sub">The web is yours to explore.</p>
+      <form id="browser-start-search" role="search"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg><input id="browser-start-query" aria-label="Search the web or enter an address" placeholder="Search the web or enter an address" autocomplete="off"><button type="submit" aria-label="Go">↗</button></form>
+      <div class="browser-shortcuts" aria-label="Quick links"><button data-destination="https://www.youtube.com/"><span>▶</span>YouTube</button><button data-destination="https://github.com/"><span>⌘</span>GitHub</button><button data-destination="https://en.wikipedia.org/"><span>W</span>Wikipedia</button><button data-destination="https://www.reddit.com/"><span>◎</span>Reddit</button><button data-destination="https://docs.google.com/"><span>▤</span>Docs</button></div>
+      <div class="browser-saved" id="browser-start-saved" hidden><div class="surface-section"><h2>Your bookmarks</h2><span>RIGHT WHERE YOU LEFT THEM</span></div><div id="browser-start-bookmarks"></div></div></div>
+      <div class="browser-home-bottom"><span>Willie OS / Silver</span><span>Search. Discover. Make it yours.</span></div>
+    </section>
+  </div>
 </div>
 
 <!-- VM -->
@@ -868,7 +878,7 @@ https://discord.com/</textarea><div class="ctl"><button class="btn sm" id="st-ru
 <!-- AI (the logic is in js/ai.js) -->
 <div id="ai-window">
   <aside class="ai-side">
-    <div class="ai-brand"><div class="ic c9"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg></div><b>AI</b></div>
+    <div class="ai-brand"><div class="ic c9"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg></div><b>Willie AI<small>AN IDEA IS ALL IT TAKES</small></b></div>
     <button type="button" class="btn sm ai-signin" id="ai-signin" hidden>Sign in to your account</button>
     <button type="button" class="btn sm primary ai-new" id="ai-new"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>New chat</button>
     <div class="ai-folders" id="ai-folders" hidden></div>
@@ -1083,5 +1093,6 @@ https://discord.com/</textarea><div class="ctl"><button class="btn sm" id="st-ru
 <script src="/js/apps.js"></script>
 <script src="/js/files-app.js"></script>
 <script src="/js/arcade.js"></script>
+<script src="/js/surfaces.js"></script>
 </body>
 </html>

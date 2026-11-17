@@ -59,7 +59,8 @@
   /* ---------- windows ---------- */
   let z = 61;
   const wins = new Map(); // id -> {el, cleanup:[]}
-  function focus(w) { w.el.style.zIndex = ++z; }
+  function nextLayer() { return (z = window.nextSurfaceLayer ? window.nextSurfaceLayer() : z + 1); }
+  function focus(w) { w.el.style.zIndex = nextLayer(); }
   /* a game's or tool's keys are only its own when nothing else has the keyboard: typing in
      the AI box, chat or any field elsewhere must never be swallowed by a window behind it */
   const ownsKeys = (id, e) => {
@@ -78,7 +79,7 @@
     const W = Math.min(w, innerWidth - 16), H = Math.min(h, innerHeight - 90);
     // each new window steps down and right from the last, starting over every 8 so none open off the screen
     const step = (n % 8) * 26;
-    Object.assign(el.style, { width: `${W}px`, height: `${H}px`, left: `${Math.max(8, Math.min(innerWidth - W - 8, (innerWidth - W) / 2 + step - 60))}px`, top: `${Math.max(8, Math.min(innerHeight - H - 64, (innerHeight - H) / 2 + step - 70))}px`, zIndex: ++z });
+    Object.assign(el.style, { width: `${W}px`, height: `${H}px`, left: `${Math.max(8, Math.min(innerWidth - W - 8, (innerWidth - W) / 2 + step - 60))}px`, top: `${Math.max(8, Math.min(innerHeight - H - 64, (innerHeight - H) / 2 + step - 70))}px`, zIndex: nextLayer() });
     const a = app || { icon, color };
     el.innerHTML = `<div class="aw-bar"><span class="aw-ic${tileClass(a)}" style="${tileStyle(a)}">${iconHtml(a)}</span><b>${esc(title)}</b><span class="sp"></span><span class="aw-extra"></span><button class="aw-desk" title="Move to another desktop">⧉</button><button class="aw-min" title="Minimize">–</button><button class="aw-max" title="Maximize">▢</button><button class="aw-x" title="Close">✕</button></div><div class="aw-body"></div>`;
     document.body.appendChild(el);
@@ -690,7 +691,7 @@
     const id = 'launcher';
     if (wins.has(id)) { const w = wins.get(id); focus(w); $('input', w.body).focus(); return; }
     openWin({ id, title: 'Apps', icon: '▦', color: 'linear-gradient(135deg,#4f8cff,#a855f7)', w: 820, h: 620, build: (win) => {
-      win.body.innerHTML = '<div class="al"><input class="field al-q" placeholder="Search apps" autocomplete="off"><div class="al-list"></div></div>';
+      win.body.innerHTML = '<div class="al"><header class="al-heading"><div><span class="surface-eyebrow">MADE FOR YOUR EVERYDAY</span><h1>A place for everything.</h1><p>Your favourite websites and useful little tools, together.</p></div><span class="al-heading-symbol" aria-hidden="true">⊞</span></header><input class="field al-q" placeholder="Find an app, a tool, or a game…" aria-label="Search apps" autocomplete="off"><div class="al-list"></div></div>';
       const list = $('.al-list', win.body), q = $('.al-q', win.body);
       const card = (a) => `<div class="al-app" data-id="${a.id}" data-web="${a.web ? 1 : ''}" role="button" tabindex="0" title="${esc(a.desc || a.url)}"><span class="al-ic${tileClass(a)}" style="${tileStyle(a)}">${iconHtml(a)}</span><b>${esc(a.name)}</b><button class="al-fav${favs().includes(a.id) ? ' on' : ''}" title="Favourite">★</button></div>`;
       const draw = () => {

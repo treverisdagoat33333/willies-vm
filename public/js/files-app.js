@@ -27,7 +27,7 @@
       B.innerHTML = '<div class="fx-empty"><div class="fx-big">☁️</div><h3>Your own cloud storage</h3><p>Make an account (or sign in) to keep files here and get them on any device.</p></div>';
       return;
     }
-    B.innerHTML = `<aside class="fx-side"><button type="button" class="btn sm primary fx-up">⬆ Upload</button><button type="button" class="btn sm fx-mk">＋ New folder</button><div class="fx-tree"></div><div class="fx-use"><div class="fx-bar"><i></i></div><small></small></div></aside>
+    B.innerHTML = `<aside class="fx-side"><div class="fx-brand"><span class="surface-eyebrow">YOUR PERSONAL CLOUD</span><h2>Files</h2></div><button type="button" class="btn sm primary fx-up">⬆ Upload</button><button type="button" class="btn sm fx-mk">＋ New folder</button><div class="fx-tree"></div><div class="fx-use"><div class="fx-bar"><i></i></div><small></small></div></aside>
       <main class="fx-main"><div class="fx-top"><div class="fx-crumbs"></div><input class="field fx-q" type="search" placeholder="Search files" autocomplete="off"></div><div class="fx-grid"></div><div class="fx-drop">Drop files to upload them here</div></main>
       <div class="fx-view" hidden><div class="fx-view-bar"><b></b><span class="sp"></span><a class="btn sm fx-dl">Download</a><button type="button" class="btn sm fx-vx">Close</button></div><div class="fx-view-body"></div></div>
       <input type="file" class="fx-file" multiple hidden>`;

@@ -113,7 +113,7 @@ function greeting(){const h=new Date().getHours();return h<5?'Late night vibes':
 async function renderHome(){
   const chips=(genres.length?genres:[{id:0,name:'Top hits'}]).map(g=>`<button class="mu-chip${g.id===genre?' on':''}" data-genre="${g.id}">${esc(g.name)}</button>`).join('');
   const recent=lib.recent.length?`<h3 class="mu-h3">Recently played</h3><div class="mu-shelf">${lib.recent.map((t,i)=>`<button class="mu-card" data-recent="${i}"><div class="art"${artStyle(t.artwork)}><span class="pl">${ICON.play}</span></div><b>${esc(t.title)}</b><small>${esc(t.artist||t.uploader||'')}</small></button>`).join('')}</div>`:'';
-  BODY.innerHTML=`<div class="mu-hero"><h1>${greeting()}${currentUsername&&currentUsername!=='Guest'?', '+esc(currentUsername):''}</h1><p>Search any song up top, or start with what's hot right now.</p></div>
+  BODY.innerHTML=`<div class="mu-hero"><div class="mu-hero-copy"><span class="surface-eyebrow">YOUR LISTENING ROOM</span><h1>${greeting()}${currentUsername&&currentUsername!=='Guest'?', '+esc(currentUsername):''}</h1><p>Find your next favourite. Set the mood. Stay a while.</p></div><div class="mu-vinyl" aria-hidden="true"><i></i><span>W</span></div></div>
     ${recent}<h3 class="mu-h3">${lib.source==='au'?'Trending on Audius':'Charts'}</h3><div class="mu-chips">${chips}</div><div id="mu-chart"><div class="mu-empty"><span class="mu-spin"></span>Loading the charts…</div></div>`;
   rows=[];
   const g=genre,src=chartSrc(),ck=src+':'+g;

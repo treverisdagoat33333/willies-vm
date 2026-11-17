@@ -1719,7 +1719,7 @@ function renderTabs(){
 }
 $('#tab-list').addEventListener('click',e=>{const el=e.target.closest('.tab');if(!el)return;const id=+el.dataset.id;if(e.target.closest('.tx'))closeTab(id);else switchTab(id)});
 $('#tab-list').addEventListener('auxclick',e=>{const el=e.target.closest('.tab');if(el&&e.button===1){e.preventDefault();closeTab(+el.dataset.id)}});
-function switchTab(id){tabs.forEach(t=>t.frame.classList.toggle('active',t.id===id));activeTab=id;const t=getTab();if(t){$('#browser-address').value=t.url&&t.url!=='about:blank'?t.url:'';setOmniIcon(t.url)}renderTabs();engineLabel()}
+function switchTab(id){tabs.forEach(t=>t.frame.classList.toggle('active',t.id===id));activeTab=id;const t=getTab();if(t){$('#browser-address').value=t.url&&t.url!=='about:blank'?t.url:'';setOmniIcon(t.url)}renderTabs();engineLabel();window.browserStart?.sync(t)}
 /* toolbar engine button: which engine this tab's site uses, and a menu to change it */
 function engineLabel(){const t=getTab(),id=t?.engine||engineFor(t?.url||'');const b=$('#b-engine');b.textContent=PROXY_SHORT[id]||'WJ';b.title=`Proxy engine: ${PROXIES[id]} (click to change for this site)`}
 $('#b-engine').onclick=e=>{
@@ -2047,6 +2047,7 @@ async function newTab(url){
   const id=++tabN,f=makeFrame(id);$('#browser-frames').appendChild(f);
   const initial=url||(S.autoblank?'about:blank':S.homepage);
   const tab={id,title:'New Tab',url:initial,frame:f,px:null,engine:null};tabs.push(tab);switchTab(id);
+  if(window.browserStart?.wanted(url)){window.browserStart.show(tab);return}
   try{await tabProxy(tab);if(initial!=='about:blank')await navigate(initial,tab);else{$('#browser-address').focus()}}
   catch(err){proxyFailed(err)}
 }
@@ -2057,6 +2058,8 @@ async function navigate(value,tab,quiet){
   const t=tab||getTab();if(!t)return;
   try{
     const raw=typeof value==='string'?value.trim():$('#browser-address').value.trim();if(!raw)return;
+    if(raw==='willie://home'){window.browserStart?.show(t);return}
+    t.start=false;window.browserStart?.sync(t);
     const url=normalizeUrl(raw);
     // until the new page replaces the one on screen, syncTab mustn't read the old one's address back
     try{t.leaving=t.frame.contentDocument;t.leavingAt=Date.now()}catch(_){t.leaving=null}
@@ -2074,8 +2077,8 @@ $('#browser-address').addEventListener('keydown',e=>{if(e.key==='Enter')navigate
 let warmT;$('#browser-address').addEventListener('input',e=>{clearTimeout(warmT);warmT=setTimeout(()=>{const v=e.target.value.trim();if(v.length<4)return;const url=normalizeUrl(v);if(!/^https?:/i.test(url)||engineFor(url)!=='wj'||!proxies.wj)return;proxies.wj.then(en=>en.warm(url)).catch(()=>{})},300)});
 $('#browser-address').addEventListener('focus',e=>e.target.select());
 $('#b-back').onclick=()=>getTab()?.px?.back();$('#b-fwd').onclick=()=>getTab()?.px?.forward();
-$('#b-reload').onclick=e=>{const t=getTab();if(t?.stale)navigate(t.url,t,true);else t?.px?.reload();const ic=e.currentTarget.querySelector('.i');ic.classList.remove('spinning');void ic.offsetWidth;ic.classList.add('spinning')};
-$('#b-home').onclick=()=>navigate(S.homepage);
+$('#b-reload').onclick=e=>{const t=getTab();if(t?.start){$('#browser-start-query').focus();return}if(t?.stale)navigate(t.url,t,true);else t?.px?.reload();const ic=e.currentTarget.querySelector('.i');ic.classList.remove('spinning');void ic.offsetWidth;ic.classList.add('spinning')};
+$('#b-home').onclick=()=>window.browserStart?.wanted()?window.browserStart.show(getTab()):navigate(S.homepage);
 $('#b-fs').onclick=async()=>{try{if(!document.fullscreenElement)await $('#browser-wrap').requestFullscreen();else await document.exitFullscreen()}catch(_){}};
 $('#tab-new').onclick=()=>{click();newTab()};
 $('#b-close').onclick=()=>closeBrowser();$('#b-hist').onclick=()=>openHistory();$('#b-bm').onclick=()=>addBookmark();

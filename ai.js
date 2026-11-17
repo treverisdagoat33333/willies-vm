@@ -213,8 +213,8 @@ function cleanContext(v) {
 }
 
 const config = () => ({
-  key: process.env.AI_API_KEY || "",
-  base: (process.env.AI_BASE_URL || "").replace(/\/+$/, ""),
+  key: process.env.AI_API_KEY || process.env.DAWVQ_API_KEY || "",
+  base: (process.env.AI_BASE_URL || (process.env.DAWVQ_API_KEY ? "https://api.dawvq.com/v1" : "")).replace(/\/+$/, ""),
   model: process.env.AI_MODEL || "",
 });
 
@@ -227,7 +227,8 @@ async function models() {
   try {
     const r = await fetch(`${base}/models`, { headers: { authorization: `Bearer ${key}` }, signal: AbortSignal.timeout(8000) });
     const d = await r.json();
-    const list = (Array.isArray(d?.data) ? d.data : []).map((m) => String(m?.id || "")).filter(Boolean).slice(0, 80);
+    if (!r.ok) throw new Error(`Model catalog returned HTTP ${r.status}`);
+    const list = [...new Set((Array.isArray(d?.data) ? d.data : []).map((m) => String(m?.id || "")).filter(Boolean))];
     if (list.length) modelCache = { at: Date.now(), list };
     return list;
   } catch (_) {
